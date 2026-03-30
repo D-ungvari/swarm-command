@@ -3,7 +3,7 @@ import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
   resourceRemaining, resourceType, unitType,
-  selected, hpCurrent, hpMax, faction,
+  selected, hpCurrent, hpMax, faction, renderTint,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
@@ -148,13 +148,63 @@ export class InfoPanelRenderer {
       return;
     }
 
-    // Multiple units selected — show group count
+    // Multiple units selected — show group breakdown with total HP
     if (selCount > 1) {
+      // Count units by type and accumulate HP
+      const typeCounts: Record<number, number> = {};
+      const typeTints: Record<number, number> = {};
+      let totalHp = 0;
+      let totalMaxHp = 0;
+      for (let e = 1; e < world.nextEid; e++) {
+        if (!hasComponents(world, e, SELECTABLE) || selected[e] !== 1) continue;
+        if (!hasComponents(world, e, POSITION | RENDERABLE)) continue;
+        if (hasComponents(world, e, UNIT_TYPE)) {
+          const ut = unitType[e];
+          typeCounts[ut] = (typeCounts[ut] || 0) + 1;
+          if (!typeTints[ut]) typeTints[ut] = renderTint[e];
+        }
+        if (hasComponents(world, e, HEALTH)) {
+          totalHp += hpCurrent[e];
+          totalMaxHp += hpMax[e];
+        }
+      }
+
+      // Build compact type breakdown string
+      const parts: string[] = [];
+      for (const ut of Object.keys(typeCounts)) {
+        const uType = Number(ut);
+        const def = UNIT_DEFS[uType];
+        const name = def ? def.name : 'Unit';
+        parts.push(`${typeCounts[uType]}x ${name}`);
+      }
+
       this.nameEl.textContent = `${selCount} units selected`;
-      this.detailEl.textContent = '';
-      this.barContainer.style.display = 'none';
+      // Use innerHTML to color each type entry
+      let detailHtml = '';
+      for (const ut of Object.keys(typeCounts)) {
+        const uType = Number(ut);
+        const def = UNIT_DEFS[uType];
+        const name = def ? def.name : 'Unit';
+        const tint = typeTints[uType] || 0xeeeeee;
+        const r = (tint >> 16) & 0xff;
+        const g = (tint >> 8) & 0xff;
+        const b = tint & 0xff;
+        if (detailHtml) detailHtml += '&nbsp;&nbsp;';
+        detailHtml += `<span style="color:rgb(${r},${g},${b})">${typeCounts[uType]}x ${name}</span>`;
+      }
+      this.detailEl.innerHTML = detailHtml;
+
+      // Show total HP bar
+      this.barContainer.style.display = 'block';
+      const ratio = totalMaxHp > 0 ? Math.max(0, totalHp / totalMaxHp) : 0;
+      this.barFill.style.width = `${ratio * 100}%`;
+      this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
+      this.barLabel.textContent = `${Math.floor(totalHp)}/${Math.floor(totalMaxHp)}`;
+
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      // Border stays blue (player's faction)
+      this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
       return;
     }
 
@@ -176,6 +226,8 @@ export class InfoPanelRenderer {
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      // Cyan border for resources
+      this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)';
       return;
     }
 
@@ -236,6 +288,10 @@ export class InfoPanelRenderer {
           this.prodButtonsRow.style.display = 'none';
         }
       }
+      // Faction-colored border for buildings
+      this.panel.style.borderColor = fac === Faction.Zerg
+        ? 'rgba(255, 80, 80, 0.3)'
+        : 'rgba(100, 160, 255, 0.3)';
       return;
     }
 
@@ -261,6 +317,10 @@ export class InfoPanelRenderer {
 
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      // Faction-colored border for units
+      this.panel.style.borderColor = fac === Faction.Zerg
+        ? 'rgba(255, 80, 80, 0.3)'
+        : 'rgba(100, 160, 255, 0.3)';
       return;
     }
 
@@ -269,6 +329,7 @@ export class InfoPanelRenderer {
     this.detailEl.textContent = '';
     this.prodRow.style.display = 'none';
     this.prodButtonsRow.style.display = 'none';
+    this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
   }
 
   private updateProductionButtons(buildingEid: number, produces: readonly number[], playerResources?: PlayerResources): void {

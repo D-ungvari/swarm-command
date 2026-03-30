@@ -211,7 +211,7 @@ export class Game {
   private render(): void {
     this.tilemapRenderer.updateWater(this.gameTime);
     this.unitRenderer.render(this.world, this.gameTime);
-    this.selectionRenderer.render(this.input.state);
+    this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();
     const res = this.resources[Faction.Terran];
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
@@ -220,6 +220,15 @@ export class Game {
     this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world);
+
+    // Cursor change based on current mode
+    if (this.placementMode) {
+      document.body.style.cursor = 'cell';
+    } else if (attackMoveMode) {
+      document.body.style.cursor = 'crosshair';
+    } else {
+      document.body.style.cursor = 'default';
+    }
   }
 
   private handleBuildPlacement(): void {

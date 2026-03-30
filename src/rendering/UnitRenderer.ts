@@ -9,6 +9,8 @@ import {
   resourceType, resourceRemaining,
   buildState, buildProgress, buildingType, rallyX, rallyY,
   workerCarrying, workerState,
+  prodUnitType, prodProgress, prodTimeTotal,
+  velX, velY,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -53,7 +55,7 @@ export class UnitRenderer {
       if (!hasComponents(world, eid, bits)) continue;
 
       const x = posX[eid];
-      const y = posY[eid];
+      let y = posY[eid];
       let w = renderWidth[eid];
       let h = renderHeight[eid];
       const tint = renderTint[eid];
@@ -243,6 +245,16 @@ export class UnitRenderer {
           g.lineTo(rallyX[eid], rallyY[eid]);
           g.stroke({ color: 0x44ff44, width: 1, alpha: 0.3 });
         }
+
+        // Production progress ring (visible without selecting)
+        if (bs === BuildState.Complete && prodUnitType[eid] > 0 && prodTimeTotal[eid] > 0) {
+          const prodRatio = 1 - (prodProgress[eid] / prodTimeTotal[eid]);
+          const arcRadius = Math.max(w, h) / 2 + 4;
+          const startAngle = -Math.PI / 2; // 12 o'clock
+          const endAngle = startAngle + prodRatio * Math.PI * 2;
+          g.arc(x, y, arcRadius, startAngle, endAngle, false);
+          g.stroke({ color: 0xffaa22, width: 2, alpha: 0.7 });
+        }
         continue;
       }
 
@@ -269,6 +281,11 @@ export class UnitRenderer {
       if (isSlowed) {
         g.circle(x, y, Math.max(w, h) * 0.6);
         g.fill({ color: 0x4488cc, alpha: 0.25 });
+      }
+
+      // Idle unit breathing animation — subtle vertical bob
+      if (velX[eid] === 0 && velY[eid] === 0) {
+        y += Math.sin(gameTime * 2 + eid * 0.7) * 0.8;
       }
 
       // Siege Tank shape adjustment when sieged

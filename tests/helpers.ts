@@ -10,8 +10,9 @@ import {
   addUnitComponents,
   addWorkerComponent,
   addResourceComponents,
+  addBuildingComponents,
   resetComponents,
-  WORKER, RESOURCE,
+  WORKER, RESOURCE, BUILDING, SUPPLY,
   posX, posY,
   hpCurrent, hpMax,
   atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, atkFlashTimer,
@@ -27,6 +28,10 @@ import {
   resourceType, resourceRemaining,
   workerState, workerCarrying, workerTargetEid, workerMineTimer,
   workerBaseX, workerBaseY,
+  buildingType, buildState, buildProgress, buildTimeTotal, builderEid,
+  rallyX, rallyY,
+  prodUnitType, prodProgress, prodTimeTotal,
+  supplyProvided, supplyCost,
 } from '../src/ecs/components';
 import type { MapData } from '../src/map/MapData';
 import type { PlayerResources } from '../src/types';
@@ -39,7 +44,7 @@ export const UnitType = {
   Drone: 10, Zergling: 11, Baneling: 12, Hydralisk: 13, Roach: 14,
 } as const;
 export const CommandMode = {
-  Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3, Gather: 4,
+  Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3, Gather: 4, Build: 5,
 } as const;
 export const SiegeMode = {
   Mobile: 0, Sieged: 1, Packing: 2, Unpacking: 3,
@@ -49,6 +54,12 @@ export const ResourceType = {
 } as const;
 export const WorkerState = {
   Idle: 0, MovingToResource: 1, Mining: 2, ReturningToBase: 3,
+} as const;
+export const BuildingType = {
+  CommandCenter: 20, SupplyDepot: 21, Barracks: 22,
+} as const;
+export const BuildState = {
+  UnderConstruction: 1, Complete: 2,
 } as const;
 
 export interface SpawnOpts {
@@ -188,12 +199,60 @@ export function spawnWorker(
   return eid;
 }
 
+export interface SpawnBuildingOpts {
+  x?: number;
+  y?: number;
+  hp?: number;
+  buildingTypeId?: number;
+  buildStateId?: number;
+  progress?: number;
+  buildTime?: number;
+  builder?: number;
+  factionId?: number;
+  width?: number;
+  height?: number;
+  supply?: number;
+}
+
+/**
+ * Spawn a building entity. Returns the entity ID.
+ * Sets all building component arrays with sane defaults.
+ */
+export function spawnBuilding(world: World, opts: SpawnBuildingOpts = {}): number {
+  const eid = addEntity(world);
+  addBuildingComponents(world, eid);
+
+  posX[eid] = opts.x ?? 200;
+  posY[eid] = opts.y ?? 200;
+  hpCurrent[eid] = opts.hp ?? 150;
+  hpMax[eid] = opts.hp ?? 1500;
+  faction[eid] = opts.factionId ?? Faction.Terran;
+  renderWidth[eid] = opts.width ?? 48;
+  renderHeight[eid] = opts.height ?? 48;
+  renderTint[eid] = 0x2266aa;
+
+  buildingType[eid] = opts.buildingTypeId ?? BuildingType.Barracks;
+  buildState[eid] = opts.buildStateId ?? BuildState.UnderConstruction;
+  buildProgress[eid] = opts.progress ?? 0;
+  buildTimeTotal[eid] = opts.buildTime ?? 40;
+  builderEid[eid] = opts.builder ?? -1;
+  rallyX[eid] = -1;
+  rallyY[eid] = -1;
+  prodUnitType[eid] = 0;
+  prodProgress[eid] = 0;
+  prodTimeTotal[eid] = 0;
+  supplyProvided[eid] = opts.supply ?? 0;
+  supplyCost[eid] = 0;
+
+  return eid;
+}
+
 /**
  * Create default player resources for both factions.
  */
 export function createPlayerResources(): Record<number, PlayerResources> {
   return {
-    [Faction.Terran]: { minerals: 50, gas: 0 },
-    [Faction.Zerg]: { minerals: 50, gas: 0 },
+    [Faction.Terran]: { minerals: 50, gas: 0, supplyUsed: 0, supplyProvided: 10 },
+    [Faction.Zerg]: { minerals: 50, gas: 0, supplyUsed: 0, supplyProvided: 10 },
   };
 }

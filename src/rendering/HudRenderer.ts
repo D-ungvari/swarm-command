@@ -4,6 +4,7 @@
 export class HudRenderer {
   private mineralEl: HTMLSpanElement;
   private gasEl: HTMLSpanElement;
+  private supplyEl: HTMLSpanElement;
 
   constructor(container: HTMLElement) {
     const hud = document.createElement('div');
@@ -53,13 +54,30 @@ export class HudRenderer {
     gasDiv.appendChild(gasIcon);
     gasDiv.appendChild(this.gasEl);
 
+    // Supply
+    const supplyDiv = document.createElement('div');
+    supplyDiv.style.display = 'flex';
+    supplyDiv.style.alignItems = 'center';
+    supplyDiv.style.gap = '4px';
+
+    const supplyIcon = document.createElement('span');
+    supplyIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#ffcc44;border-radius:1px;';
+    this.supplyEl = document.createElement('span');
+    this.supplyEl.textContent = '0/0';
+
+    supplyDiv.appendChild(supplyIcon);
+    supplyDiv.appendChild(this.supplyEl);
+
     hud.appendChild(mineralDiv);
     hud.appendChild(gasDiv);
+    hud.appendChild(supplyDiv);
     container.appendChild(hud);
   }
 
-  update(minerals: number, gas: number): void {
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
+    this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
+    this.supplyEl.style.color = supplyUsed >= supplyProvided ? '#ff4444' : '#eee';
   }
 }

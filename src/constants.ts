@@ -58,6 +58,20 @@ export const enum CommandMode {
   AttackMove = 2,
   AttackTarget = 3,
   Gather = 4,
+  Build = 5,
+}
+
+// ── Building types ──
+export const enum BuildingType {
+  CommandCenter = 20,
+  SupplyDepot = 21,
+  Barracks = 22,
+}
+
+// ── Building states ──
+export const enum BuildState {
+  UnderConstruction = 1,
+  Complete = 2,
 }
 
 // ── Resource types ──
@@ -107,6 +121,12 @@ export const MEDIVAC_HEAL_RANGE = 4;
 export const ROACH_REGEN_COMBAT = 0.5;
 export const ROACH_REGEN_IDLE = 2.0;
 export const ROACH_COMBAT_TIMEOUT = 3.0;
+
+// ── Building constants ──
+export const STARTING_SUPPLY = 10;
+export const SUPPLY_PER_DEPOT = 8;
+export const SUPPLY_PER_UNIT = 1;
+export const BUILDING_COLOR = 0x2266aa;
 
 // ── Economy constants ──
 export const MINERAL_PER_PATCH = 1500;

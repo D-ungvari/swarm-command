@@ -149,3 +149,53 @@ export function findNearestWalkableTile(map: MapData, col: number, row: number):
   }
   return null;
 }
+
+/** Check if a building footprint can be placed at (col, row) */
+export function isBuildable(map: MapData, col: number, row: number, tileW: number, tileH: number): boolean {
+  const startCol = col - Math.floor(tileW / 2);
+  const startRow = row - Math.floor(tileH / 2);
+  for (let r = startRow; r < startRow + tileH; r++) {
+    for (let c = startCol; c < startCol + tileW; c++) {
+      if (c < 0 || c >= map.cols || r < 0 || r >= map.rows) return false;
+      if (map.walkable[r * map.cols + c] !== 1) return false;
+      if (map.tiles[r * map.cols + c] !== TileType.Ground) return false;
+    }
+  }
+  return true;
+}
+
+/** Mark tiles occupied by a building (unwalkable) */
+export function markBuildingTiles(map: MapData, col: number, row: number, tileW: number, tileH: number): void {
+  const startCol = col - Math.floor(tileW / 2);
+  const startRow = row - Math.floor(tileH / 2);
+  for (let r = startRow; r < startRow + tileH; r++) {
+    for (let c = startCol; c < startCol + tileW; c++) {
+      if (c >= 0 && c < map.cols && r >= 0 && r < map.rows) {
+        map.walkable[r * map.cols + c] = 0;
+      }
+    }
+  }
+  // Invalidate pathfinder cache
+  invalidatePathfinderCache();
+}
+
+/** Clear tiles occupied by a destroyed building (make walkable again) */
+export function clearBuildingTiles(map: MapData, col: number, row: number, tileW: number, tileH: number): void {
+  const startCol = col - Math.floor(tileW / 2);
+  const startRow = row - Math.floor(tileH / 2);
+  for (let r = startRow; r < startRow + tileH; r++) {
+    for (let c = startCol; c < startCol + tileW; c++) {
+      if (c >= 0 && c < map.cols && r >= 0 && r < map.rows) {
+        map.walkable[r * map.cols + c] = 1;
+        map.tiles[r * map.cols + c] = TileType.Ground;
+      }
+    }
+  }
+  invalidatePathfinderCache();
+}
+
+/** Exported callback set by Pathfinder to invalidate its cache */
+let invalidatePathfinderCache: () => void = () => {};
+export function setPathfinderInvalidator(fn: () => void): void {
+  invalidatePathfinderCache = fn;
+}

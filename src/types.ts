@@ -1,4 +1,4 @@
-import type { Faction, UnitType } from './constants';
+import type { Faction, UnitType, BuildingType } from './constants';
 
 /** Command issued by player or AI */
 export interface Command {
@@ -12,6 +12,8 @@ export interface Command {
 export interface PlayerResources {
   minerals: number;
   gas: number;
+  supplyUsed: number;
+  supplyProvided: number;
 }
 
 /** Unit stat definition from data tables */
@@ -27,5 +29,24 @@ export interface UnitDef {
   splashRadius: number;
   width: number;
   height: number;
+  color: number;
+  costMinerals: number;
+  costGas: number;
+  buildTime: number;
+}
+
+/** Building stat definition from data tables */
+export interface BuildingDef {
+  type: BuildingType;
+  name: string;
+  faction: Faction;
+  hp: number;
+  costMinerals: number;
+  costGas: number;
+  buildTime: number;
+  tileWidth: number;
+  tileHeight: number;
+  supplyProvided: number;
+  produces: UnitType[];
   color: number;
 }

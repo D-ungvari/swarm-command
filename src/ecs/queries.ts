@@ -1,10 +1,11 @@
 import { type World, hasComponents, entityExists } from './world';
 import {
-  POSITION, SELECTABLE, RENDERABLE, HEALTH, ATTACK, RESOURCE,
+  POSITION, SELECTABLE, RENDERABLE, HEALTH, ATTACK, RESOURCE, BUILDING,
   posX, posY, renderWidth, renderHeight, faction, hpCurrent, atkRange,
   resourceRemaining, resourceType,
+  buildingType, buildState,
 } from './components';
-import { type Faction, ResourceType } from '../constants';
+import { type Faction, ResourceType, BuildingType, BuildState } from '../constants';
 
 /**
  * Find the closest unit at a world position (for click targeting).
@@ -141,6 +142,33 @@ export function findNearestMineral(world: World, wx: number, wy: number): number
     if (!hasComponents(world, eid, bits)) continue;
     if (resourceRemaining[eid] <= 0) continue;
     if (resourceType[eid] !== ResourceType.Mineral) continue;
+
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq < closestDist) {
+      closestDist = distSq;
+      closestEid = eid;
+    }
+  }
+
+  return closestEid;
+}
+
+/**
+ * Find the nearest completed Command Center for a given faction.
+ */
+export function findNearestCommandCenter(world: World, fac: Faction, wx: number, wy: number): number {
+  const bits = POSITION | BUILDING;
+  let closestEid = 0;
+  let closestDist = Infinity;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (faction[eid] !== fac) continue;
+    if (buildingType[eid] !== BuildingType.CommandCenter) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
 
     const dx = posX[eid] - wx;
     const dy = posY[eid] - wy;

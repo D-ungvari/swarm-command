@@ -1,24 +1,27 @@
 import { type World, hasComponents } from '../ecs/world';
 import {
-  POSITION, SELECTABLE, MOVEMENT, UNIT_TYPE,
+  POSITION, SELECTABLE, MOVEMENT, UNIT_TYPE, BUILDING,
   posX, posY, selected, moveTargetX, moveTargetY,
   setPath, faction, movePathIndex, unitType,
   targetEntity, commandMode,
   stimEndTime, hpCurrent, moveSpeed, atkCooldown,
   siegeMode, siegeTransitionEnd,
   workerState, workerTargetEid, resourceType,
+  rallyX, rallyY, buildState, buildingType, prodUnitType, prodProgress, prodTimeTotal,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
+import { BUILDING_DEFS } from '../data/buildings';
 import { findEnemyAt, findResourceAt } from '../ecs/queries';
 import type { InputState } from '../input/InputManager';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import {
-  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, TILE_SIZE,
+  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, TILE_SIZE,
   STIM_DURATION, STIM_HP_COST, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
 } from '../constants';
+import type { PlayerResources } from '../types';
 import type { Viewport } from 'pixi-viewport';
 
 /** Attack-move mode: set by pressing A, consumed by next left-click */
@@ -27,6 +30,7 @@ let attackMoveMode = false;
 /**
  * Translates player input into move/attack/attack-move commands for selected units.
  * Also handles ability hotkeys (T = stim, E = siege mode).
+ * Handles rally points for buildings and production hotkeys.
  */
 export function commandSystem(
   world: World,
@@ -34,8 +38,14 @@ export function commandSystem(
   viewport: Viewport,
   map: MapData,
   gameTime: number,
+  resources?: Record<number, PlayerResources>,
 ): void {
   const m = input.mouse;
+
+  // Production hotkeys (Q = produce first unit, W = produce second)
+  if (resources && (input.keysJustPressed.has('KeyQ') || input.keysJustPressed.has('KeyW'))) {
+    handleProductionHotkey(world, input, resources);
+  }
 
   // A key toggles attack-move mode
   if (input.keysJustPressed.has('KeyA')) {
@@ -89,11 +99,19 @@ export function commandSystem(
     return;
   }
 
-  // Right-click = move or attack
+  // Right-click = move or attack or rally
   if (!m.rightJustPressed) return;
   attackMoveMode = false;
 
   const worldPos = viewport.toWorld(m.x, m.y);
+
+  // Set rally point for selected buildings
+  const selectedBuildings = getSelectedBuildings(world);
+  for (const eid of selectedBuildings) {
+    rallyX[eid] = worldPos.x;
+    rallyY[eid] = worldPos.y;
+  }
+
   const selectedUnits = getSelectedUnits(world);
   if (selectedUnits.length === 0) return;
 
@@ -267,5 +285,60 @@ function stopSelectedUnits(world: World): void {
     movePathIndex[eid] = -1;
     workerState[eid] = WorkerState.Idle;
     workerTargetEid[eid] = -1;
+  }
+}
+
+function getSelectedBuildings(world: World): number[] {
+  const buildings: number[] = [];
+  const bits = SELECTABLE | POSITION | BUILDING;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (selected[eid] !== 1) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    buildings.push(eid);
+  }
+  return buildings;
+}
+
+function handleProductionHotkey(
+  world: World,
+  input: InputState,
+  resources: Record<number, PlayerResources>,
+): void {
+  const buildings = getSelectedBuildings(world);
+  if (buildings.length === 0) return;
+
+  const isQ = input.keysJustPressed.has('KeyQ');
+  const slotIndex = isQ ? 0 : 1;
+
+  for (const eid of buildings) {
+    if (prodUnitType[eid] !== 0) continue; // Already producing
+
+    const bDef = BUILDING_DEFS[buildingType[eid]];
+    if (!bDef || slotIndex >= bDef.produces.length) continue;
+
+    const uType = bDef.produces[slotIndex];
+    const uDef = UNIT_DEFS[uType];
+    if (!uDef) continue;
+
+    const fac = faction[eid];
+    const res = resources[fac];
+    if (!res) continue;
+
+    // Check resources
+    if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) continue;
+
+    // Check supply
+    if (res.supplyUsed >= res.supplyProvided) continue;
+
+    // Deduct cost
+    res.minerals -= uDef.costMinerals;
+    res.gas -= uDef.costGas;
+
+    // Start production
+    prodUnitType[eid] = uType;
+    prodProgress[eid] = uDef.buildTime;
+    prodTimeTotal[eid] = uDef.buildTime;
+    break; // Only queue on the first available building
   }
 }

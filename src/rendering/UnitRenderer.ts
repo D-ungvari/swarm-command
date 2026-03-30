@@ -1,12 +1,13 @@
 import { Container, Graphics } from 'pixi.js';
-import { Faction, UnitType, SiegeMode, ResourceType, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE } from '../constants';
+import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE } from '../constants';
 import {
-  POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE,
+  POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING,
   posX, posY, renderWidth, renderHeight, renderTint,
   selected, faction, hpCurrent, hpMax, unitType,
   atkFlashTimer, atkRange, atkDamage, targetEntity,
   stimEndTime, slowEndTime, siegeMode, lastCombatTime,
   resourceType, resourceRemaining,
+  buildState, buildProgress, buildingType, rallyX, rallyY,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -74,6 +75,71 @@ export class UnitRenderer {
           g.fill({ color: 0x333333, alpha: 0.8 });
           g.rect(barX, barY, barW * ratio, barH);
           g.fill({ color: tint });
+        }
+        continue;
+      }
+
+      // Building entities
+      if (hasComponents(world, eid, BUILDING)) {
+        if (isSelected) {
+          g.circle(x, y, Math.max(w, h) * 0.6);
+          g.stroke({ color: SELECTION_COLOR, width: 1.5, alpha: 0.8 });
+        }
+
+        const bs = buildState[eid] as BuildState;
+        const alpha = bs === BuildState.UnderConstruction ? 0.6 : 1.0;
+        g.rect(x - w / 2, y - h / 2, w, h);
+        g.fill({ color: tint, alpha });
+        g.stroke({ color: 0x446688, width: 1.5, alpha });
+
+        // Building type label
+        const bt = buildingType[eid] as BuildingType;
+        if (bt === BuildingType.CommandCenter) {
+          // CC indicator dot
+          g.circle(x, y, 4);
+          g.fill({ color: 0xffcc44 });
+        } else if (bt === BuildingType.Barracks) {
+          // Barracks X indicator
+          g.moveTo(x - 4, y - 4);
+          g.lineTo(x + 4, y + 4);
+          g.moveTo(x + 4, y - 4);
+          g.lineTo(x - 4, y + 4);
+          g.stroke({ color: 0xffffff, width: 1.5, alpha: 0.6 });
+        }
+
+        // Construction progress bar (yellow)
+        if (bs === BuildState.UnderConstruction) {
+          const barW2 = w + 4;
+          const barH2 = 4;
+          const barX2 = x - barW2 / 2;
+          const barY2 = y - h / 2 - 8;
+          g.rect(barX2, barY2, barW2, barH2);
+          g.fill({ color: 0x333333, alpha: 0.8 });
+          g.rect(barX2, barY2, barW2 * buildProgress[eid], barH2);
+          g.fill({ color: 0xffaa22 });
+        }
+
+        // Health bar (only if complete and damaged)
+        if (bs === BuildState.Complete && hpCurrent[eid] < hpMax[eid]) {
+          const barW3 = w + 4;
+          const barH3 = 3;
+          const barX3 = x - barW3 / 2;
+          const barY3 = y - h / 2 - 6;
+          const hpRatio = Math.max(0, hpCurrent[eid] / hpMax[eid]);
+          g.rect(barX3, barY3, barW3, barH3);
+          g.fill({ color: 0x333333, alpha: 0.8 });
+          const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
+          g.rect(barX3, barY3, barW3 * hpRatio, barH3);
+          g.fill({ color: hpColor });
+        }
+
+        // Rally point indicator
+        if (isSelected && rallyX[eid] >= 0) {
+          g.circle(rallyX[eid], rallyY[eid], 4);
+          g.fill({ color: 0x44ff44, alpha: 0.6 });
+          g.moveTo(x, y);
+          g.lineTo(rallyX[eid], rallyY[eid]);
+          g.stroke({ color: 0x44ff44, width: 1, alpha: 0.3 });
         }
         continue;
       }

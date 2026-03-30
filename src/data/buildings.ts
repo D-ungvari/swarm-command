@@ -1,0 +1,47 @@
+import { Faction, BuildingType, UnitType, BUILDING_COLOR } from '../constants';
+import type { BuildingDef } from '../types';
+
+export const BUILDING_DEFS: Record<number, BuildingDef> = {
+  [BuildingType.CommandCenter]: {
+    type: BuildingType.CommandCenter,
+    name: 'Command Center',
+    faction: Faction.Terran,
+    hp: 1500,
+    costMinerals: 400,
+    costGas: 0,
+    buildTime: 60,
+    tileWidth: 3,
+    tileHeight: 3,
+    supplyProvided: 10,
+    produces: [UnitType.SCV],
+    color: BUILDING_COLOR,
+  },
+  [BuildingType.SupplyDepot]: {
+    type: BuildingType.SupplyDepot,
+    name: 'Supply Depot',
+    faction: Faction.Terran,
+    hp: 400,
+    costMinerals: 100,
+    costGas: 0,
+    buildTime: 20,
+    tileWidth: 2,
+    tileHeight: 2,
+    supplyProvided: 8,
+    produces: [],
+    color: 0x224488,
+  },
+  [BuildingType.Barracks]: {
+    type: BuildingType.Barracks,
+    name: 'Barracks',
+    faction: Faction.Terran,
+    hp: 1000,
+    costMinerals: 150,
+    costGas: 0,
+    buildTime: 40,
+    tileWidth: 3,
+    tileHeight: 3,
+    supplyProvided: 0,
+    produces: [UnitType.Marine, UnitType.Marauder],
+    color: BUILDING_COLOR,
+  },
+};

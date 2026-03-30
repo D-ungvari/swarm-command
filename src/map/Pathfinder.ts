@@ -1,8 +1,14 @@
 import PF from 'pathfinding';
-import type { MapData } from './MapData';
+import { type MapData, setPathfinderInvalidator } from './MapData';
 
 let cachedGrid: PF.Grid | null = null;
 let cachedMap: MapData | null = null;
+
+// Register cache invalidation callback with MapData
+setPathfinderInvalidator(() => {
+  cachedGrid = null;
+  cachedMap = null;
+});
 const finder = new PF.AStarFinder({
   allowDiagonal: true,
   dontCrossCorners: true,

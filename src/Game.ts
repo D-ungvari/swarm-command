@@ -1,16 +1,17 @@
-import { Application, Container } from 'pixi.js';
+import { Application, Container, Graphics } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import {
   MAP_WIDTH, MAP_HEIGHT, TILE_SIZE,
   EDGE_SCROLL_ZONE, EDGE_SCROLL_SPEED,
   MIN_ZOOM, MAX_ZOOM,
-  MS_PER_TICK, Faction, UnitType, ResourceType,
-  MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR,
-  STARTING_MINERALS, STARTING_GAS, TileType,
+  MS_PER_TICK, Faction, UnitType, ResourceType, BuildingType, BuildState,
+  MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
+  STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
+  TileType, CommandMode, WorkerState,
 } from './constants';
 import { createWorld, addEntity, type World } from './ecs/world';
 import {
-  addUnitComponents, addWorkerComponent, addResourceComponents,
+  addUnitComponents, addWorkerComponent, addResourceComponents, addBuildingComponents,
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
@@ -21,9 +22,20 @@ import {
   workerState, workerCarrying, workerTargetEid, workerMineTimer,
   workerBaseX, workerBaseY,
   resourceType, resourceRemaining,
+  buildingType, buildState, buildProgress, buildTimeTotal, builderEid,
+  rallyX, rallyY, prodUnitType, prodProgress, prodTimeTotal,
+  supplyProvided, supplyCost,
+  selected, setPath,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
-import { generateMap, tileToWorld, getResourceTiles, type MapData } from './map/MapData';
+import { BUILDING_DEFS } from './data/buildings';
+import {
+  generateMap, tileToWorld, worldToTile, getResourceTiles,
+  isBuildable, markBuildingTiles,
+  findNearestWalkableTile,
+  type MapData,
+} from './map/MapData';
+import { findPath } from './map/Pathfinder';
 import { InputManager } from './input/InputManager';
 import { TilemapRenderer } from './rendering/TilemapRenderer';
 import { UnitRenderer } from './rendering/UnitRenderer';
@@ -32,6 +44,8 @@ import { HudRenderer } from './rendering/HudRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem } from './systems/CommandSystem';
+import { buildSystem } from './systems/BuildSystem';
+import { productionSystem } from './systems/ProductionSystem';
 import { combatSystem } from './systems/CombatSystem';
 import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
@@ -47,15 +61,20 @@ export class Game {
 
   // Per-player resource state
   resources: Record<number, PlayerResources> = {
-    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS },
-    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS },
+    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY },
+    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY },
   };
+
+  // Building placement state
+  placementMode = false;
+  placementBuildingType: number = 0;
 
   // Renderers
   private tilemapRenderer!: TilemapRenderer;
   private unitRenderer!: UnitRenderer;
   private selectionRenderer!: SelectionRenderer;
   private hudRenderer!: HudRenderer;
+  private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
   private accumulator = 0;
@@ -68,7 +87,6 @@ export class Game {
   }
 
   async init(container: HTMLElement): Promise<void> {
-    // Create PixiJS app
     this.app = new Application();
     await this.app.init({
       background: 0x0a0a0a,
@@ -79,7 +97,6 @@ export class Game {
     });
     container.appendChild(this.app.canvas as HTMLCanvasElement);
 
-    // Create viewport (camera)
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
@@ -96,40 +113,36 @@ export class Game {
       .clampZoom({ minScale: MIN_ZOOM, maxScale: MAX_ZOOM })
       .clamp({ direction: 'all' });
 
-    // Start camera near player 1 base
     const startPos = tileToWorld(15, 15);
     this.viewport.moveCenter(startPos.x, startPos.y);
 
-    // Input
     this.input = new InputManager(this.app.canvas as HTMLCanvasElement);
 
-    // Renderers
     this.tilemapRenderer = new TilemapRenderer();
     this.viewport.addChild(this.tilemapRenderer.container);
 
     this.unitRenderer = new UnitRenderer();
     this.viewport.addChild(this.unitRenderer.container);
 
-    // Selection box renders in screen space (above viewport)
+    // Ghost preview for building placement (world space)
+    this.ghostGraphics = new Graphics();
+    this.viewport.addChild(this.ghostGraphics);
+
     this.selectionRenderer = new SelectionRenderer();
     this.app.stage.addChild(this.selectionRenderer.container);
 
-    // HUD
     this.hudRenderer = new HudRenderer(container);
 
-    // Render the tilemap once
     this.tilemapRenderer.render(this.map);
 
-    // Spawn resource nodes and demo units
     this.spawnResourceNodes();
+    this.spawnStartingBase();
     this.spawnDemoUnits();
 
-    // Handle resize
     window.addEventListener('resize', () => {
       this.viewport.resize(window.innerWidth, window.innerHeight);
     });
 
-    // Start game loop
     this.lastTime = performance.now();
     this.app.ticker.add(() => this.loop());
   }
@@ -140,28 +153,26 @@ export class Game {
     this.lastTime = now;
     this.accumulator += frameTime;
 
-    // Snapshot input once per frame
     this.input.update();
-
-    // Edge scrolling
     this.handleEdgeScroll();
+    this.handleBuildPlacement();
 
-    // Fixed timestep game logic
     while (this.accumulator >= MS_PER_TICK) {
       this.tick(MS_PER_TICK / 1000);
       this.accumulator -= MS_PER_TICK;
     }
 
-    // Render
     this.render();
-
     this.input.lateUpdate();
   }
 
   private tick(dt: number): void {
     this.gameTime += dt;
     selectionSystem(this.world, this.input.state, this.viewport);
-    commandSystem(this.world, this.input.state, this.viewport, this.map, this.gameTime);
+    commandSystem(this.world, this.input.state, this.viewport, this.map, this.gameTime, this.resources);
+    buildSystem(this.world, dt, this.resources);
+    productionSystem(this.world, dt, this.resources, this.map,
+      (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y));
     movementSystem(this.world, dt);
     combatSystem(this.world, dt, this.gameTime, this.map);
     abilitySystem(this.world, dt, this.gameTime);
@@ -172,8 +183,136 @@ export class Game {
   private render(): void {
     this.unitRenderer.render(this.world, this.gameTime);
     this.selectionRenderer.render(this.input.state);
+    this.renderGhost();
     const res = this.resources[Faction.Terran];
-    this.hudRenderer.update(res.minerals, res.gas);
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
+  }
+
+  private handleBuildPlacement(): void {
+    const input = this.input.state;
+
+    // B key opens build mode
+    if (input.keysJustPressed.has('KeyB') && !this.placementMode) {
+      this.placementMode = true;
+      this.placementBuildingType = 0; // Wait for 1/2/3
+      return;
+    }
+
+    if (this.placementMode) {
+      // Select building type
+      if (input.keysJustPressed.has('Digit1')) {
+        this.placementBuildingType = BuildingType.CommandCenter;
+      } else if (input.keysJustPressed.has('Digit2')) {
+        this.placementBuildingType = BuildingType.SupplyDepot;
+      } else if (input.keysJustPressed.has('Digit3')) {
+        this.placementBuildingType = BuildingType.Barracks;
+      }
+
+      // Escape cancels
+      if (input.keysJustPressed.has('Escape')) {
+        this.placementMode = false;
+        this.placementBuildingType = 0;
+        return;
+      }
+
+      // Left click places building
+      if (this.placementBuildingType > 0 && input.mouse.leftJustReleased && !input.mouse.isDragging) {
+        const def = BUILDING_DEFS[this.placementBuildingType];
+        if (!def) return;
+
+        const worldPos = this.viewport.toWorld(input.mouse.x, input.mouse.y);
+        const tile = worldToTile(worldPos.x, worldPos.y);
+
+        if (isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)) {
+          const res = this.resources[Faction.Terran];
+          if (res.minerals >= def.costMinerals && res.gas >= def.costGas) {
+            res.minerals -= def.costMinerals;
+            res.gas -= def.costGas;
+
+            const bEid = this.spawnBuilding(this.placementBuildingType as BuildingType, Faction.Terran, tile.col, tile.row);
+
+            // Find nearest selected SCV and command it to build
+            this.assignBuilderToBuilding(bEid);
+
+            this.placementMode = false;
+            this.placementBuildingType = 0;
+          }
+        }
+      }
+    }
+  }
+
+  private assignBuilderToBuilding(buildingEid: number): void {
+    // Find first selected SCV, or nearest SCV if none selected
+    let bestSCV = 0;
+    let bestDist = Infinity;
+    const bx = posX[buildingEid];
+    const by = posY[buildingEid];
+
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (unitType[eid] !== UnitType.SCV) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (hpCurrent[eid] <= 0) continue;
+
+      const dx = posX[eid] - bx;
+      const dy = posY[eid] - by;
+      const dist = dx * dx + dy * dy;
+
+      // Prefer selected SCVs
+      if (selected[eid] === 1) {
+        if (bestSCV === 0 || selected[bestSCV] !== 1 || dist < bestDist) {
+          bestSCV = eid;
+          bestDist = dist;
+        }
+      } else if (selected[bestSCV] !== 1 && dist < bestDist) {
+        bestSCV = eid;
+        bestDist = dist;
+      }
+    }
+
+    if (bestSCV > 0) {
+      builderEid[buildingEid] = bestSCV;
+      commandMode[bestSCV] = CommandMode.Build;
+      workerState[bestSCV] = WorkerState.Idle;
+      workerTargetEid[bestSCV] = buildingEid;
+      targetEntity[bestSCV] = -1;
+
+      // Path SCV to building
+      const startTile = worldToTile(posX[bestSCV], posY[bestSCV]);
+      const buildTile = worldToTile(posX[buildingEid], posY[buildingEid]);
+      const walkable = findNearestWalkableTile(this.map, buildTile.col, buildTile.row);
+      if (walkable) {
+        const tilePath = findPath(this.map, startTile.col, startTile.row, walkable.col, walkable.row);
+        if (tilePath.length > 0) {
+          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+            const wp = tileToWorld(c, r);
+            return [wp.x, wp.y] as [number, number];
+          });
+          setPath(bestSCV, worldPath);
+        }
+      }
+    }
+  }
+
+  private renderGhost(): void {
+    this.ghostGraphics.clear();
+    if (!this.placementMode || this.placementBuildingType === 0) return;
+
+    const def = BUILDING_DEFS[this.placementBuildingType];
+    if (!def) return;
+
+    const worldPos = this.viewport.toWorld(this.input.state.mouse.x, this.input.state.mouse.y);
+    const tile = worldToTile(worldPos.x, worldPos.y);
+    const center = tileToWorld(tile.col, tile.row);
+
+    const w = def.tileWidth * TILE_SIZE;
+    const h = def.tileHeight * TILE_SIZE;
+    const valid = isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
+    const color = valid ? 0x44ff44 : 0xff4444;
+
+    this.ghostGraphics.rect(center.x - w / 2, center.y - h / 2, w, h);
+    this.ghostGraphics.fill({ color, alpha: 0.3 });
+    this.ghostGraphics.stroke({ color, width: 2, alpha: 0.6 });
   }
 
   private handleEdgeScroll(): void {
@@ -200,6 +339,16 @@ export class Game {
         this.viewport.center.y + dy,
       );
     }
+  }
+
+  private spawnStartingBase(): void {
+    // Spawn a completed Command Center for Terran at (15, 15)
+    const ccEid = this.spawnBuilding(BuildingType.CommandCenter, Faction.Terran, 15, 15);
+    buildState[ccEid] = BuildState.Complete;
+    buildProgress[ccEid] = 1.0;
+    hpCurrent[ccEid] = hpMax[ccEid];
+    supplyProvided[ccEid] = BUILDING_DEFS[BuildingType.CommandCenter].supplyProvided;
+    // Starting supply already set in resources init
   }
 
   private spawnResourceNodes(): void {
@@ -235,6 +384,8 @@ export class Game {
   }
 
   private spawnDemoUnits(): void {
+    // Terran units near starting CC
+    const ccPos = tileToWorld(15, 15);
     const terranUnits = [
       { type: UnitType.Marine, col: 18, row: 14 },
       { type: UnitType.Marine, col: 19, row: 14 },
@@ -250,9 +401,15 @@ export class Game {
     ];
 
     for (const u of terranUnits) {
-      this.spawnUnit(u.type, Faction.Terran, u.col, u.row);
+      const eid = this.spawnUnit(u.type, Faction.Terran, u.col, u.row);
+      // Workers get CC as base position
+      if (u.type === UnitType.SCV) {
+        workerBaseX[eid] = ccPos.x;
+        workerBaseY[eid] = ccPos.y;
+      }
     }
 
+    // Zerg swarm
     const zergUnits = [
       { type: UnitType.Zergling, col: 115, row: 115 },
       { type: UnitType.Zergling, col: 116, row: 115 },
@@ -273,16 +430,60 @@ export class Game {
     }
   }
 
+  spawnBuilding(type: BuildingType, fac: Faction, col: number, row: number): number {
+    const def = BUILDING_DEFS[type];
+    if (!def) throw new Error(`Unknown building type: ${type}`);
+
+    const eid = addEntity(this.world);
+    addBuildingComponents(this.world, eid);
+
+    const wp = tileToWorld(col, row);
+    posX[eid] = wp.x;
+    posY[eid] = wp.y;
+
+    hpCurrent[eid] = def.hp * 0.1; // starts at 10% HP
+    hpMax[eid] = def.hp;
+
+    buildingType[eid] = type;
+    buildState[eid] = BuildState.UnderConstruction;
+    buildProgress[eid] = 0;
+    buildTimeTotal[eid] = def.buildTime;
+    builderEid[eid] = -1;
+    rallyX[eid] = -1;
+    rallyY[eid] = -1;
+    prodUnitType[eid] = 0;
+    prodProgress[eid] = 0;
+    prodTimeTotal[eid] = 0;
+    supplyProvided[eid] = 0;
+    supplyCost[eid] = 0;
+
+    renderWidth[eid] = def.tileWidth * TILE_SIZE;
+    renderHeight[eid] = def.tileHeight * TILE_SIZE;
+    renderTint[eid] = def.color;
+
+    faction[eid] = fac;
+
+    // Mark tiles as occupied
+    markBuildingTiles(this.map, col, row, def.tileWidth, def.tileHeight);
+
+    return eid;
+  }
+
   private spawnUnit(type: UnitType, fac: Faction, col: number, row: number): number {
+    const wp = tileToWorld(col, row);
+    return this.spawnUnitAt(type, fac, wp.x, wp.y);
+  }
+
+  /** Spawn a unit at world coordinates — used by both demo setup and ProductionSystem */
+  spawnUnitAt(type: number, fac: number, x: number, y: number): number {
     const def = UNIT_DEFS[type];
     if (!def) throw new Error(`Unknown unit type: ${type}`);
 
     const eid = addEntity(this.world);
     addUnitComponents(this.world, eid);
 
-    const wp = tileToWorld(col, row);
-    posX[eid] = wp.x;
-    posY[eid] = wp.y;
+    posX[eid] = x;
+    posY[eid] = y;
 
     hpCurrent[eid] = def.hp;
     hpMax[eid] = def.hp;
@@ -301,6 +502,7 @@ export class Game {
     siegeMode[eid] = 0;
     siegeTransitionEnd[eid] = 0;
     lastCombatTime[eid] = 0;
+    supplyCost[eid] = SUPPLY_PER_UNIT;
 
     renderWidth[eid] = def.width;
     renderHeight[eid] = def.height;
@@ -312,12 +514,18 @@ export class Game {
     // Worker setup
     if (type === UnitType.SCV || type === UnitType.Drone) {
       addWorkerComponent(this.world, eid);
-      workerBaseX[eid] = wp.x;
-      workerBaseY[eid] = wp.y;
+      workerBaseX[eid] = x;
+      workerBaseY[eid] = y;
       workerTargetEid[eid] = -1;
       workerState[eid] = 0;
       workerCarrying[eid] = 0;
       workerMineTimer[eid] = 0;
+    }
+
+    // Track supply
+    const res = this.resources[fac];
+    if (res) {
+      res.supplyUsed += SUPPLY_PER_UNIT;
     }
 
     return eid;

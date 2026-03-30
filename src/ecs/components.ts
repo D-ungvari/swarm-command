@@ -13,6 +13,8 @@ export const UNIT_TYPE = componentBit();
 export const ABILITY = componentBit();
 export const RESOURCE = componentBit();
 export const WORKER = componentBit();
+export const BUILDING = componentBit();
+export const SUPPLY = componentBit();
 
 // ── Position (x, y) ──
 export const posX = new Float32Array(MAX_ENTITIES);
@@ -100,6 +102,33 @@ export const workerMineTimer = new Float32Array(MAX_ENTITIES);
 export const workerBaseX = new Float32Array(MAX_ENTITIES);
 export const workerBaseY = new Float32Array(MAX_ENTITIES);
 
+// ── Building ──
+/** BuildingType enum value */
+export const buildingType = new Uint8Array(MAX_ENTITIES);
+/** BuildState enum: 0=none, 1=UnderConstruction, 2=Complete */
+export const buildState = new Uint8Array(MAX_ENTITIES);
+/** Construction progress 0.0 to 1.0 */
+export const buildProgress = new Float32Array(MAX_ENTITIES);
+/** Total build time in seconds */
+export const buildTimeTotal = new Float32Array(MAX_ENTITIES);
+/** Entity ID of the SCV constructing this building, -1 = none */
+export const builderEid = new Int16Array(MAX_ENTITIES);
+/** Rally point world position, -1 = no rally */
+export const rallyX = new Float32Array(MAX_ENTITIES);
+export const rallyY = new Float32Array(MAX_ENTITIES);
+/** UnitType currently being produced, 0 = idle */
+export const prodUnitType = new Uint8Array(MAX_ENTITIES);
+/** Production timer remaining (seconds) */
+export const prodProgress = new Float32Array(MAX_ENTITIES);
+/** Total production time for current unit */
+export const prodTimeTotal = new Float32Array(MAX_ENTITIES);
+
+// ── Supply ──
+/** How much supply this entity provides */
+export const supplyProvided = new Uint8Array(MAX_ENTITIES);
+/** How much supply this entity costs (1 for units, 0 for buildings) */
+export const supplyCost = new Uint8Array(MAX_ENTITIES);
+
 // ── Path storage (per-entity, up to 64 waypoints) ──
 const MAX_PATH_LENGTH = 64;
 export const paths: Float32Array[] = new Array(MAX_ENTITIES);
@@ -138,6 +167,11 @@ export function addResourceComponents(world: World, eid: number): void {
   world.mask[eid] |= POSITION | HEALTH | SELECTABLE | RENDERABLE | RESOURCE;
 }
 
+/** Add components for a building entity */
+export function addBuildingComponents(world: World, eid: number): void {
+  world.mask[eid] |= POSITION | HEALTH | SELECTABLE | RENDERABLE | BUILDING | SUPPLY;
+}
+
 /** Reset all component data for an entity */
 export function resetComponents(eid: number): void {
   posX[eid] = 0; posY[eid] = 0;
@@ -168,4 +202,16 @@ export function resetComponents(eid: number): void {
   workerMineTimer[eid] = 0;
   workerBaseX[eid] = 0;
   workerBaseY[eid] = 0;
+  buildingType[eid] = 0;
+  buildState[eid] = 0;
+  buildProgress[eid] = 0;
+  buildTimeTotal[eid] = 0;
+  builderEid[eid] = -1;
+  rallyX[eid] = -1;
+  rallyY[eid] = -1;
+  prodUnitType[eid] = 0;
+  prodProgress[eid] = 0;
+  prodTimeTotal[eid] = 0;
+  supplyProvided[eid] = 0;
+  supplyCost[eid] = 0;
 }

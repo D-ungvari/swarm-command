@@ -114,17 +114,13 @@ export class InputManager {
     m.x = this.rawX;
     m.y = this.rawY;
 
-    // Use buffered events so fast clicks between frames aren't lost
-    m.leftJustPressed = this.bufferedLeftClick;
-    m.rightJustPressed = this.bufferedRightClick;
-    m.leftJustReleased = this.bufferedLeftRelease;
-    m.leftDoubleClick = this.bufferedDoubleClick;
-
-    // Clear buffers
-    this.bufferedLeftClick = false;
-    this.bufferedRightClick = false;
-    this.bufferedLeftRelease = false;
-    this.bufferedDoubleClick = false;
+    // Buffered events: only SET flags from buffer, never clear them here.
+    // Flags persist until consumed by a tick (cleared in Game.ts tick loop).
+    // This prevents clicks from being lost on frames where 0 ticks run.
+    if (this.bufferedLeftClick) { m.leftJustPressed = true; this.bufferedLeftClick = false; }
+    if (this.bufferedRightClick) { m.rightJustPressed = true; this.bufferedRightClick = false; }
+    if (this.bufferedLeftRelease) { m.leftJustReleased = true; this.bufferedLeftRelease = false; }
+    if (this.bufferedDoubleClick) { m.leftDoubleClick = true; this.bufferedDoubleClick = false; }
 
     // Track drag
     if (m.leftJustPressed) {

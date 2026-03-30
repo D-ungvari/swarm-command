@@ -95,6 +95,10 @@ export class InputManager {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
 
     window.addEventListener('keydown', (e) => {
+      // Prevent browser tab switching on Ctrl+1-9
+      if (e.ctrlKey && e.code.startsWith('Digit')) {
+        e.preventDefault();
+      }
       this.rawKeysDown.add(e.code);
       this.rawKeysJustPressed.add(e.code);
     });

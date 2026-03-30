@@ -95,7 +95,7 @@ describe('AISystem', () => {
     it('accumulates minerals after delay and spends them', () => {
       let spawned = 0;
       const spawnFn = vi.fn(() => { spawned++; return 100 + spawned; });
-      runOneDecision(INITIAL_DELAY + 5, spawnFn);
+      runOneDecision(55, spawnFn);
       // AI accumulated income (3.0 * 25s = 75) and spent it on units
       // Either minerals remain > 0 or units were spawned (minerals were earned)
       const state = getAIState();
@@ -108,7 +108,7 @@ describe('AISystem', () => {
       let nextEid = 100;
       const spawnFn = vi.fn(() => nextEid++);
       setAIMinerals(500, 500);
-      runOneDecision(INITIAL_DELAY + 1, spawnFn);
+      runOneDecision(50, spawnFn);
       expect(spawnFn).toHaveBeenCalled();
       expect(spawnFn.mock.calls[0][1]).toBe(Faction.Zerg);
     });
@@ -117,7 +117,7 @@ describe('AISystem', () => {
       let nextEid = 100;
       const spawnFn = vi.fn(() => nextEid++);
       setAIMinerals(1000, 1000);
-      runOneDecision(INITIAL_DELAY + 1, spawnFn);
+      runOneDecision(50, spawnFn);
       // New AI spawns up to 3 units per decision
       expect(spawnFn.mock.calls.length).toBeGreaterThanOrEqual(1);
     });
@@ -125,7 +125,7 @@ describe('AISystem', () => {
     it('adds spawned units to army tracking', () => {
       const spawnFn = vi.fn(() => 42);
       setAIMinerals(500, 500);
-      runOneDecision(INITIAL_DELAY + 1, spawnFn);
+      runOneDecision(50, spawnFn);
       expect(getAIState().armySize).toBeGreaterThanOrEqual(1);
     });
   });
@@ -139,12 +139,12 @@ describe('AISystem', () => {
         return eid;
       });
       setAIMinerals(500, 500);
-      runOneDecision(INITIAL_DELAY + 1, spawnFn);
+      runOneDecision(50, spawnFn);
       expect(getAIState().armySize).toBeGreaterThanOrEqual(1);
 
       for (const eid of spawnedEids) hpCurrent[eid] = 0;
       setAIMinerals(0, 0);
-      runOneDecision(INITIAL_DELAY + 1.1, vi.fn(() => 0));
+      runOneDecision(50.1, vi.fn(() => 0));
       expect(getAIState().armySize).toBe(0);
     });
   });
@@ -158,7 +158,7 @@ describe('AISystem', () => {
         return eid;
       });
       setAIMinerals(10000, 10000);
-      let gameTime = INITIAL_DELAY + 1;
+      let gameTime = 50;
       for (let i = 0; i < FIRST_WAVE_SIZE + 5; i++) {
         gameTime += 0.5;
         runOneDecision(gameTime, spawnFn);
@@ -175,7 +175,7 @@ describe('AISystem', () => {
         return eid;
       });
       setAIMinerals(10000, 10000);
-      let gameTime = INITIAL_DELAY + 1;
+      let gameTime = 50;
       for (let i = 0; i < FIRST_WAVE_SIZE + 5; i++) {
         gameTime += 0.5;
         runOneDecision(gameTime, spawnFn);
@@ -193,7 +193,7 @@ describe('AISystem', () => {
         return eid;
       });
       setAIMinerals(10000, 10000);
-      let gameTime = INITIAL_DELAY + 1;
+      let gameTime = 50;
       for (let i = 0; i < FIRST_WAVE_SIZE + 5; i++) {
         gameTime += 0.5;
         runOneDecision(gameTime, spawnFn);
@@ -212,7 +212,7 @@ describe('AISystem', () => {
       const spawnFn = vi.fn(() => 0);
       setAIMinerals(1000, 1000);
       world.nextEid = MAX_ENTITIES - 49;
-      runOneDecision(INITIAL_DELAY + 1, spawnFn);
+      runOneDecision(50, spawnFn);
       expect(spawnFn).not.toHaveBeenCalled();
     });
   });
@@ -220,7 +220,7 @@ describe('AISystem', () => {
   describe('initAI', () => {
     it('resets all state', () => {
       setAIMinerals(5000, 5000);
-      runOneDecision(INITIAL_DELAY + 1, vi.fn(() => track(spawnUnit(world, { factionId: Faction.Zerg, hp: 100 }))));
+      runOneDecision(50, vi.fn(() => track(spawnUnit(world, { factionId: Faction.Zerg, hp: 100 }))));
       expect(getAIState().armySize).toBeGreaterThan(0);
       initAI();
       const s = getAIState();

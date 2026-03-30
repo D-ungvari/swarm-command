@@ -10,7 +10,7 @@ import type { Viewport } from 'pixi-viewport';
 
 /**
  * Handles click and drag-box unit selection.
- * Only selects player (Terran) units.
+ * Selects player (Terran) units/buildings. Single-click can also select neutral resources.
  */
 export function selectionSystem(
   world: World,
@@ -25,7 +25,7 @@ export function selectionSystem(
   // Left click release — either single select or box select
   if (m.leftJustReleased) {
     if (m.isDragging) {
-      // Box select
+      // Box select — only Terran units/buildings
       const startWorld = viewport.toWorld(m.dragStartX, m.dragStartY);
       const endWorld = worldPos;
 
@@ -34,7 +34,6 @@ export function selectionSystem(
       const minY = Math.min(startWorld.y, endWorld.y);
       const maxY = Math.max(startWorld.y, endWorld.y);
 
-      // Clear selection unless shift held
       if (!input.shiftHeld) clearSelection(world);
 
       const bits = POSITION | SELECTABLE;
@@ -49,12 +48,15 @@ export function selectionSystem(
         }
       }
     } else {
-      // Single click select
+      // Single click — select Terran entities OR neutral resources (for info)
       if (!input.shiftHeld) clearSelection(world);
 
       const closest = findUnitAt(world, worldPos.x, worldPos.y);
-      if (closest > 0 && faction[closest] === Faction.Terran) {
-        selected[closest] = selected[closest] === 1 && input.shiftHeld ? 0 : 1;
+      if (closest > 0) {
+        const fac = faction[closest];
+        if (fac === Faction.Terran || fac === Faction.None) {
+          selected[closest] = selected[closest] === 1 && input.shiftHeld ? 0 : 1;
+        }
       }
     }
   }

@@ -47,6 +47,7 @@ import { ModeIndicatorRenderer } from './rendering/ModeIndicatorRenderer';
 import { HotkeyPanelRenderer } from './rendering/HotkeyPanelRenderer';
 import { MinimapRenderer } from './rendering/MinimapRenderer';
 import { GameOverRenderer } from './rendering/GameOverRenderer';
+import { AlertRenderer } from './rendering/AlertRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem, attackMoveMode } from './systems/CommandSystem';
@@ -56,7 +57,7 @@ import { combatSystem } from './systems/CombatSystem';
 import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
-import { aiSystem, initAI } from './systems/AISystem';
+import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import type { PlayerResources } from './types';
 
 export class Game {
@@ -87,6 +88,8 @@ export class Game {
   private hotkeyPanelRenderer!: HotkeyPanelRenderer;
   private minimapRenderer!: MinimapRenderer;
   private gameOverRenderer!: GameOverRenderer;
+  private alertRenderer!: AlertRenderer;
+  private lastAIAttacking = false;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -153,6 +156,7 @@ export class Game {
     // Minimap (screen space, bottom-right corner)
     this.minimapRenderer = new MinimapRenderer(this.app.stage, this.viewport, this.map);
     this.gameOverRenderer = new GameOverRenderer(container);
+    this.alertRenderer = new AlertRenderer(container);
 
     // Wire up production button callback
     this.infoPanelRenderer.setProductionCallback((buildingEid, uType) => {
@@ -225,6 +229,14 @@ export class Game {
     this.minimapRenderer.render(this.world);
 
     this.gameOverRenderer.update(this.world, this.gameTime);
+
+    // AI attack warning
+    const aiState = getAIState();
+    if (aiState.isAttacking && !this.lastAIAttacking) {
+      this.alertRenderer.show(`ENEMY WAVE ${aiState.waveCount} INCOMING`, 4, this.gameTime);
+    }
+    this.lastAIAttacking = aiState.isAttacking;
+    this.alertRenderer.update(this.gameTime);
 
     // Cursor change based on current mode
     if (this.placementMode) {

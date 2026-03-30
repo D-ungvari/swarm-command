@@ -133,8 +133,8 @@ function findUnitAt(world: World, wx: number, wy: number): number {
 
     const dx = posX[eid] - wx;
     const dy = posY[eid] - wy;
-    const halfW = renderWidth[eid] / 2 + 4; // small padding for click tolerance
-    const halfH = renderHeight[eid] / 2 + 4;
+    const halfW = renderWidth[eid] / 2 + 8; // generous click tolerance
+    const halfH = renderHeight[eid] / 2 + 8;
 
     if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
       const dist = dx * dx + dy * dy;

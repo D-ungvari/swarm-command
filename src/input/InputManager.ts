@@ -135,7 +135,7 @@ export class InputManager {
     if (this.rawLeftDown && !m.isDragging) {
       const dx = m.x - m.dragStartX;
       const dy = m.y - m.dragStartY;
-      if (dx * dx + dy * dy > 25) { // 5px threshold
+      if (dx * dx + dy * dy > 100) { // 10px threshold — prevents tiny mouse movements during clicks from triggering drag
         m.isDragging = true;
       }
     }

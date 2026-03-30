@@ -311,7 +311,16 @@ function issuePathCommand(
     const destY = ty + offsetY;
 
     const startTile = worldToTile(posX[eid], posY[eid]);
-    const endTile = worldToTile(destX, destY);
+    let endTile = worldToTile(destX, destY);
+
+    // If destination is unwalkable, find nearest walkable tile
+    if (endTile.col >= 0 && endTile.col < map.cols && endTile.row >= 0 && endTile.row < map.rows) {
+      if (map.walkable[endTile.row * map.cols + endTile.col] !== 1) {
+        const walkable = findNearestWalkableTile(map, endTile.col, endTile.row);
+        if (walkable) endTile = walkable;
+      }
+    }
+
     const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
 
     if (tilePath.length > 0) {

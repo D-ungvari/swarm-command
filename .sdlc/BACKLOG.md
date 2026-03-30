@@ -1,0 +1,24 @@
+# Backlog
+
+Ordered by priority. Top item = next to implement.
+
+## Up Next
+
+| # | Title | Type | Phase |
+|---|-------|------|-------|
+| 3 | Economy — minerals, gas, workers, resource HUD | feat | Phase 5 |
+| 4 | Buildings & production queues | feat | Phase 5 |
+| 5 | AI opponent — build orders, attack waves | feat | Phase 6 |
+| 6 | Minimap + unit info panel | feat | Phase 7 |
+| 7 | Fog of war | feat | Phase 7 |
+| 8 | UI polish — menus, victory/defeat, hotkeys | feat | Phase 7 |
+| 9 | Portfolio integration + deploy | chore | Phase 8 |
+
+## In Progress
+(nothing)
+
+## Completed
+| # | Title | Type | Completed | Commit |
+|---|-------|------|-----------|--------|
+| 1 | Combat system — attack, damage, death | feat | 2026-03-30 | (uncommitted, no git repo) |
+| 2 | Full unit roster — special abilities | feat | 2026-03-30 | (uncommitted, no git repo) |

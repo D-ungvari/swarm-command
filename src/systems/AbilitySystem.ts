@@ -1,0 +1,139 @@
+import { type World, hasComponents } from '../ecs/world';
+import {
+  POSITION, HEALTH, ABILITY, UNIT_TYPE,
+  posX, posY, hpCurrent, hpMax, faction, unitType,
+  moveSpeed, atkCooldown, atkDamage, atkRange, atkSplash,
+  stimEndTime, slowEndTime, slowFactor,
+  siegeMode, siegeTransitionEnd,
+  lastCombatTime, movePathIndex,
+} from '../ecs/components';
+import { UNIT_DEFS } from '../data/units';
+import {
+  UnitType, Faction, SiegeMode, TILE_SIZE,
+  STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
+  SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH,
+  MEDIVAC_HEAL_RATE, MEDIVAC_HEAL_RANGE,
+  ROACH_REGEN_COMBAT, ROACH_REGEN_IDLE, ROACH_COMBAT_TIMEOUT,
+} from '../constants';
+
+/**
+ * Processes all unit abilities each tick.
+ * Runs after CombatSystem and before DeathSystem.
+ */
+export function abilitySystem(world: World, dt: number, gameTime: number): void {
+  processStimExpiry(world, gameTime);
+  processSlowExpiry(world, gameTime);
+  processSiegeTransitions(world, gameTime);
+  processMedivacHeal(world, dt);
+  processRoachRegen(world, dt, gameTime);
+}
+
+function processStimExpiry(world: World, gameTime: number): void {
+  const bits = ABILITY | UNIT_TYPE;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (stimEndTime[eid] <= 0) continue;
+    if (gameTime < stimEndTime[eid]) continue;
+
+    // Stim expired — restore original stats
+    stimEndTime[eid] = 0;
+    const def = UNIT_DEFS[unitType[eid]];
+    if (def) {
+      moveSpeed[eid] = def.speed * TILE_SIZE;
+      atkCooldown[eid] = def.attackCooldown;
+    }
+  }
+}
+
+function processSlowExpiry(world: World, gameTime: number): void {
+  const bits = ABILITY;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (slowEndTime[eid] <= 0) continue;
+    if (gameTime < slowEndTime[eid]) continue;
+
+    slowEndTime[eid] = 0;
+    slowFactor[eid] = 0;
+  }
+}
+
+function processSiegeTransitions(world: World, gameTime: number): void {
+  const bits = ABILITY | UNIT_TYPE;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (unitType[eid] !== UnitType.SiegeTank) continue;
+
+    const mode = siegeMode[eid] as SiegeMode;
+    if (mode !== SiegeMode.Packing && mode !== SiegeMode.Unpacking) continue;
+    if (gameTime < siegeTransitionEnd[eid]) continue;
+
+    if (mode === SiegeMode.Unpacking) {
+      // Transition complete → Sieged
+      siegeMode[eid] = SiegeMode.Sieged;
+      atkDamage[eid] = SIEGE_DAMAGE;
+      atkRange[eid] = SIEGE_RANGE * TILE_SIZE;
+      atkSplash[eid] = SIEGE_SPLASH;
+    } else {
+      // Packing complete → Mobile
+      siegeMode[eid] = SiegeMode.Mobile;
+      const def = UNIT_DEFS[unitType[eid]];
+      if (def) {
+        atkDamage[eid] = def.damage;
+        atkRange[eid] = def.range * TILE_SIZE;
+        atkSplash[eid] = def.splashRadius;
+      }
+    }
+  }
+}
+
+function processMedivacHeal(world: World, dt: number): void {
+  const healRangePx = MEDIVAC_HEAL_RANGE * TILE_SIZE;
+  const healRangeSq = healRangePx * healRangePx;
+  const healAmount = MEDIVAC_HEAL_RATE * dt;
+
+  const bits = POSITION | ABILITY | UNIT_TYPE | HEALTH;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (unitType[eid] !== UnitType.Medivac) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    const mx = posX[eid];
+    const my = posY[eid];
+    const myFac = faction[eid];
+
+    // Scan for nearby wounded bio allies
+    for (let other = 1; other < world.nextEid; other++) {
+      if (other === eid) continue;
+      if (!hasComponents(world, other, POSITION | HEALTH | UNIT_TYPE)) continue;
+      if (faction[other] !== myFac) continue;
+      if (hpCurrent[other] <= 0) continue;
+      if (hpCurrent[other] >= hpMax[other]) continue;
+
+      // Only heal bio units (Marine, Marauder)
+      const ut = unitType[other] as UnitType;
+      if (ut !== UnitType.Marine && ut !== UnitType.Marauder) continue;
+
+      const dx = posX[other] - mx;
+      const dy = posY[other] - my;
+      if (dx * dx + dy * dy > healRangeSq) continue;
+
+      hpCurrent[other] = Math.min(hpMax[other], hpCurrent[other] + healAmount);
+    }
+  }
+}
+
+function processRoachRegen(world: World, dt: number, gameTime: number): void {
+  const bits = ABILITY | UNIT_TYPE | HEALTH;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (unitType[eid] !== UnitType.Roach) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (hpCurrent[eid] >= hpMax[eid]) continue;
+
+    const isInCombat = gameTime - lastCombatTime[eid] < ROACH_COMBAT_TIMEOUT;
+    const rate = isInCombat ? ROACH_REGEN_COMBAT : ROACH_REGEN_IDLE;
+    hpCurrent[eid] = Math.min(hpMax[eid], hpCurrent[eid] + rate * dt);
+  }
+}

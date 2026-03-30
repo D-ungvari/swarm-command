@@ -1,0 +1,227 @@
+import { type World, hasComponents } from '../ecs/world';
+import {
+  POSITION, SELECTABLE, MOVEMENT, UNIT_TYPE,
+  posX, posY, selected, moveTargetX, moveTargetY,
+  setPath, faction, movePathIndex, unitType,
+  targetEntity, commandMode,
+  stimEndTime, hpCurrent, moveSpeed, atkCooldown,
+  siegeMode, siegeTransitionEnd,
+} from '../ecs/components';
+import { UNIT_DEFS } from '../data/units';
+import { findEnemyAt } from '../ecs/queries';
+import type { InputState } from '../input/InputManager';
+import type { MapData } from '../map/MapData';
+import { worldToTile, tileToWorld } from '../map/MapData';
+import { findPath } from '../map/Pathfinder';
+import {
+  Faction, CommandMode, UnitType, SiegeMode, TILE_SIZE,
+  STIM_DURATION, STIM_HP_COST, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
+  SIEGE_PACK_TIME,
+} from '../constants';
+import type { Viewport } from 'pixi-viewport';
+
+/** Attack-move mode: set by pressing A, consumed by next left-click */
+let attackMoveMode = false;
+
+/**
+ * Translates player input into move/attack/attack-move commands for selected units.
+ * Also handles ability hotkeys (T = stim, E = siege mode).
+ */
+export function commandSystem(
+  world: World,
+  input: InputState,
+  viewport: Viewport,
+  map: MapData,
+  gameTime: number,
+): void {
+  const m = input.mouse;
+
+  // A key toggles attack-move mode
+  if (input.keysJustPressed.has('KeyA')) {
+    attackMoveMode = true;
+  }
+
+  // Escape cancels attack-move mode
+  if (input.keysJustPressed.has('Escape')) {
+    attackMoveMode = false;
+  }
+
+  // S key = stop command
+  if (input.keysJustPressed.has('KeyS')) {
+    stopSelectedUnits(world);
+    return;
+  }
+
+  // H key = hold position
+  if (input.keysJustPressed.has('KeyH')) {
+    stopSelectedUnits(world);
+    return;
+  }
+
+  // T key = Stim Pack (Marines only)
+  if (input.keysJustPressed.has('KeyT')) {
+    applyStim(world, gameTime);
+  }
+
+  // E key = Siege Mode toggle (Siege Tanks only)
+  if (input.keysJustPressed.has('KeyE')) {
+    toggleSiegeMode(world, gameTime);
+  }
+
+  // Attack-move: A + left-click on ground
+  if (attackMoveMode && m.leftJustReleased && !m.isDragging) {
+    attackMoveMode = false;
+    const worldPos = viewport.toWorld(m.x, m.y);
+    const selectedUnits = getSelectedUnits(world);
+    if (selectedUnits.length === 0) return;
+
+    const enemy = findEnemyAt(world, worldPos.x, worldPos.y, Faction.Terran);
+    if (enemy > 0) {
+      for (const eid of selectedUnits) {
+        targetEntity[eid] = enemy;
+        commandMode[eid] = CommandMode.AttackTarget;
+      }
+      return;
+    }
+
+    issuePathCommand(world, selectedUnits, worldPos.x, worldPos.y, map, CommandMode.AttackMove);
+    return;
+  }
+
+  // Right-click = move or attack
+  if (!m.rightJustPressed) return;
+  attackMoveMode = false;
+
+  const worldPos = viewport.toWorld(m.x, m.y);
+  const selectedUnits = getSelectedUnits(world);
+  if (selectedUnits.length === 0) return;
+
+  const enemy = findEnemyAt(world, worldPos.x, worldPos.y, Faction.Terran);
+  if (enemy > 0) {
+    for (const eid of selectedUnits) {
+      targetEntity[eid] = enemy;
+      commandMode[eid] = CommandMode.AttackTarget;
+    }
+    return;
+  }
+
+  issuePathCommand(world, selectedUnits, worldPos.x, worldPos.y, map, CommandMode.Move);
+}
+
+function applyStim(world: World, gameTime: number): void {
+  const units = getSelectedUnits(world);
+  for (const eid of units) {
+    if (unitType[eid] !== UnitType.Marine) continue;
+
+    // Already stimmed — just refresh duration
+    if (stimEndTime[eid] > gameTime) {
+      stimEndTime[eid] = gameTime + STIM_DURATION;
+      continue;
+    }
+
+    // Can't stim if it would kill the unit
+    if (hpCurrent[eid] <= STIM_HP_COST) continue;
+
+    // Apply stim
+    hpCurrent[eid] -= STIM_HP_COST;
+    stimEndTime[eid] = gameTime + STIM_DURATION;
+
+    const def = UNIT_DEFS[unitType[eid]];
+    if (def) {
+      moveSpeed[eid] = def.speed * TILE_SIZE * STIM_SPEED_MULT;
+      atkCooldown[eid] = def.attackCooldown * STIM_COOLDOWN_MULT;
+    }
+  }
+}
+
+function toggleSiegeMode(world: World, gameTime: number): void {
+  const units = getSelectedUnits(world);
+  for (const eid of units) {
+    if (unitType[eid] !== UnitType.SiegeTank) continue;
+
+    const mode = siegeMode[eid] as SiegeMode;
+
+    // Can't interrupt a transition
+    if (mode === SiegeMode.Packing || mode === SiegeMode.Unpacking) continue;
+
+    if (mode === SiegeMode.Mobile) {
+      // Start unpacking → will become Sieged
+      siegeMode[eid] = SiegeMode.Unpacking;
+      siegeTransitionEnd[eid] = gameTime + SIEGE_PACK_TIME;
+      movePathIndex[eid] = -1; // Stop movement
+    } else {
+      // Sieged → start packing → will become Mobile
+      siegeMode[eid] = SiegeMode.Packing;
+      siegeTransitionEnd[eid] = gameTime + SIEGE_PACK_TIME;
+    }
+  }
+}
+
+function getSelectedUnits(world: World): number[] {
+  const units: number[] = [];
+  const bits = SELECTABLE | POSITION | MOVEMENT;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (selected[eid] !== 1) continue;
+    if (faction[eid] !== Faction.Terran) continue;
+    units.push(eid);
+  }
+  return units;
+}
+
+function issuePathCommand(
+  world: World,
+  units: number[],
+  tx: number,
+  ty: number,
+  map: MapData,
+  mode: CommandMode,
+): void {
+  const cols = Math.ceil(Math.sqrt(units.length));
+  const spacing = TILE_SIZE * 0.8;
+
+  for (let i = 0; i < units.length; i++) {
+    const eid = units[i];
+
+    // Sieged tanks can't move
+    if (siegeMode[eid] === SiegeMode.Sieged || siegeMode[eid] === SiegeMode.Packing || siegeMode[eid] === SiegeMode.Unpacking) {
+      continue;
+    }
+
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const offsetX = (col - (cols - 1) / 2) * spacing;
+    const offsetY = (row - Math.floor(units.length / cols - 1) / 2) * spacing;
+
+    const destX = tx + offsetX;
+    const destY = ty + offsetY;
+
+    const startTile = worldToTile(posX[eid], posY[eid]);
+    const endTile = worldToTile(destX, destY);
+    const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+
+    if (tilePath.length > 0) {
+      const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+        const wp = tileToWorld(c, r);
+        return [wp.x, wp.y] as [number, number];
+      });
+      setPath(eid, worldPath);
+    }
+
+    moveTargetX[eid] = destX;
+    moveTargetY[eid] = destY;
+    targetEntity[eid] = -1;
+    commandMode[eid] = mode;
+  }
+}
+
+function stopSelectedUnits(world: World): void {
+  const units = getSelectedUnits(world);
+  for (const eid of units) {
+    targetEntity[eid] = -1;
+    commandMode[eid] = CommandMode.Idle;
+    moveTargetX[eid] = -1;
+    moveTargetY[eid] = -1;
+    movePathIndex[eid] = -1;
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "swarm-command",
+  "version": "0.1.0",
+  "description": "Simplified StarCraft 2-inspired RTS — Terran vs Zerg, web-based",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "rts",
+    "game",
+    "starcraft",
+    "webgl",
+    "pixijs"
+  ],
+  "author": "David Ungvari",
+  "license": "MIT",
+  "dependencies": {
+    "pathfinding": "^0.4.18",
+    "pixi-viewport": "^6.0.3",
+    "pixi.js": "^8.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.2"
+  }
+}

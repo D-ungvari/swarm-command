@@ -1,0 +1,104 @@
+// ── World ──
+export const TILE_SIZE = 32;
+export const MAP_COLS = 128;
+export const MAP_ROWS = 128;
+export const MAP_WIDTH = MAP_COLS * TILE_SIZE;
+export const MAP_HEIGHT = MAP_ROWS * TILE_SIZE;
+
+// ── ECS ──
+export const MAX_ENTITIES = 2048;
+
+// ── Timing ──
+export const TICKS_PER_SECOND = 60;
+export const MS_PER_TICK = 1000 / TICKS_PER_SECOND;
+
+// ── Camera ──
+export const EDGE_SCROLL_ZONE = 20; // px from screen edge
+export const EDGE_SCROLL_SPEED = 12; // px per frame
+export const MIN_ZOOM = 0.4;
+export const MAX_ZOOM = 2.0;
+
+// ── Factions ──
+export const enum Faction {
+  None = 0,
+  Terran = 1,
+  Zerg = 2,
+}
+
+// ── Tile types ──
+export const enum TileType {
+  Ground = 0,
+  Minerals = 1,
+  Gas = 2,
+  Ramp = 3,
+  Unbuildable = 4,
+  Water = 5,
+}
+
+// ── Unit types ──
+export const enum UnitType {
+  // Terran
+  SCV = 1,
+  Marine = 2,
+  Marauder = 3,
+  SiegeTank = 4,
+  Medivac = 5,
+  // Zerg
+  Drone = 10,
+  Zergling = 11,
+  Baneling = 12,
+  Hydralisk = 13,
+  Roach = 14,
+}
+
+// ── Command modes ──
+export const enum CommandMode {
+  Idle = 0,
+  Move = 1,
+  AttackMove = 2,
+  AttackTarget = 3,
+}
+
+// ── Siege mode states ──
+export const enum SiegeMode {
+  Mobile = 0,
+  Sieged = 1,
+  Packing = 2,
+  Unpacking = 3,
+}
+
+// ── Ability constants ──
+// Stim Pack (Marine)
+export const STIM_DURATION = 7.0;
+export const STIM_HP_COST = 10;
+export const STIM_SPEED_MULT = 1.5;
+export const STIM_COOLDOWN_MULT = 0.5;
+
+// Concussive Shells (Marauder)
+export const SLOW_DURATION = 1.5;
+export const SLOW_FACTOR = 0.5;
+
+// Siege Mode (Siege Tank)
+export const SIEGE_PACK_TIME = 2.0;
+export const SIEGE_DAMAGE = 35;
+export const SIEGE_RANGE = 13;
+export const SIEGE_SPLASH = 1.5;
+
+// Medivac Heal
+export const MEDIVAC_HEAL_RATE = 3.0;
+export const MEDIVAC_HEAL_RANGE = 4;
+
+// Roach Regen
+export const ROACH_REGEN_COMBAT = 0.5;
+export const ROACH_REGEN_IDLE = 2.0;
+export const ROACH_COMBAT_TIMEOUT = 3.0;
+
+// ── Colors ──
+export const TERRAN_COLOR = 0x3399ff;
+export const ZERG_COLOR = 0xcc3333;
+export const MINERAL_COLOR = 0x44bbff;
+export const GAS_COLOR = 0x44ff66;
+export const GROUND_COLOR = 0x2a2a1a;
+export const UNBUILDABLE_COLOR = 0x1a1a12;
+export const WATER_COLOR = 0x0a2244;
+export const SELECTION_COLOR = 0x00ff00;

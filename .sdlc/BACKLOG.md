@@ -6,7 +6,6 @@ Ordered by priority. Top item = next to implement.
 
 | # | Title | Type | Phase |
 |---|-------|------|-------|
-| 4 | Buildings & production queues | feat | Phase 5 |
 | 5 | AI opponent — build orders, attack waves | feat | Phase 6 |
 | 6 | Minimap + unit info panel | feat | Phase 7 |
 | 7 | Fog of war | feat | Phase 7 |
@@ -22,3 +21,4 @@ Ordered by priority. Top item = next to implement.
 | 1 | Combat system — attack, damage, death | feat | 2026-03-30 | 79ac303 |
 | 2 | Full unit roster — special abilities | feat | 2026-03-30 | 79ac303 |
 | 3 | Economy — minerals, gas, workers, resource HUD | feat | 2026-03-30 | 520faeb |
+| 4 | Buildings & production queues | feat | 2026-03-30 | bad3b01 |

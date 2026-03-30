@@ -3,21 +3,61 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Swarm Command</title>
+  <title>Swarm Command — Browser RTS</title>
+  <meta name="description" content="StarCraft-inspired real-time strategy game built with TypeScript and PixiJS. Terran vs Zerg in your browser." />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; }
-    #game-container {
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; font-family: 'Consolas', 'Courier New', monospace; }
+    #game-container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
     canvas { display: block; }
+
+    #start-screen {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at center, #0a1628 0%, #060a10 70%);
+      z-index: 200; color: #ccc;
+    }
+    #start-screen h1 {
+      font-size: 42px; color: #3399ff; letter-spacing: 4px;
+      text-shadow: 0 0 30px rgba(51, 153, 255, 0.4);
+      margin-bottom: 6px;
+    }
+    #start-screen .subtitle { font-size: 14px; color: #668; margin-bottom: 32px; letter-spacing: 2px; }
+    #start-screen .controls {
+      display: grid; grid-template-columns: auto auto; gap: 4px 20px;
+      font-size: 13px; color: #99a; margin-bottom: 32px; line-height: 1.8;
+    }
+    #start-screen .controls .key { color: #88bbff; text-align: right; }
+    #start-screen .play-btn {
+      font-family: inherit; font-size: 18px; letter-spacing: 2px;
+      padding: 12px 40px; background: rgba(51, 153, 255, 0.15);
+      border: 1px solid rgba(51, 153, 255, 0.4); border-radius: 4px;
+      color: #3399ff; cursor: pointer; transition: all 0.2s;
+    }
+    #start-screen .play-btn:hover { background: rgba(51, 153, 255, 0.25); border-color: rgba(51, 153, 255, 0.7); }
+    #start-screen .footer { position: absolute; bottom: 16px; font-size: 11px; color: #445; }
+    #start-screen .footer a { color: #557; }
   </style>
 </head>
 <body>
+  <div id="start-screen">
+    <h1>SWARM COMMAND</h1>
+    <div class="subtitle">TERRAN VS ZERG &mdash; BROWSER RTS</div>
+    <div class="controls">
+      <span class="key">LMB / Drag</span><span>Select units</span>
+      <span class="key">RMB</span><span>Move / Attack / Gather</span>
+      <span class="key">A + Click</span><span>Attack Move</span>
+      <span class="key">B + 1/2/3</span><span>Build structures</span>
+      <span class="key">Q / W</span><span>Produce units</span>
+      <span class="key">T</span><span>Stim Pack (Marine)</span>
+      <span class="key">E</span><span>Siege Mode (Tank)</span>
+      <span class="key">Ctrl+0-9</span><span>Set control group</span>
+      <span class="key">S / H</span><span>Stop / Hold</span>
+      <span class="key">F1</span><span>Toggle help</span>
+    </div>
+    <button class="play-btn" id="play-btn">START GAME</button>
+    <div class="footer">Built with TypeScript + PixiJS &mdash; <a href="https://github.com/D-ungvari/swarm-command" target="_blank">Source</a></div>
+  </div>
   <div id="game-container"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>

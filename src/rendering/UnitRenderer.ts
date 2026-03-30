@@ -438,157 +438,484 @@ export class UnitRenderer {
       else if (isStimmed) bodyColor = 0x66ddff;
 
       if (fac === Faction.Zerg) {
-        // === Shadow outline behind Zerg unit ===
-        g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
-        g.fill({ color: 0x000000, alpha: 0.4 });
+        // ═══════════════════════════════════════════
+        // ═══  ZERG UNITS — organic, curved shapes ═
+        // ═══════════════════════════════════════════
 
-        // Organic: circles/ellipses
-        g.ellipse(x, y, w / 2, h / 2);
-        g.fill({ color: bodyColor });
-
-        // --- Per-unit detail shapes ---
-
-        // Zergling: spikes on top + mandible lines at front
-        if (uType === UnitType.Zergling) {
-          g.moveTo(x - w * 0.4, y - h * 0.5);
-          g.lineTo(x - w * 0.1, y - h * 0.3);
-          g.lineTo(x + w * 0.1, y - h * 0.3);
-          g.lineTo(x + w * 0.4, y - h * 0.5);
-          g.stroke({ color: tint, width: 1.5 });
-          // Mandibles at front (bottom)
-          g.moveTo(x - w * 0.2, y + h * 0.4);
-          g.lineTo(x - w * 0.35, y + h * 0.65);
+        if (uType === UnitType.Drone) {
+          // ── Drone (Worker): small insectoid with antennae and legs ──
+          // Shadow
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body ellipse
+          g.ellipse(x, y, w / 2, h / 2);
+          g.fill({ color: bodyColor });
+          // Lighter center eye spot
+          g.ellipse(x, y - h * 0.1, w * 0.2, h * 0.15);
+          g.fill({ color: 0xff8866, alpha: 0.7 });
+          // Antennae — curved lines going up-outward, ending in dots
+          g.moveTo(x - w * 0.15, y - h * 0.4);
+          g.lineTo(x - w * 0.35, y - h * 0.7);
+          g.lineTo(x - w * 0.45, y - h * 0.85);
+          g.stroke({ color: tint, width: 1.2 });
+          g.circle(x - w * 0.45, y - h * 0.85, 1.5);
+          g.fill({ color: 0xff6644, alpha: 0.9 });
+          g.moveTo(x + w * 0.15, y - h * 0.4);
+          g.lineTo(x + w * 0.35, y - h * 0.7);
+          g.lineTo(x + w * 0.45, y - h * 0.85);
+          g.stroke({ color: tint, width: 1.2 });
+          g.circle(x + w * 0.45, y - h * 0.85, 1.5);
+          g.fill({ color: 0xff6644, alpha: 0.9 });
+          // Legs — 4 total, 2 per side, angled down
+          g.moveTo(x - w * 0.35, y + h * 0.1);
+          g.lineTo(x - w * 0.6, y + h * 0.55);
           g.stroke({ color: tint, width: 1 });
-          g.moveTo(x + w * 0.2, y + h * 0.4);
-          g.lineTo(x + w * 0.35, y + h * 0.65);
+          g.moveTo(x - w * 0.25, y + h * 0.25);
+          g.lineTo(x - w * 0.5, y + h * 0.7);
           g.stroke({ color: tint, width: 1 });
-        }
+          g.moveTo(x + w * 0.35, y + h * 0.1);
+          g.lineTo(x + w * 0.6, y + h * 0.55);
+          g.stroke({ color: tint, width: 1 });
+          g.moveTo(x + w * 0.25, y + h * 0.25);
+          g.lineTo(x + w * 0.5, y + h * 0.7);
+          g.stroke({ color: tint, width: 1 });
 
-        // Baneling: glow ring + inner glow circle (brighter center)
-        if (uType === UnitType.Baneling) {
+        } else if (uType === UnitType.Zergling) {
+          // ── Zergling: fast, elongated, predatory with mandibles and spines ──
+          // Shadow
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body — elongated horizontal ellipse (wider than tall)
+          g.ellipse(x, y, w * 0.6, h * 0.35);
+          g.fill({ color: bodyColor });
+          // V-shaped jaw mandibles at front (right side = forward)
+          g.moveTo(x + w * 0.5, y - h * 0.1);
+          g.lineTo(x + w * 0.85, y - h * 0.35);
+          g.stroke({ color: 0xdd5544, width: 1.5 });
+          g.moveTo(x + w * 0.5, y + h * 0.1);
+          g.lineTo(x + w * 0.85, y + h * 0.35);
+          g.stroke({ color: 0xdd5544, width: 1.5 });
+          // Spine ridge — 4 small triangular spikes along top
+          for (let s = 0; s < 4; s++) {
+            const sx = x - w * 0.3 + s * w * 0.2;
+            g.moveTo(sx - w * 0.05, y - h * 0.3);
+            g.lineTo(sx, y - h * 0.55);
+            g.lineTo(sx + w * 0.05, y - h * 0.3);
+            g.closePath();
+            g.fill({ color: tint, alpha: 0.9 });
+          }
+          // Legs — 2 thin lines on each side
+          g.moveTo(x - w * 0.2, y + h * 0.3);
+          g.lineTo(x - w * 0.4, y + h * 0.65);
+          g.stroke({ color: tint, width: 0.8 });
+          g.moveTo(x + w * 0.1, y + h * 0.3);
+          g.lineTo(x - w * 0.05, y + h * 0.65);
+          g.stroke({ color: tint, width: 0.8 });
+          g.moveTo(x - w * 0.2, y - h * 0.3);
+          g.lineTo(x - w * 0.4, y - h * 0.65);
+          g.stroke({ color: tint, width: 0.8 });
+          g.moveTo(x + w * 0.1, y - h * 0.3);
+          g.lineTo(x - w * 0.05, y - h * 0.65);
+          g.stroke({ color: tint, width: 0.8 });
+          // Tail — thin curved line extending backward
+          g.moveTo(x - w * 0.55, y);
+          g.lineTo(x - w * 0.75, y + h * 0.1);
+          g.lineTo(x - w * 0.9, y + h * 0.05);
+          g.stroke({ color: tint, width: 1 });
+
+        } else if (uType === UnitType.Baneling) {
+          // ── Baneling: round, glowing, explosive with pulsing animation ──
+          const pulseGlow = 0.5 + 0.4 * Math.sin(gameTime * 5);
+          // Shadow
           g.circle(x, y, w / 2 + 2);
-          g.stroke({ color: 0xaaff44, width: 1, alpha: 0.6 });
-          // Brighter inner glow
-          g.circle(x, y, w / 4);
-          g.fill({ color: 0xddff88, alpha: 0.5 });
-        }
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Outer glow ring (pulsing)
+          g.circle(x, y, w / 2 + 3);
+          g.stroke({ color: 0xaaff44, width: 2, alpha: pulseGlow * 0.5 });
+          // Main body — perfect circle
+          g.circle(x, y, w / 2);
+          g.fill({ color: bodyColor });
+          // Vein lines — 4 lines radiating from center (crack pattern)
+          for (let v = 0; v < 4; v++) {
+            const angle = (v / 4) * Math.PI * 2 + 0.3;
+            g.moveTo(x + Math.cos(angle) * w * 0.1, y + Math.sin(angle) * w * 0.1);
+            g.lineTo(x + Math.cos(angle) * w * 0.45, y + Math.sin(angle) * w * 0.45);
+            g.stroke({ color: 0x88ff44, width: 1, alpha: 0.6 });
+          }
+          // Bright inner glow spot (pulsing)
+          g.circle(x, y, w * 0.2);
+          g.fill({ color: 0xddff88, alpha: pulseGlow * 0.7 });
+          // Bright center point
+          g.circle(x, y, w * 0.08);
+          g.fill({ color: 0xffffff, alpha: pulseGlow * 0.5 });
+          // Small legs underneath (barely visible)
+          g.moveTo(x - w * 0.3, y + h * 0.35);
+          g.lineTo(x - w * 0.4, y + h * 0.6);
+          g.stroke({ color: 0x338833, width: 0.8, alpha: 0.6 });
+          g.moveTo(x, y + h * 0.4);
+          g.lineTo(x, y + h * 0.65);
+          g.stroke({ color: 0x338833, width: 0.8, alpha: 0.6 });
+          g.moveTo(x + w * 0.3, y + h * 0.35);
+          g.lineTo(x + w * 0.4, y + h * 0.6);
+          g.stroke({ color: 0x338833, width: 0.8, alpha: 0.6 });
 
-        // Hydralisk: taller with spine/crest on top (triangular spike)
-        if (uType === UnitType.Hydralisk) {
-          // Triangular crest spike on top
-          g.moveTo(x, y - h * 0.5 - 5);
-          g.lineTo(x - w * 0.15, y - h * 0.35);
-          g.lineTo(x + w * 0.15, y - h * 0.35);
+        } else if (uType === UnitType.Hydralisk) {
+          // ── Hydralisk: tall, upright, snake-like with cobra hood ──
+          // Shadow
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body — tall ellipse (taller than wide, upright posture)
+          g.ellipse(x, y, w * 0.4, h * 0.55);
+          g.fill({ color: bodyColor });
+          // Cobra hood — wide V-shape spreading outward from head
+          g.moveTo(x, y - h * 0.35);
+          g.lineTo(x - w * 0.6, y - h * 0.65);
+          g.stroke({ color: tint, width: 2 });
+          g.moveTo(x, y - h * 0.35);
+          g.lineTo(x + w * 0.6, y - h * 0.65);
+          g.stroke({ color: tint, width: 2 });
+          // Hood fill (triangular area)
+          g.moveTo(x - w * 0.55, y - h * 0.6);
+          g.lineTo(x, y - h * 0.3);
+          g.lineTo(x + w * 0.55, y - h * 0.6);
           g.closePath();
-          g.fill({ color: tint });
-        }
+          g.fill({ color: bodyColor, alpha: 0.6 });
+          // Spine needle ridge — 3 small spikes on the back (left side)
+          for (let s = 0; s < 3; s++) {
+            const sy = y - h * 0.15 + s * h * 0.2;
+            g.moveTo(x - w * 0.35, sy);
+            g.lineTo(x - w * 0.6, sy - h * 0.08);
+            g.lineTo(x - w * 0.35, sy + h * 0.04);
+            g.closePath();
+            g.fill({ color: tint, alpha: 0.8 });
+          }
+          // Arms — two curved lines on sides ending in needle claws
+          g.moveTo(x - w * 0.35, y - h * 0.05);
+          g.lineTo(x - w * 0.55, y + h * 0.15);
+          g.lineTo(x - w * 0.65, y + h * 0.1);
+          g.stroke({ color: tint, width: 1.2 });
+          g.moveTo(x + w * 0.35, y - h * 0.05);
+          g.lineTo(x + w * 0.55, y + h * 0.15);
+          g.lineTo(x + w * 0.65, y + h * 0.1);
+          g.stroke({ color: tint, width: 1.2 });
+          // Mouth — bright dot at face area
+          g.circle(x, y - h * 0.32, 1.5);
+          g.fill({ color: 0xff6644, alpha: 0.9 });
 
-        // Roach: carapace arc on top
-        if (uType === UnitType.Roach) {
-          // Carapace arc
-          g.arc(x, y - h * 0.1, w / 2 - 2, Math.PI, 0, false);
-          g.stroke({ color: 0x886644, width: 2, alpha: 0.6 });
-          // Regen indicator
+        } else if (uType === UnitType.Roach) {
+          // ── Roach: wide, armored beetle with carapace and segments ──
+          // Shadow
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body — wide ellipse (wider than tall, low tanky)
+          g.ellipse(x, y, w * 0.55, h * 0.4);
+          g.fill({ color: bodyColor });
+          // Carapace — filled arc covering top half, darker shade
+          g.arc(x, y - h * 0.05, w * 0.5, Math.PI, 0, false);
+          g.closePath();
+          g.fill({ color: 0x662222, alpha: 0.5 });
+          g.arc(x, y - h * 0.05, w * 0.5, Math.PI, 0, false);
+          g.stroke({ color: 0x886644, width: 2, alpha: 0.7 });
+          // Armor segment lines — 3 horizontal lines across body
+          for (let s = 0; s < 3; s++) {
+            const sy = y - h * 0.15 + s * h * 0.15;
+            g.moveTo(x - w * 0.35, sy);
+            g.lineTo(x + w * 0.35, sy);
+            g.stroke({ color: 0x884422, width: 1, alpha: 0.4 });
+          }
+          // Mandibles — two short thick lines at front
+          g.moveTo(x + w * 0.4, y - h * 0.1);
+          g.lineTo(x + w * 0.65, y - h * 0.25);
+          g.stroke({ color: 0xaa6644, width: 2 });
+          g.moveTo(x + w * 0.4, y + h * 0.1);
+          g.lineTo(x + w * 0.65, y + h * 0.25);
+          g.stroke({ color: 0xaa6644, width: 2 });
+          // Legs — 3 on each side going down
+          for (let l = 0; l < 3; l++) {
+            const lx = x - w * 0.3 + l * w * 0.25;
+            g.moveTo(lx, y + h * 0.35);
+            g.lineTo(lx - w * 0.1, y + h * 0.65);
+            g.stroke({ color: tint, width: 0.8 });
+            g.moveTo(lx, y - h * 0.35);
+            g.lineTo(lx - w * 0.1, y - h * 0.65);
+            g.stroke({ color: tint, width: 0.8 });
+          }
+          // Regen indicator (keep existing)
           if (hpCurrent[eid] < hpMax[eid] && hpCurrent[eid] > 0) {
             const pulse = 0.3 + 0.3 * Math.sin(gameTime * 4);
             g.circle(x, y - h / 2 - 4, 3);
             g.fill({ color: 0x44ff44, alpha: pulse });
           }
-        }
 
-        // Drone: two small antenna dots above
-        if (uType === UnitType.Drone) {
-          g.circle(x - w * 0.25, y - h * 0.5 - 3, 2);
-          g.fill({ color: tint, alpha: 0.8 });
-          g.circle(x + w * 0.25, y - h * 0.5 - 3, 2);
-          g.fill({ color: tint, alpha: 0.8 });
+        } else {
+          // Fallback for any unknown Zerg unit
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          g.ellipse(x, y, w / 2, h / 2);
+          g.fill({ color: bodyColor });
         }
 
       } else {
-        // === Shadow outline behind Terran unit ===
-        g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
-        g.fill({ color: 0x000000, alpha: 0.4 });
+        // ═══════════════════════════════════════════════
+        // ═══  TERRAN UNITS — angular, mechanical shapes ═
+        // ═══════════════════════════════════════════════
 
-        // Terran: rectangles (angular, mechanical)
-        g.rect(x - w / 2, y - h / 2, w, h);
-        g.fill({ color: bodyColor });
-
-        // --- Per-unit detail shapes ---
-
-        // SCV: wrench/arm line extending from right side
         if (uType === UnitType.SCV) {
-          // Arm line
-          g.moveTo(x + w / 2, y);
-          g.lineTo(x + w / 2 + 5, y - 3);
-          g.lineTo(x + w / 2 + 3, y - 6);
-          g.stroke({ color: 0xaaaaaa, width: 1.5 });
-        }
+          // ── SCV (Worker): boxy body with articulated mining arm ──
+          // Shadow
+          g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body rect
+          g.rect(x - w / 2, y - h / 2, w, h);
+          g.fill({ color: bodyColor });
+          // Border outline for armor look
+          g.rect(x - w / 2, y - h / 2, w, h);
+          g.stroke({ color: 0x5588bb, width: 1, alpha: 0.6 });
+          // Visor line — darker stripe across upper body
+          g.moveTo(x - w * 0.35, y - h * 0.2);
+          g.lineTo(x + w * 0.35, y - h * 0.2);
+          g.stroke({ color: 0x224466, width: 2, alpha: 0.8 });
+          // Small viewport dot on visor
+          g.circle(x, y - h * 0.2, 1.5);
+          g.fill({ color: 0x66ccff, alpha: 0.9 });
+          // Articulated mining arm — 2-segment from right side going down-right
+          // Segment 1: shoulder to elbow
+          g.moveTo(x + w * 0.45, y + h * 0.1);
+          g.lineTo(x + w * 0.7, y + h * 0.3);
+          g.stroke({ color: 0xdd9933, width: 2 });
+          // Segment 2: elbow to drill head
+          g.moveTo(x + w * 0.7, y + h * 0.3);
+          g.lineTo(x + w * 0.85, y + h * 0.6);
+          g.stroke({ color: 0xdd9933, width: 2 });
+          // Drill head — small diamond
+          g.moveTo(x + w * 0.85, y + h * 0.5);
+          g.lineTo(x + w * 0.95, y + h * 0.6);
+          g.lineTo(x + w * 0.85, y + h * 0.7);
+          g.lineTo(x + w * 0.75, y + h * 0.6);
+          g.closePath();
+          g.fill({ color: 0xffbb44, alpha: 0.9 });
+          // Elbow joint dot
+          g.circle(x + w * 0.7, y + h * 0.3, 1.5);
+          g.fill({ color: 0x888888 });
 
-        // Marine: triangular helmet/visor on top
-        if (uType === UnitType.Marine) {
-          g.moveTo(x - w * 0.3, y - h / 2);
-          g.lineTo(x, y - h / 2 - 4);
-          g.lineTo(x + w * 0.3, y - h / 2);
+        } else if (uType === UnitType.Marine) {
+          // ── Marine: armored infantry with visor and rifle ──
+          // Shadow
+          g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body — trapezoid shape (wider at shoulders, narrower at feet)
+          g.moveTo(x - w * 0.5, y - h * 0.4);
+          g.lineTo(x + w * 0.5, y - h * 0.4);
+          g.lineTo(x + w * 0.35, y + h * 0.5);
+          g.lineTo(x - w * 0.35, y + h * 0.5);
           g.closePath();
           g.fill({ color: bodyColor });
-          g.stroke({ color: 0x88bbff, width: 0.5, alpha: 0.6 });
-        }
-
-        // Marauder: shoulder pads (small rects on sides)
-        if (uType === UnitType.Marauder) {
-          // Left shoulder pad
-          g.rect(x - w / 2 - 3, y - h / 2, 3, h * 0.4);
+          // Armor plate outline
+          g.moveTo(x - w * 0.5, y - h * 0.4);
+          g.lineTo(x + w * 0.5, y - h * 0.4);
+          g.lineTo(x + w * 0.35, y + h * 0.5);
+          g.lineTo(x - w * 0.35, y + h * 0.5);
+          g.closePath();
+          g.stroke({ color: 0x5588bb, width: 1, alpha: 0.6 });
+          // Helmet — small rect on top
+          g.rect(x - w * 0.3, y - h * 0.55, w * 0.6, h * 0.2);
           g.fill({ color: bodyColor });
-          g.stroke({ color: 0x5577aa, width: 0.5 });
+          g.rect(x - w * 0.3, y - h * 0.55, w * 0.6, h * 0.2);
+          g.stroke({ color: 0x6699cc, width: 1, alpha: 0.7 });
+          // Visor slit — bright cyan horizontal line
+          g.moveTo(x - w * 0.22, y - h * 0.46);
+          g.lineTo(x + w * 0.22, y - h * 0.46);
+          g.stroke({ color: 0x44ffff, width: 1.5 });
+          // Rifle — thin angled line from right shoulder going down-right
+          g.moveTo(x + w * 0.4, y - h * 0.3);
+          g.lineTo(x + w * 0.75, y + h * 0.15);
+          g.stroke({ color: 0x778899, width: 1.5 });
+          // Rifle muzzle — small horizontal line at end
+          g.moveTo(x + w * 0.7, y + h * 0.15);
+          g.lineTo(x + w * 0.85, y + h * 0.15);
+          g.stroke({ color: 0x556677, width: 1.5 });
+
+        } else if (uType === UnitType.Marauder) {
+          // ── Marauder: heavy armored, bulky with concussion grenades ──
+          // Shadow
+          g.rect(x - w / 2 - 3, y - h / 2 - 2, w + 6, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body — wider rect (emphasize bulk)
+          g.rect(x - w * 0.5, y - h * 0.4, w, h * 0.8);
+          g.fill({ color: bodyColor });
+          // Armor plate outline
+          g.rect(x - w * 0.5, y - h * 0.4, w, h * 0.8);
+          g.stroke({ color: 0x5577aa, width: 1.2, alpha: 0.7 });
+          // Central chest plate — inner rect with slightly different shade
+          g.rect(x - w * 0.25, y - h * 0.25, w * 0.5, h * 0.5);
+          g.fill({ color: 0x2266aa, alpha: 0.4 });
+          g.rect(x - w * 0.25, y - h * 0.25, w * 0.5, h * 0.5);
+          g.stroke({ color: 0x4488bb, width: 0.8, alpha: 0.5 });
+          // Left shoulder pad — big rounded rect extending from left side
+          g.rect(x - w * 0.7, y - h * 0.5, w * 0.3, h * 0.45);
+          g.fill({ color: bodyColor });
+          g.rect(x - w * 0.7, y - h * 0.5, w * 0.3, h * 0.45);
+          g.stroke({ color: 0x6688aa, width: 1 });
           // Right shoulder pad
-          g.rect(x + w / 2, y - h / 2, 3, h * 0.4);
+          g.rect(x + w * 0.4, y - h * 0.5, w * 0.3, h * 0.45);
           g.fill({ color: bodyColor });
-          g.stroke({ color: 0x5577aa, width: 0.5 });
-        }
+          g.rect(x + w * 0.4, y - h * 0.5, w * 0.3, h * 0.45);
+          g.stroke({ color: 0x6688aa, width: 1 });
+          // Grenade launchers — small circles on shoulders
+          g.circle(x - w * 0.55, y - h * 0.35, 2.5);
+          g.fill({ color: 0x445566 });
+          g.circle(x - w * 0.55, y - h * 0.35, 2.5);
+          g.stroke({ color: 0x667788, width: 0.8 });
+          g.circle(x + w * 0.55, y - h * 0.35, 2.5);
+          g.fill({ color: 0x445566 });
+          g.circle(x + w * 0.55, y - h * 0.35, 2.5);
+          g.stroke({ color: 0x667788, width: 0.8 });
+          // Visor — bright red/orange horizontal line
+          g.moveTo(x - w * 0.2, y - h * 0.45);
+          g.lineTo(x + w * 0.2, y - h * 0.45);
+          g.stroke({ color: 0xff6622, width: 2 });
 
-        // Siege Tank
-        if (uType === UnitType.SiegeTank) {
-          // Treads (two thin rects below body)
-          g.rect(x - w / 2, y + h / 2, w, 2);
-          g.fill({ color: 0x555555 });
-          g.rect(x - w / 2, y + h / 2 + 3, w, 2);
-          g.fill({ color: 0x444444 });
-
+        } else if (uType === UnitType.SiegeTank) {
+          // ── Siege Tank: heavy vehicle with treads and cannon ──
           if (sm === SiegeMode.Sieged) {
-            // Longer cannon in siege mode
-            g.moveTo(x, y);
-            g.lineTo(x + w * 0.7, y);
-            g.stroke({ color: 0xaaaaaa, width: 3 });
+            // === SIEGED MODE: wider, flatter, very long cannon ===
+            // Shadow
+            g.rect(x - w / 2 - 3, y - h / 2 - 2, w + 6, h + 6);
+            g.fill({ color: 0x000000, alpha: 0.4 });
+            // Stabilizer legs extending down-left and down-right
+            g.moveTo(x - w * 0.4, y + h * 0.3);
+            g.lineTo(x - w * 0.7, y + h * 0.65);
+            g.stroke({ color: 0x555555, width: 2 });
+            g.moveTo(x + w * 0.4, y + h * 0.3);
+            g.lineTo(x + w * 0.7, y + h * 0.65);
+            g.stroke({ color: 0x555555, width: 2 });
+            // Stabilizer feet (small horizontal lines)
+            g.moveTo(x - w * 0.75, y + h * 0.65);
+            g.lineTo(x - w * 0.6, y + h * 0.65);
+            g.stroke({ color: 0x666666, width: 2 });
+            g.moveTo(x + w * 0.65, y + h * 0.65);
+            g.lineTo(x + w * 0.8, y + h * 0.65);
+            g.stroke({ color: 0x666666, width: 2 });
+            // Main body — wide, flat
+            g.rect(x - w * 0.5, y - h * 0.3, w, h * 0.6);
+            g.fill({ color: bodyColor });
+            g.rect(x - w * 0.5, y - h * 0.3, w, h * 0.6);
+            g.stroke({ color: 0x5588aa, width: 1, alpha: 0.6 });
+            // Turret — darker rect on top-center
+            g.rect(x - w * 0.2, y - h * 0.25, w * 0.4, h * 0.3);
+            g.fill({ color: 0x224466 });
+            g.rect(x - w * 0.2, y - h * 0.25, w * 0.4, h * 0.3);
+            g.stroke({ color: 0x446688, width: 1 });
+            // Very long cannon extending right
+            g.moveTo(x + w * 0.2, y - h * 0.1);
+            g.lineTo(x + w * 1.1, y - h * 0.1);
+            g.stroke({ color: 0xaaaaaa, width: 3.5 });
+            // Muzzle flash circle at tip
+            const muzzlePulse = 0.3 + 0.3 * Math.sin(gameTime * 6);
+            g.circle(x + w * 1.1, y - h * 0.1, 3);
+            g.fill({ color: 0xffaa44, alpha: muzzlePulse });
           } else if (sm === SiegeMode.Packing || sm === SiegeMode.Unpacking) {
-            // Pulsing outline during transition
-            const pulse = 0.3 + 0.5 * Math.sin(gameTime * 8);
+            // === TRANSITIONING: pulsing outline ===
             g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
-            g.stroke({ color: 0xffaa00, width: 1.5, alpha: pulse });
+            g.fill({ color: 0x000000, alpha: 0.4 });
+            g.rect(x - w / 2, y - h / 2, w, h);
+            g.fill({ color: bodyColor });
+            const pulse = 0.3 + 0.5 * Math.sin(gameTime * 8);
+            g.rect(x - w / 2 - 3, y - h / 2 - 3, w + 6, h + 6);
+            g.stroke({ color: 0xffaa00, width: 2, alpha: pulse });
           } else {
-            // Normal cannon line
-            g.moveTo(x, y);
-            g.lineTo(x + w * 0.8, y);
-            g.stroke({ color: 0x888888, width: 2 });
+            // === MOBILE MODE: body with treads and cannon ===
+            // Shadow
+            g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 6);
+            g.fill({ color: 0x000000, alpha: 0.4 });
+            // Treads — two parallel dark rects below the body, slightly wider
+            g.rect(x - w * 0.55, y + h * 0.3, w * 1.1, h * 0.15);
+            g.fill({ color: 0x444444 });
+            g.rect(x - w * 0.55, y + h * 0.3, w * 1.1, h * 0.15);
+            g.stroke({ color: 0x333333, width: 0.8 });
+            g.rect(x - w * 0.55, y + h * 0.48, w * 1.1, h * 0.15);
+            g.fill({ color: 0x3a3a3a });
+            g.rect(x - w * 0.55, y + h * 0.48, w * 1.1, h * 0.15);
+            g.stroke({ color: 0x333333, width: 0.8 });
+            // Tread detail — small vertical lines for track links
+            for (let t = 0; t < 5; t++) {
+              const tx = x - w * 0.45 + t * w * 0.22;
+              g.moveTo(tx, y + h * 0.3);
+              g.lineTo(tx, y + h * 0.63);
+              g.stroke({ color: 0x555555, width: 0.6 });
+            }
+            // Main body rect
+            g.rect(x - w * 0.45, y - h * 0.35, w * 0.9, h * 0.65);
+            g.fill({ color: bodyColor });
+            g.rect(x - w * 0.45, y - h * 0.35, w * 0.9, h * 0.65);
+            g.stroke({ color: 0x5588aa, width: 1, alpha: 0.6 });
+            // Turret — smaller darker rect on top-center
+            g.rect(x - w * 0.15, y - h * 0.3, w * 0.3, h * 0.3);
+            g.fill({ color: 0x224466 });
+            g.rect(x - w * 0.15, y - h * 0.3, w * 0.3, h * 0.3);
+            g.stroke({ color: 0x446688, width: 0.8 });
+            // Cannon extending right
+            g.moveTo(x + w * 0.15, y - h * 0.15);
+            g.lineTo(x + w * 0.8, y - h * 0.15);
+            g.stroke({ color: 0x888888, width: 2.5 });
+            // Muzzle circle
+            g.circle(x + w * 0.8, y - h * 0.15, 2);
+            g.fill({ color: 0x666666 });
           }
-        }
 
-        // Medivac: cross symbol + heal beams + wing lines
-        if (uType === UnitType.Medivac) {
+        } else if (uType === UnitType.Medivac) {
+          // ── Medivac: flying medical transport with wings and red cross ──
+          // Faint shadow below (elevated appearance)
+          g.ellipse(x, y + 3, w * 0.45, h * 0.2);
+          g.fill({ color: 0x000000, alpha: 0.2 });
+          // Shadow behind main body
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.35 });
+          // Main body — oval/ellipse (unlike other Terran rects, it flies)
+          g.ellipse(x, y, w * 0.5, h * 0.4);
+          g.fill({ color: bodyColor });
+          g.ellipse(x, y, w * 0.5, h * 0.4);
+          g.stroke({ color: 0x6699bb, width: 1, alpha: 0.6 });
+          // Two swept-back wing lines extending from sides
+          g.moveTo(x - w * 0.4, y - h * 0.05);
+          g.lineTo(x - w * 0.85, y - h * 0.35);
+          g.stroke({ color: 0x8899aa, width: 2 });
+          g.moveTo(x + w * 0.4, y - h * 0.05);
+          g.lineTo(x + w * 0.85, y - h * 0.35);
+          g.stroke({ color: 0x8899aa, width: 2 });
+          // Wing tips (small horizontal ends)
+          g.moveTo(x - w * 0.85, y - h * 0.35);
+          g.lineTo(x - w * 0.95, y - h * 0.3);
+          g.stroke({ color: 0x778899, width: 1.5 });
+          g.moveTo(x + w * 0.85, y - h * 0.35);
+          g.lineTo(x + w * 0.95, y - h * 0.3);
+          g.stroke({ color: 0x778899, width: 1.5 });
+          // Large red cross in center
           g.rect(x - 2, y - 5, 4, 10);
-          g.fill({ color: 0xffffff, alpha: 0.6 });
+          g.fill({ color: 0xff3333, alpha: 0.8 });
           g.rect(x - 5, y - 2, 10, 4);
-          g.fill({ color: 0xffffff, alpha: 0.6 });
-
-          // Wing lines extending from sides
-          g.moveTo(x - w / 2, y);
-          g.lineTo(x - w / 2 - 5, y - 2);
-          g.stroke({ color: 0x8899aa, width: 1.5 });
-          g.moveTo(x + w / 2, y);
-          g.lineTo(x + w / 2 + 5, y - 2);
-          g.stroke({ color: 0x8899aa, width: 1.5 });
+          g.fill({ color: 0xff3333, alpha: 0.8 });
+          // Small rotor circle on top
+          const rotorAngle = gameTime * 8;
+          g.circle(x, y - h * 0.35, 3);
+          g.fill({ color: 0x889999, alpha: 0.7 });
+          // Rotor blade lines (spinning)
+          g.moveTo(x + Math.cos(rotorAngle) * 5, y - h * 0.35 + Math.sin(rotorAngle) * 2);
+          g.lineTo(x - Math.cos(rotorAngle) * 5, y - h * 0.35 - Math.sin(rotorAngle) * 2);
+          g.stroke({ color: 0xaabbcc, width: 1, alpha: 0.6 });
+          // Exhaust glow at rear
+          g.circle(x, y + h * 0.35, 2);
+          g.fill({ color: 0x4488ff, alpha: 0.4 });
 
           // Draw heal beams to nearby wounded bio allies
           this.drawHealBeams(g, world, eid, x, y);
+
+        } else {
+          // Fallback for any unknown Terran unit
+          g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          g.rect(x - w / 2, y - h / 2, w, h);
+          g.fill({ color: bodyColor });
         }
       }
 

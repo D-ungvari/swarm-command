@@ -43,9 +43,10 @@ import { SelectionRenderer } from './rendering/SelectionRenderer';
 import { HudRenderer } from './rendering/HudRenderer';
 import { BuildMenuRenderer } from './rendering/BuildMenuRenderer';
 import { InfoPanelRenderer } from './rendering/InfoPanelRenderer';
+import { ModeIndicatorRenderer } from './rendering/ModeIndicatorRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
-import { commandSystem } from './systems/CommandSystem';
+import { commandSystem, attackMoveMode } from './systems/CommandSystem';
 import { buildSystem } from './systems/BuildSystem';
 import { productionSystem } from './systems/ProductionSystem';
 import { combatSystem } from './systems/CombatSystem';
@@ -79,6 +80,7 @@ export class Game {
   private hudRenderer!: HudRenderer;
   private buildMenuRenderer!: BuildMenuRenderer;
   private infoPanelRenderer!: InfoPanelRenderer;
+  private modeIndicatorRenderer!: ModeIndicatorRenderer;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -139,6 +141,7 @@ export class Game {
     this.hudRenderer = new HudRenderer(container);
     this.buildMenuRenderer = new BuildMenuRenderer(container);
     this.infoPanelRenderer = new InfoPanelRenderer(container);
+    this.modeIndicatorRenderer = new ModeIndicatorRenderer(container);
 
     this.tilemapRenderer.render(this.map);
 
@@ -197,8 +200,9 @@ export class Game {
     this.renderGhost();
     const res = this.resources[Faction.Terran];
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
-    this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas);
+    this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType);
     this.infoPanelRenderer.update(this.world, this.gameTime);
+    this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
   }
 
   private handleBuildPlacement(): void {

@@ -90,6 +90,10 @@ export class UnitRenderer {
         const bt = buildingType[eid] as BuildingType;
         const baseAlpha = bs === BuildState.UnderConstruction ? 0.6 : 1.0;
 
+        // === Shadow outline behind building ===
+        g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
+        g.fill({ color: 0x000000, alpha: 0.4 });
+
         // Main building rect
         g.rect(x - w / 2, y - h / 2, w, h);
         g.fill({ color: tint, alpha: baseAlpha });
@@ -156,9 +160,7 @@ export class UnitRenderer {
           for (let d = -Math.max(hw2, hh2); d <= Math.max(hw2, hh2); d += step) {
             // Forward diagonals
             const fx1 = Math.max(-hw2, d - hh2);
-            const fy1 = Math.max(-hh2, d - hw2);
             const fx2 = Math.min(hw2, d + hh2);
-            const fy2 = Math.min(hh2, d + hw2);
             if (fx1 < fx2) {
               g.moveTo(x + fx1, y + (fx1 - d));
               g.lineTo(x + fx2, y + (fx2 - d));
@@ -263,36 +265,122 @@ export class UnitRenderer {
       else if (isStimmed) bodyColor = 0x66ddff;
 
       if (fac === Faction.Zerg) {
+        // === Shadow outline behind Zerg unit ===
+        g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+        g.fill({ color: 0x000000, alpha: 0.4 });
+
         // Organic: circles/ellipses
         g.ellipse(x, y, w / 2, h / 2);
         g.fill({ color: bodyColor });
 
-        // Zergling: small spikes
+        // --- Per-unit detail shapes ---
+
+        // Zergling: spikes on top + mandible lines at front
         if (uType === UnitType.Zergling) {
           g.moveTo(x - w * 0.4, y - h * 0.5);
           g.lineTo(x - w * 0.1, y - h * 0.3);
           g.lineTo(x + w * 0.1, y - h * 0.3);
           g.lineTo(x + w * 0.4, y - h * 0.5);
           g.stroke({ color: tint, width: 1.5 });
+          // Mandibles at front (bottom)
+          g.moveTo(x - w * 0.2, y + h * 0.4);
+          g.lineTo(x - w * 0.35, y + h * 0.65);
+          g.stroke({ color: tint, width: 1 });
+          g.moveTo(x + w * 0.2, y + h * 0.4);
+          g.lineTo(x + w * 0.35, y + h * 0.65);
+          g.stroke({ color: tint, width: 1 });
         }
-        // Baneling: glow ring
+
+        // Baneling: glow ring + inner glow circle (brighter center)
         if (uType === UnitType.Baneling) {
           g.circle(x, y, w / 2 + 2);
           g.stroke({ color: 0xaaff44, width: 1, alpha: 0.6 });
+          // Brighter inner glow
+          g.circle(x, y, w / 4);
+          g.fill({ color: 0xddff88, alpha: 0.5 });
         }
-        // Roach regen indicator — pulsing green when regenerating
-        if (uType === UnitType.Roach && hpCurrent[eid] < hpMax[eid] && hpCurrent[eid] > 0) {
-          const pulse = 0.3 + 0.3 * Math.sin(gameTime * 4);
-          g.circle(x, y - h / 2 - 4, 3);
-          g.fill({ color: 0x44ff44, alpha: pulse });
+
+        // Hydralisk: taller with spine/crest on top (triangular spike)
+        if (uType === UnitType.Hydralisk) {
+          // Triangular crest spike on top
+          g.moveTo(x, y - h * 0.5 - 5);
+          g.lineTo(x - w * 0.15, y - h * 0.35);
+          g.lineTo(x + w * 0.15, y - h * 0.35);
+          g.closePath();
+          g.fill({ color: tint });
         }
+
+        // Roach: carapace arc on top
+        if (uType === UnitType.Roach) {
+          // Carapace arc
+          g.arc(x, y - h * 0.1, w / 2 - 2, Math.PI, 0, false);
+          g.stroke({ color: 0x886644, width: 2, alpha: 0.6 });
+          // Regen indicator
+          if (hpCurrent[eid] < hpMax[eid] && hpCurrent[eid] > 0) {
+            const pulse = 0.3 + 0.3 * Math.sin(gameTime * 4);
+            g.circle(x, y - h / 2 - 4, 3);
+            g.fill({ color: 0x44ff44, alpha: pulse });
+          }
+        }
+
+        // Drone: two small antenna dots above
+        if (uType === UnitType.Drone) {
+          g.circle(x - w * 0.25, y - h * 0.5 - 3, 2);
+          g.fill({ color: tint, alpha: 0.8 });
+          g.circle(x + w * 0.25, y - h * 0.5 - 3, 2);
+          g.fill({ color: tint, alpha: 0.8 });
+        }
+
       } else {
+        // === Shadow outline behind Terran unit ===
+        g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
+        g.fill({ color: 0x000000, alpha: 0.4 });
+
         // Terran: rectangles (angular, mechanical)
         g.rect(x - w / 2, y - h / 2, w, h);
         g.fill({ color: bodyColor });
 
+        // --- Per-unit detail shapes ---
+
+        // SCV: wrench/arm line extending from right side
+        if (uType === UnitType.SCV) {
+          // Arm line
+          g.moveTo(x + w / 2, y);
+          g.lineTo(x + w / 2 + 5, y - 3);
+          g.lineTo(x + w / 2 + 3, y - 6);
+          g.stroke({ color: 0xaaaaaa, width: 1.5 });
+        }
+
+        // Marine: triangular helmet/visor on top
+        if (uType === UnitType.Marine) {
+          g.moveTo(x - w * 0.3, y - h / 2);
+          g.lineTo(x, y - h / 2 - 4);
+          g.lineTo(x + w * 0.3, y - h / 2);
+          g.closePath();
+          g.fill({ color: bodyColor });
+          g.stroke({ color: 0x88bbff, width: 0.5, alpha: 0.6 });
+        }
+
+        // Marauder: shoulder pads (small rects on sides)
+        if (uType === UnitType.Marauder) {
+          // Left shoulder pad
+          g.rect(x - w / 2 - 3, y - h / 2, 3, h * 0.4);
+          g.fill({ color: bodyColor });
+          g.stroke({ color: 0x5577aa, width: 0.5 });
+          // Right shoulder pad
+          g.rect(x + w / 2, y - h / 2, 3, h * 0.4);
+          g.fill({ color: bodyColor });
+          g.stroke({ color: 0x5577aa, width: 0.5 });
+        }
+
         // Siege Tank
         if (uType === UnitType.SiegeTank) {
+          // Treads (two thin rects below body)
+          g.rect(x - w / 2, y + h / 2, w, 2);
+          g.fill({ color: 0x555555 });
+          g.rect(x - w / 2, y + h / 2 + 3, w, 2);
+          g.fill({ color: 0x444444 });
+
           if (sm === SiegeMode.Sieged) {
             // Longer cannon in siege mode
             g.moveTo(x, y);
@@ -310,12 +398,21 @@ export class UnitRenderer {
             g.stroke({ color: 0x888888, width: 2 });
           }
         }
-        // Medivac: cross symbol + heal beams
+
+        // Medivac: cross symbol + heal beams + wing lines
         if (uType === UnitType.Medivac) {
           g.rect(x - 2, y - 5, 4, 10);
           g.fill({ color: 0xffffff, alpha: 0.6 });
           g.rect(x - 5, y - 2, 10, 4);
           g.fill({ color: 0xffffff, alpha: 0.6 });
+
+          // Wing lines extending from sides
+          g.moveTo(x - w / 2, y);
+          g.lineTo(x - w / 2 - 5, y - 2);
+          g.stroke({ color: 0x8899aa, width: 1.5 });
+          g.moveTo(x + w / 2, y);
+          g.lineTo(x + w / 2 + 5, y - 2);
+          g.stroke({ color: 0x8899aa, width: 1.5 });
 
           // Draw heal beams to nearby wounded bio allies
           this.drawHealBeams(g, world, eid, x, y);
@@ -351,15 +448,42 @@ export class UnitRenderer {
       }
     }
 
-    // Death effects
+    // Death effects — improved with filled circles, particles, faction colors
     for (const evt of deathEvents) {
       const age = gameTime - evt.time;
-      const alpha = Math.max(0, 1 - age / 0.5);
-      const radius = 8 + age * 40;
-      const color = evt.faction === Faction.Terran ? 0x3399ff : 0xcc3333;
+      const duration = 0.5;
+      const t = Math.min(1, age / duration);
+      const alpha = Math.max(0, 1 - t);
 
+      const isTerran = evt.faction === Faction.Terran;
+      const baseColor = isTerran ? 0x6699ff : 0x44cc44;
+      const particleColor = isTerran ? 0xaaccff : 0x66ff44;
+
+      // Filled expanding circle with decreasing alpha
+      const radius = 6 + t * 30;
       g.circle(evt.x, evt.y, radius);
-      g.stroke({ color, width: 2, alpha });
+      g.fill({ color: baseColor, alpha: alpha * 0.35 });
+      g.circle(evt.x, evt.y, radius);
+      g.stroke({ color: baseColor, width: 2, alpha: alpha * 0.7 });
+
+      // Bright center flash (fades fast)
+      const centerAlpha = Math.max(0, 1 - t * 3);
+      if (centerAlpha > 0) {
+        g.circle(evt.x, evt.y, 4 + t * 6);
+        g.fill({ color: 0xffffff, alpha: centerAlpha * 0.6 });
+      }
+
+      // 4 particle dots flying outward
+      const particleDist = 8 + t * 50;
+      const particleAlpha = alpha * 0.8;
+      const particleSize = Math.max(0.5, 2 - t * 2);
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * Math.PI / 2) + 0.3; // offset for variety
+        const px = evt.x + Math.cos(angle) * particleDist;
+        const py = evt.y + Math.sin(angle) * particleDist;
+        g.circle(px, py, particleSize);
+        g.fill({ color: particleColor, alpha: particleAlpha });
+      }
     }
   }
 

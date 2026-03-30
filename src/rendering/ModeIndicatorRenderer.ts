@@ -1,0 +1,57 @@
+/**
+ * HTML-based mode indicator overlay (top-left of screen).
+ * Shows the current input mode: ATTACK MOVE, BUILD MODE, or hidden for normal.
+ */
+export class ModeIndicatorRenderer {
+  private el: HTMLDivElement;
+  private lastText = '';
+
+  constructor(container: HTMLElement) {
+    this.el = document.createElement('div');
+    this.el.id = 'mode-indicator';
+    this.el.style.cssText = `
+      position: fixed;
+      top: 10px;
+      left: 12px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 14px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border-radius: 3px;
+      z-index: 10;
+      pointer-events: none;
+      user-select: none;
+      display: none;
+    `;
+    container.appendChild(this.el);
+  }
+
+  update(attackMoveMode: boolean, placementMode: boolean): void {
+    let text = '';
+    let color = '';
+    let bg = '';
+
+    if (attackMoveMode) {
+      text = 'ATTACK MOVE';
+      color = '#ffcc44';
+      bg = 'rgba(100, 80, 0, 0.6)';
+    } else if (placementMode) {
+      text = 'BUILD MODE';
+      color = '#88bbff';
+      bg = 'rgba(20, 40, 100, 0.6)';
+    }
+
+    if (text !== this.lastText) {
+      this.lastText = text;
+      if (text === '') {
+        this.el.style.display = 'none';
+      } else {
+        this.el.style.display = 'block';
+        this.el.textContent = text;
+        this.el.style.color = color;
+        this.el.style.background = bg;
+      }
+    }
+  }
+}

@@ -110,13 +110,14 @@ export class InfoPanelRenderer {
   }
 
   update(world: World, _gameTime: number): void {
-    // Find first selected entity
+    // Count selected entities and find first one
     let sel = -1;
+    let selCount = 0;
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (!hasComponents(world, eid, SELECTABLE) || selected[eid] !== 1) continue;
       if (!hasComponents(world, eid, POSITION | RENDERABLE)) continue;
-      sel = eid;
-      break;
+      selCount++;
+      if (sel < 0) sel = eid;
     }
 
     const visible = sel > 0;
@@ -125,6 +126,17 @@ export class InfoPanelRenderer {
       this.wasVisible = visible;
     }
     if (!visible) return;
+
+    // Multiple units selected — show group count
+    if (selCount > 1) {
+      this.nameEl.textContent = `${selCount} units selected`;
+      this.detailEl.textContent = '';
+      this.barContainer.style.display = 'none';
+      this.prodRow.style.display = 'none';
+      return;
+    }
+
+    this.barContainer.style.display = 'block';
 
     const eid = sel;
 

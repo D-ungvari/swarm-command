@@ -65,7 +65,13 @@ export class BuildMenuRenderer {
     container.appendChild(this.panel);
   }
 
-  update(visible: boolean, minerals: number, _gas: number): void {
+  private static readonly BUILDING_TYPES: BuildingType[] = [
+    BuildingType.CommandCenter,
+    BuildingType.SupplyDepot,
+    BuildingType.Barracks,
+  ];
+
+  update(visible: boolean, minerals: number, _gas: number, selectedType: number = 0): void {
     if (visible !== this.wasVisible) {
       this.panel.style.display = visible ? 'flex' : 'none';
       this.wasVisible = visible;
@@ -80,10 +86,19 @@ export class BuildMenuRenderer {
 
     for (let i = 0; i < this.options.length; i++) {
       const canAfford = minerals >= costs[i];
-      this.options[i].style.color = canAfford ? '#eee' : '#666';
-      this.options[i].style.borderColor = canAfford
-        ? 'rgba(100, 160, 255, 0.4)'
-        : 'rgba(100, 100, 100, 0.2)';
+      const isActive = selectedType === BuildMenuRenderer.BUILDING_TYPES[i];
+
+      if (isActive) {
+        this.options[i].style.color = '#fff';
+        this.options[i].style.borderColor = 'rgba(100, 180, 255, 0.8)';
+        this.options[i].style.background = 'rgba(40, 80, 160, 0.5)';
+      } else {
+        this.options[i].style.color = canAfford ? '#eee' : '#666';
+        this.options[i].style.borderColor = canAfford
+          ? 'rgba(100, 160, 255, 0.4)'
+          : 'rgba(100, 100, 100, 0.2)';
+        this.options[i].style.background = 'transparent';
+      }
     }
   }
 }

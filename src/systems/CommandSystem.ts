@@ -25,7 +25,7 @@ import type { PlayerResources } from '../types';
 import type { Viewport } from 'pixi-viewport';
 
 /** Attack-move mode: set by pressing A, consumed by next left-click */
-let attackMoveMode = false;
+export let attackMoveMode = false;
 
 /**
  * Translates player input into move/attack/attack-move commands for selected units.

@@ -1,11 +1,12 @@
 import { Container, Graphics } from 'pixi.js';
-import { Faction, UnitType, SiegeMode, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE } from '../constants';
+import { Faction, UnitType, SiegeMode, ResourceType, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE } from '../constants';
 import {
-  POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK,
+  POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE,
   posX, posY, renderWidth, renderHeight, renderTint,
   selected, faction, hpCurrent, hpMax, unitType,
   atkFlashTimer, atkRange, atkDamage, targetEntity,
   stimEndTime, slowEndTime, siegeMode, lastCombatTime,
+  resourceType, resourceRemaining,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -38,6 +39,45 @@ export class UnitRenderer {
       let h = renderHeight[eid];
       const tint = renderTint[eid];
       const isSelected = hasComponents(world, eid, SELECTABLE) && selected[eid] === 1;
+
+      // Resource entities render differently
+      if (hasComponents(world, eid, RESOURCE)) {
+        if (isSelected) {
+          g.circle(x, y, Math.max(w, h) * 0.7);
+          g.stroke({ color: SELECTION_COLOR, width: 1.5, alpha: 0.8 });
+        }
+        const rt = resourceType[eid] as ResourceType;
+        if (rt === ResourceType.Mineral) {
+          // Diamond shape for minerals
+          g.moveTo(x, y - h / 2);
+          g.lineTo(x + w / 2, y);
+          g.lineTo(x, y + h / 2);
+          g.lineTo(x - w / 2, y);
+          g.closePath();
+          g.fill({ color: tint });
+          g.stroke({ color: 0x88ddff, width: 1, alpha: 0.5 });
+        } else {
+          // Pulsing circle for gas
+          const pulse = 0.6 + 0.2 * Math.sin(gameTime * 3);
+          g.circle(x, y, w / 2);
+          g.fill({ color: tint, alpha: pulse });
+          g.stroke({ color: 0x88ff88, width: 1, alpha: 0.4 });
+        }
+        // Depletion bar (reuse health bar pattern)
+        if (hpCurrent[eid] < hpMax[eid]) {
+          const barW = w + 4;
+          const barH = 3;
+          const barX = x - barW / 2;
+          const barY = y - h / 2 - 6;
+          const ratio = Math.max(0, hpCurrent[eid] / hpMax[eid]);
+          g.rect(barX, barY, barW, barH);
+          g.fill({ color: 0x333333, alpha: 0.8 });
+          g.rect(barX, barY, barW * ratio, barH);
+          g.fill({ color: tint });
+        }
+        continue;
+      }
+
       const fac = faction[eid] as Faction;
       const uType = unitType[eid] as UnitType;
       const isFlashing = atkFlashTimer[eid] > 0;

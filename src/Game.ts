@@ -4,30 +4,39 @@ import {
   MAP_WIDTH, MAP_HEIGHT, TILE_SIZE,
   EDGE_SCROLL_ZONE, EDGE_SCROLL_SPEED,
   MIN_ZOOM, MAX_ZOOM,
-  MS_PER_TICK, Faction, UnitType,
+  MS_PER_TICK, Faction, UnitType, ResourceType,
+  MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR,
+  STARTING_MINERALS, STARTING_GAS, TileType,
 } from './constants';
 import { createWorld, addEntity, type World } from './ecs/world';
 import {
-  addUnitComponents, posX, posY,
+  addUnitComponents, addWorkerComponent, addResourceComponents,
+  posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
   atkDamage, atkRange, atkCooldown, atkLastTime, movePathIndex,
   targetEntity, commandMode,
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd, lastCombatTime,
+  workerState, workerCarrying, workerTargetEid, workerMineTimer,
+  workerBaseX, workerBaseY,
+  resourceType, resourceRemaining,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
-import { generateMap, tileToWorld, type MapData } from './map/MapData';
+import { generateMap, tileToWorld, getResourceTiles, type MapData } from './map/MapData';
 import { InputManager } from './input/InputManager';
 import { TilemapRenderer } from './rendering/TilemapRenderer';
 import { UnitRenderer } from './rendering/UnitRenderer';
 import { SelectionRenderer } from './rendering/SelectionRenderer';
+import { HudRenderer } from './rendering/HudRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem } from './systems/CommandSystem';
 import { combatSystem } from './systems/CombatSystem';
 import { abilitySystem } from './systems/AbilitySystem';
+import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
+import type { PlayerResources } from './types';
 
 export class Game {
   app!: Application;
@@ -36,10 +45,17 @@ export class Game {
   map: MapData;
   input!: InputManager;
 
+  // Per-player resource state
+  resources: Record<number, PlayerResources> = {
+    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS },
+    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS },
+  };
+
   // Renderers
   private tilemapRenderer!: TilemapRenderer;
   private unitRenderer!: UnitRenderer;
   private selectionRenderer!: SelectionRenderer;
+  private hudRenderer!: HudRenderer;
 
   // Fixed timestep accumulator
   private accumulator = 0;
@@ -98,10 +114,14 @@ export class Game {
     this.selectionRenderer = new SelectionRenderer();
     this.app.stage.addChild(this.selectionRenderer.container);
 
+    // HUD
+    this.hudRenderer = new HudRenderer(container);
+
     // Render the tilemap once
     this.tilemapRenderer.render(this.map);
 
-    // Spawn demo units
+    // Spawn resource nodes and demo units
+    this.spawnResourceNodes();
     this.spawnDemoUnits();
 
     // Handle resize
@@ -116,7 +136,7 @@ export class Game {
 
   private loop(): void {
     const now = performance.now();
-    const frameTime = Math.min(now - this.lastTime, 100); // cap to avoid spiral of death
+    const frameTime = Math.min(now - this.lastTime, 100);
     this.lastTime = now;
     this.accumulator += frameTime;
 
@@ -128,11 +148,11 @@ export class Game {
 
     // Fixed timestep game logic
     while (this.accumulator >= MS_PER_TICK) {
-      this.tick(MS_PER_TICK / 1000); // dt in seconds
+      this.tick(MS_PER_TICK / 1000);
       this.accumulator -= MS_PER_TICK;
     }
 
-    // Render (runs every frame, not tied to tick rate)
+    // Render
     this.render();
 
     this.input.lateUpdate();
@@ -145,12 +165,15 @@ export class Game {
     movementSystem(this.world, dt);
     combatSystem(this.world, dt, this.gameTime, this.map);
     abilitySystem(this.world, dt, this.gameTime);
+    gatherSystem(this.world, dt, this.map, this.resources);
     deathSystem(this.world, this.gameTime);
   }
 
   private render(): void {
     this.unitRenderer.render(this.world, this.gameTime);
     this.selectionRenderer.render(this.input.state);
+    const res = this.resources[Faction.Terran];
+    this.hudRenderer.update(res.minerals, res.gas);
   }
 
   private handleEdgeScroll(): void {
@@ -166,7 +189,6 @@ export class Game {
     if (m.y <= EDGE_SCROLL_ZONE) dy = -speed;
     if (m.y >= sh - EDGE_SCROLL_ZONE) dy = speed;
 
-    // Arrow keys
     if (this.input.state.keys.has('ArrowLeft')) dx = -speed;
     if (this.input.state.keys.has('ArrowRight')) dx = speed;
     if (this.input.state.keys.has('ArrowUp')) dy = -speed;
@@ -180,9 +202,39 @@ export class Game {
     }
   }
 
-  /** Spawn some test units for Phase 1 demo */
+  private spawnResourceNodes(): void {
+    const tiles = getResourceTiles(this.map);
+    for (const t of tiles) {
+      const eid = addEntity(this.world);
+      addResourceComponents(this.world, eid);
+
+      const wp = tileToWorld(t.col, t.row);
+      posX[eid] = wp.x;
+      posY[eid] = wp.y;
+
+      if (t.type === TileType.Minerals) {
+        resourceType[eid] = ResourceType.Mineral;
+        resourceRemaining[eid] = MINERAL_PER_PATCH;
+        hpCurrent[eid] = MINERAL_PER_PATCH;
+        hpMax[eid] = MINERAL_PER_PATCH;
+        renderWidth[eid] = TILE_SIZE - 6;
+        renderHeight[eid] = TILE_SIZE - 10;
+        renderTint[eid] = MINERAL_COLOR;
+      } else {
+        resourceType[eid] = ResourceType.Gas;
+        resourceRemaining[eid] = GAS_PER_GEYSER;
+        hpCurrent[eid] = GAS_PER_GEYSER;
+        hpMax[eid] = GAS_PER_GEYSER;
+        renderWidth[eid] = TILE_SIZE - 4;
+        renderHeight[eid] = TILE_SIZE - 4;
+        renderTint[eid] = GAS_COLOR;
+      }
+
+      faction[eid] = Faction.None;
+    }
+  }
+
   private spawnDemoUnits(): void {
-    // Terran squad near top-left base
     const terranUnits = [
       { type: UnitType.Marine, col: 18, row: 14 },
       { type: UnitType.Marine, col: 19, row: 14 },
@@ -201,7 +253,6 @@ export class Game {
       this.spawnUnit(u.type, Faction.Terran, u.col, u.row);
     }
 
-    // Zerg swarm near bottom-right base
     const zergUnits = [
       { type: UnitType.Zergling, col: 115, row: 115 },
       { type: UnitType.Zergling, col: 116, row: 115 },
@@ -235,7 +286,7 @@ export class Game {
 
     hpCurrent[eid] = def.hp;
     hpMax[eid] = def.hp;
-    moveSpeed[eid] = def.speed * TILE_SIZE; // convert tile-speed to px/s
+    moveSpeed[eid] = def.speed * TILE_SIZE;
     movePathIndex[eid] = -1;
 
     atkDamage[eid] = def.damage;
@@ -257,6 +308,17 @@ export class Game {
 
     faction[eid] = fac;
     unitType[eid] = def.type;
+
+    // Worker setup
+    if (type === UnitType.SCV || type === UnitType.Drone) {
+      addWorkerComponent(this.world, eid);
+      workerBaseX[eid] = wp.x;
+      workerBaseY[eid] = wp.y;
+      workerTargetEid[eid] = -1;
+      workerState[eid] = 0;
+      workerCarrying[eid] = 0;
+      workerMineTimer[eid] = 0;
+    }
 
     return eid;
   }

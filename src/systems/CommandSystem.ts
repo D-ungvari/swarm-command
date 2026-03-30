@@ -6,15 +6,16 @@ import {
   targetEntity, commandMode,
   stimEndTime, hpCurrent, moveSpeed, atkCooldown,
   siegeMode, siegeTransitionEnd,
+  workerState, workerTargetEid, resourceType,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
-import { findEnemyAt } from '../ecs/queries';
+import { findEnemyAt, findResourceAt } from '../ecs/queries';
 import type { InputState } from '../input/InputManager';
 import type { MapData } from '../map/MapData';
-import { worldToTile, tileToWorld } from '../map/MapData';
+import { worldToTile, tileToWorld, findNearestWalkableTile } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import {
-  Faction, CommandMode, UnitType, SiegeMode, TILE_SIZE,
+  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, TILE_SIZE,
   STIM_DURATION, STIM_HP_COST, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
 } from '../constants';
@@ -95,6 +96,47 @@ export function commandSystem(
   const worldPos = viewport.toWorld(m.x, m.y);
   const selectedUnits = getSelectedUnits(world);
   if (selectedUnits.length === 0) return;
+
+  // Check if right-clicking on a mineral patch (gather command for workers)
+  const resource = findResourceAt(world, worldPos.x, worldPos.y);
+  if (resource > 0 && resourceType[resource] === ResourceType.Mineral) {
+    const workers: number[] = [];
+    const nonWorkers: number[] = [];
+    for (const eid of selectedUnits) {
+      const ut = unitType[eid] as UnitType;
+      if (ut === UnitType.SCV || ut === UnitType.Drone) {
+        workers.push(eid);
+      } else {
+        nonWorkers.push(eid);
+      }
+    }
+    // Workers get gather command
+    for (const eid of workers) {
+      workerTargetEid[eid] = resource;
+      workerState[eid] = WorkerState.MovingToResource;
+      commandMode[eid] = CommandMode.Gather;
+      targetEntity[eid] = -1;
+      // Path to nearest walkable tile adjacent to resource
+      const resTile = worldToTile(posX[resource], posY[resource]);
+      const walkable = findNearestWalkableTile(map, resTile.col, resTile.row);
+      if (walkable) {
+        const startTile = worldToTile(posX[eid], posY[eid]);
+        const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
+        if (tilePath.length > 0) {
+          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+            const wp = tileToWorld(c, r);
+            return [wp.x, wp.y] as [number, number];
+          });
+          setPath(eid, worldPath);
+        }
+      }
+    }
+    // Non-workers get a move command to the area
+    if (nonWorkers.length > 0) {
+      issuePathCommand(world, nonWorkers, worldPos.x, worldPos.y, map, CommandMode.Move);
+    }
+    return;
+  }
 
   const enemy = findEnemyAt(world, worldPos.x, worldPos.y, Faction.Terran);
   if (enemy > 0) {
@@ -223,5 +265,7 @@ function stopSelectedUnits(world: World): void {
     moveTargetX[eid] = -1;
     moveTargetY[eid] = -1;
     movePathIndex[eid] = -1;
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
   }
 }

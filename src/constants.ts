@@ -57,6 +57,21 @@ export const enum CommandMode {
   Move = 1,
   AttackMove = 2,
   AttackTarget = 3,
+  Gather = 4,
+}
+
+// ── Resource types ──
+export const enum ResourceType {
+  Mineral = 1,
+  Gas = 2,
+}
+
+// ── Worker states ──
+export const enum WorkerState {
+  Idle = 0,
+  MovingToResource = 1,
+  Mining = 2,
+  ReturningToBase = 3,
 }
 
 // ── Siege mode states ──
@@ -92,6 +107,15 @@ export const MEDIVAC_HEAL_RANGE = 4;
 export const ROACH_REGEN_COMBAT = 0.5;
 export const ROACH_REGEN_IDLE = 2.0;
 export const ROACH_COMBAT_TIMEOUT = 3.0;
+
+// ── Economy constants ──
+export const MINERAL_PER_PATCH = 1500;
+export const GAS_PER_GEYSER = 2500;
+export const WORKER_CARRY_MINERALS = 5;
+export const MINE_DURATION = 1.5; // seconds
+export const STARTING_MINERALS = 50;
+export const STARTING_GAS = 0;
+export const WORKER_MINE_RANGE = 48; // px (~1.5 tiles)
 
 // ── Colors ──
 export const TERRAN_COLOR = 0x3399ff;

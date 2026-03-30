@@ -1,4 +1,4 @@
-import { MAP_COLS, MAP_ROWS, TileType, TILE_SIZE, MINERAL_COLOR, GAS_COLOR } from '../constants';
+import { MAP_COLS, MAP_ROWS, TileType, TILE_SIZE } from '../constants';
 
 export interface MapData {
   /** Flat tile grid, row-major. tiles[row * MAP_COLS + col] */
@@ -114,4 +114,38 @@ export function isWalkable(map: MapData, x: number, y: number): boolean {
   const { col, row } = worldToTile(x, y);
   if (col < 0 || col >= map.cols || row < 0 || row >= map.rows) return false;
   return map.walkable[row * map.cols + col] === 1;
+}
+
+/** Get all resource tile positions */
+export function getResourceTiles(map: MapData): Array<{ col: number; row: number; type: TileType }> {
+  const result: Array<{ col: number; row: number; type: TileType }> = [];
+  for (let r = 0; r < map.rows; r++) {
+    for (let c = 0; c < map.cols; c++) {
+      const t = map.tiles[r * map.cols + c] as TileType;
+      if (t === TileType.Minerals || t === TileType.Gas) {
+        result.push({ col: c, row: r, type: t });
+      }
+    }
+  }
+  return result;
+}
+
+/** Find nearest walkable tile to a given (possibly unwalkable) tile */
+export function findNearestWalkableTile(map: MapData, col: number, row: number): { col: number; row: number } | null {
+  if (col >= 0 && col < map.cols && row >= 0 && row < map.rows && map.walkable[row * map.cols + col] === 1) {
+    return { col, row };
+  }
+  // BFS in expanding rings
+  for (let radius = 1; radius <= 5; radius++) {
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        if (Math.abs(dr) !== radius && Math.abs(dc) !== radius) continue; // only check ring
+        const r = row + dr;
+        const c = col + dc;
+        if (c < 0 || c >= map.cols || r < 0 || r >= map.rows) continue;
+        if (map.walkable[r * map.cols + c] === 1) return { col: c, row: r };
+      }
+    }
+  }
+  return null;
 }

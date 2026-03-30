@@ -11,6 +11,8 @@ export const SELECTABLE = componentBit();
 export const RENDERABLE = componentBit();
 export const UNIT_TYPE = componentBit();
 export const ABILITY = componentBit();
+export const RESOURCE = componentBit();
+export const WORKER = componentBit();
 
 // ── Position (x, y) ──
 export const posX = new Float32Array(MAX_ENTITIES);
@@ -83,6 +85,21 @@ export const siegeTransitionEnd = new Float32Array(MAX_ENTITIES);
 /** gameTime of last attack-dealt or damage-received */
 export const lastCombatTime = new Float32Array(MAX_ENTITIES);
 
+// ── Resource node ──
+/** ResourceType enum: Mineral=1, Gas=2 */
+export const resourceType = new Uint8Array(MAX_ENTITIES);
+export const resourceRemaining = new Float32Array(MAX_ENTITIES);
+
+// ── Worker ──
+/** WorkerState enum: Idle=0, MovingToResource=1, Mining=2, ReturningToBase=3 */
+export const workerState = new Uint8Array(MAX_ENTITIES);
+export const workerCarrying = new Float32Array(MAX_ENTITIES);
+/** Resource entity being gathered from, -1 = none */
+export const workerTargetEid = new Int16Array(MAX_ENTITIES);
+export const workerMineTimer = new Float32Array(MAX_ENTITIES);
+export const workerBaseX = new Float32Array(MAX_ENTITIES);
+export const workerBaseY = new Float32Array(MAX_ENTITIES);
+
 // ── Path storage (per-entity, up to 64 waypoints) ──
 const MAX_PATH_LENGTH = 64;
 export const paths: Float32Array[] = new Array(MAX_ENTITIES);
@@ -111,6 +128,16 @@ export function addUnitComponents(world: World, eid: number): void {
   world.mask[eid] |= POSITION | VELOCITY | HEALTH | ATTACK | MOVEMENT | SELECTABLE | RENDERABLE | UNIT_TYPE | ABILITY;
 }
 
+/** Add WORKER component to an existing unit entity */
+export function addWorkerComponent(world: World, eid: number): void {
+  world.mask[eid] |= WORKER;
+}
+
+/** Add components for a resource node entity (mineral patch, gas geyser) */
+export function addResourceComponents(world: World, eid: number): void {
+  world.mask[eid] |= POSITION | HEALTH | SELECTABLE | RENDERABLE | RESOURCE;
+}
+
 /** Reset all component data for an entity */
 export function resetComponents(eid: number): void {
   posX[eid] = 0; posY[eid] = 0;
@@ -133,4 +160,12 @@ export function resetComponents(eid: number): void {
   siegeMode[eid] = 0;
   siegeTransitionEnd[eid] = 0;
   lastCombatTime[eid] = 0;
+  resourceType[eid] = 0;
+  resourceRemaining[eid] = 0;
+  workerState[eid] = 0;
+  workerCarrying[eid] = 0;
+  workerTargetEid[eid] = -1;
+  workerMineTimer[eid] = 0;
+  workerBaseX[eid] = 0;
+  workerBaseY[eid] = 0;
 }

@@ -1,9 +1,10 @@
 import { type World, hasComponents, entityExists } from './world';
 import {
-  POSITION, SELECTABLE, RENDERABLE, HEALTH, ATTACK,
+  POSITION, SELECTABLE, RENDERABLE, HEALTH, ATTACK, RESOURCE,
   posX, posY, renderWidth, renderHeight, faction, hpCurrent, atkRange,
+  resourceRemaining, resourceType,
 } from './components';
-import type { Faction } from '../constants';
+import { type Faction, ResourceType } from '../constants';
 
 /**
  * Find the closest unit at a world position (for click targeting).
@@ -92,6 +93,62 @@ export function findClosestEnemy(world: World, eid: number, range: number): numb
     if (distSq <= rangeSq && distSq < closestDist) {
       closestDist = distSq;
       closestEid = other;
+    }
+  }
+
+  return closestEid;
+}
+
+/**
+ * Find a resource entity at a world position (for click targeting).
+ * Returns entity ID or 0 if none found.
+ */
+export function findResourceAt(world: World, wx: number, wy: number): number {
+  const bits = POSITION | RESOURCE | RENDERABLE;
+  let closestEid = 0;
+  let closestDist = Infinity;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (resourceRemaining[eid] <= 0) continue;
+
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const halfW = renderWidth[eid] / 2 + 6;
+    const halfH = renderHeight[eid] / 2 + 6;
+
+    if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
+      const dist = dx * dx + dy * dy;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestEid = eid;
+      }
+    }
+  }
+
+  return closestEid;
+}
+
+/**
+ * Find the nearest mineral patch entity with resources remaining.
+ */
+export function findNearestMineral(world: World, wx: number, wy: number): number {
+  const bits = POSITION | RESOURCE;
+  let closestEid = 0;
+  let closestDist = Infinity;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (resourceRemaining[eid] <= 0) continue;
+    if (resourceType[eid] !== ResourceType.Mineral) continue;
+
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq < closestDist) {
+      closestDist = distSq;
+      closestEid = eid;
     }
   }
 

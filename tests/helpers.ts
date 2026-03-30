@@ -8,7 +8,10 @@
 import { createWorld, addEntity, type World } from '../src/ecs/world';
 import {
   addUnitComponents,
+  addWorkerComponent,
+  addResourceComponents,
   resetComponents,
+  WORKER, RESOURCE,
   posX, posY,
   hpCurrent, hpMax,
   atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, atkFlashTimer,
@@ -21,8 +24,12 @@ import {
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
   lastCombatTime,
+  resourceType, resourceRemaining,
+  workerState, workerCarrying, workerTargetEid, workerMineTimer,
+  workerBaseX, workerBaseY,
 } from '../src/ecs/components';
 import type { MapData } from '../src/map/MapData';
+import type { PlayerResources } from '../src/types';
 
 // Re-export const enum values as plain numbers so tests can use them
 // (const enums are erased at compile time and can't be imported in tests)
@@ -32,10 +39,16 @@ export const UnitType = {
   Drone: 10, Zergling: 11, Baneling: 12, Hydralisk: 13, Roach: 14,
 } as const;
 export const CommandMode = {
-  Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3,
+  Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3, Gather: 4,
 } as const;
 export const SiegeMode = {
   Mobile: 0, Sieged: 1, Packing: 2, Unpacking: 3,
+} as const;
+export const ResourceType = {
+  Mineral: 1, Gas: 2,
+} as const;
+export const WorkerState = {
+  Idle: 0, MovingToResource: 1, Mining: 2, ReturningToBase: 3,
 } as const;
 
 export interface SpawnOpts {
@@ -118,4 +131,69 @@ export function createTestMap(): MapData {
   const walkable = new Uint8Array(cols * rows);
   walkable.fill(1);
   return { tiles, walkable, cols, rows };
+}
+
+export interface SpawnResourceOpts {
+  x?: number;
+  y?: number;
+  type?: number;       // ResourceType.Mineral or Gas
+  remaining?: number;
+  width?: number;
+  height?: number;
+}
+
+/**
+ * Spawn a resource entity (mineral patch or gas geyser).
+ * Returns the entity ID.
+ */
+export function spawnResource(world: World, opts: SpawnResourceOpts = {}): number {
+  const eid = addEntity(world);
+  addResourceComponents(world, eid);
+
+  posX[eid] = opts.x ?? 200;
+  posY[eid] = opts.y ?? 200;
+  resourceType[eid] = opts.type ?? ResourceType.Mineral;
+  const rem = opts.remaining ?? 1500;
+  resourceRemaining[eid] = rem;
+  hpCurrent[eid] = rem;
+  hpMax[eid] = rem;
+  renderWidth[eid] = opts.width ?? 24;
+  renderHeight[eid] = opts.height ?? 16;
+
+  return eid;
+}
+
+/**
+ * Spawn an SCV worker entity ready for gathering.
+ * Returns the entity ID. Worker starts Idle with no target.
+ */
+export function spawnWorker(
+  world: World,
+  opts: SpawnOpts & { baseX?: number; baseY?: number } = {},
+): number {
+  const eid = spawnUnit(world, {
+    ...opts,
+    factionId: opts.factionId ?? Faction.Terran,
+    unitTypeId: opts.unitTypeId ?? UnitType.SCV,
+  });
+  addWorkerComponent(world, eid);
+
+  workerState[eid] = WorkerState.Idle;
+  workerCarrying[eid] = 0;
+  workerTargetEid[eid] = -1;
+  workerMineTimer[eid] = 0;
+  workerBaseX[eid] = opts.baseX ?? 50;
+  workerBaseY[eid] = opts.baseY ?? 50;
+
+  return eid;
+}
+
+/**
+ * Create default player resources for both factions.
+ */
+export function createPlayerResources(): Record<number, PlayerResources> {
+  return {
+    [Faction.Terran]: { minerals: 50, gas: 0 },
+    [Faction.Zerg]: { minerals: 50, gas: 0 },
+  };
 }

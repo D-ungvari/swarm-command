@@ -8,6 +8,12 @@ export interface Command {
   targetEntity?: number;
 }
 
+/** Per-player resource state */
+export interface PlayerResources {
+  minerals: number;
+  gas: number;
+}
+
 /** Unit stat definition from data tables */
 export interface UnitDef {
   type: UnitType;

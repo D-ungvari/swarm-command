@@ -1,31 +1,35 @@
 # Progress
 
 ## Current Phase
-DEVELOP — Backlog #3: Economy (minerals, gas, workers, resource HUD)
+SESSION HANDOFF — Backlog #1, #2, #3 complete
 
 ## Current Work
-### Backlog #3: Economy System
-**Phase:** Development
+(none — session ending, context window filling up)
 
-#### Implementation Plan
-1. [ ] Add economy constants (CommandMode.Gather, ResourceType, WorkerState, balance values)
-2. [ ] Add RESOURCE and WORKER component bits + data arrays
-3. [ ] Add PlayerResources type and state to Game
-4. [ ] Spawn resource nodes (mineral patches as entities)
-5. [ ] Add resource entity rendering in UnitRenderer
-6. [ ] Add findResourceAt query
-7. [ ] Extend CommandSystem for gather command
-8. [ ] Implement GatherSystem (worker AI state machine)
-9. [ ] Wire GatherSystem into game loop
-10. [ ] Update worker spawning for WORKER component
-11. [ ] Add resource HUD
-12. [ ] Write tests
+## Session Handoff
+- **Completed this session:** Backlog #1 (Combat), #2 (Special abilities), #3 (Economy)
+- **Next session should:** Pick up Backlog #4 (Buildings & production queues)
+- **No blockers**
+- **Git initialized.** Two commits: 79ac303 (initial), 520faeb (economy)
 
-## What's Next
-Backlog #4: Buildings & production queues
+## Completed
+### Backlog #1: Combat System (Phase 3)
+- CombatSystem, DeathSystem, attack-move, visual effects
+- Commit: 79ac303
 
-## Notes
-- Resource nodes use HEALTH component for depletion tracking (DeathSystem removes depleted patches)
-- Workers return to fixed "base position" (spawn location) since buildings don't exist yet
-- Gas gathering skipped (requires Refinery from Backlog #4)
-- Mineral tiles are unwalkable — workers path to adjacent tile and mine within range
+### Backlog #2: Special Abilities (Phase 4)
+- Stim, Concussive Shells, Siege Mode, Medivac Heal, Roach Regen
+- Commit: 79ac303
+
+### Backlog #3: Economy (Phase 5 partial)
+- Mineral patches as ECS entities, worker gather AI, resource HUD
+- GatherSystem with FSM: MovingToResource → Mining → ReturningToBase → loop
+- 87 tests total
+- Commit: 520faeb
+
+## Architecture Notes
+- System order: selection → command → movement → combat → ability → gather → death
+- 11 component bits used (POSITION, VELOCITY, HEALTH, ATTACK, MOVEMENT, SELECTABLE, RENDERABLE, UNIT_TYPE, ABILITY, RESOURCE, WORKER), 21 remaining
+- PlayerResources is a plain object on Game, not ECS
+- Workers return to fixed base position (spawn point) — will need updating when buildings exist
+- Gas gathering not implemented (needs Refinery building from Backlog #4)

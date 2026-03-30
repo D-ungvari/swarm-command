@@ -20,3 +20,51 @@ Started: 2026-03-30
 - HUD as HTML overlay div (crisp text, simple)
 
 ## DEV
+### Step 1-2: Constants + Components
+- Files: src/constants.ts, src/ecs/components.ts
+- Result: done
+- Notes: RESOURCE/WORKER bits (9,10), 8 new TypedArrays, addWorkerComponent, addResourceComponents
+
+### Step 3-4: Resource spawning + Map utilities
+- Files: src/Game.ts, src/map/MapData.ts
+- Result: done
+- Notes: getResourceTiles, findNearestWalkableTile, spawnResourceNodes, PlayerResources state
+
+### Step 5-6: Resource rendering + queries
+- Files: src/rendering/UnitRenderer.ts, src/ecs/queries.ts
+- Result: done
+- Notes: Diamond minerals, pulsing gas, findResourceAt, findNearestMineral
+
+### Step 7: CommandSystem gather extension
+- Files: src/systems/CommandSystem.ts
+- Result: done
+- Notes: Right-click mineral → workers gather, non-workers move. Mixed selection handled.
+
+### Step 8: GatherSystem
+- Files: src/systems/GatherSystem.ts (new)
+- Result: done
+- Notes: Worker FSM: MovingToResource → Mining → ReturningToBase → loop. Retargets on depletion.
+
+### Step 9-10: Game wiring + HUD
+- Files: src/Game.ts, src/rendering/HudRenderer.ts (new)
+- Result: done
+- Notes: gatherSystem in tick loop after ability/before death. HTML HUD overlay.
+
+## TEST
+- Run: npm test
+- Result: PASS
+- Output: 5 test files, 87 tests, 0 failures (317ms)
+- Fix attempts: 0
+
+## REVIEW
+- Result: CHANGES_REQUESTED → fixed → APPROVED
+- Feedback:
+  1. findNearestMineral missing ResourceType.Mineral filter (bug, fixed)
+  2. tickReturningToBase used WORKER_MINE_RANGE instead of ARRIVAL_THRESHOLD (bug, fixed)
+- Fix rounds: 1
+
+## COMMIT
+- Hash: 520faeb
+- Message: feat: add economy system with mineral gathering, worker AI, and resource HUD
+- Files: 14 files (components, constants, queries, Game, GatherSystem, CommandSystem, UnitRenderer, HudRenderer, MapData, types, helpers, tests)
+- Timestamp: 2026-03-30

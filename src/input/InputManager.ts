@@ -7,6 +7,7 @@ export interface MouseState {
   leftJustPressed: boolean;
   rightJustPressed: boolean;
   leftJustReleased: boolean;
+  leftDoubleClick: boolean;
   /** Drag start position (screen space) */
   dragStartX: number;
   dragStartY: number;
@@ -32,6 +33,8 @@ export class InputManager {
   private rawY = 0;
   private rawKeysDown = new Set<string>();
   private rawKeysJustPressed = new Set<string>();
+  private lastClickTime = 0;
+  private rawDoubleClick = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -40,7 +43,7 @@ export class InputManager {
         x: 0, y: 0,
         leftDown: false, rightDown: false,
         leftJustPressed: false, rightJustPressed: false,
-        leftJustReleased: false,
+        leftJustReleased: false, leftDoubleClick: false,
         dragStartX: 0, dragStartY: 0, isDragging: false,
       },
       keys: new Set(),
@@ -61,7 +64,14 @@ export class InputManager {
     });
 
     el.addEventListener('mousedown', (e) => {
-      if (e.button === 0) this.rawLeftDown = true;
+      if (e.button === 0) {
+        this.rawLeftDown = true;
+        const now = performance.now();
+        if (now - this.lastClickTime < 300) {
+          this.rawDoubleClick = true;
+        }
+        this.lastClickTime = now;
+      }
       if (e.button === 2) this.rawRightDown = true;
     });
 
@@ -91,6 +101,8 @@ export class InputManager {
     m.leftJustPressed = this.rawLeftDown && !this.prevLeftDown;
     m.rightJustPressed = this.rawRightDown && !this.prevRightDown;
     m.leftJustReleased = !this.rawLeftDown && this.prevLeftDown;
+    m.leftDoubleClick = this.rawDoubleClick;
+    this.rawDoubleClick = false;
 
     // Track drag
     if (m.leftJustPressed) {

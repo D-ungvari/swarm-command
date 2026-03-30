@@ -2,7 +2,8 @@ import { type World, hasComponents } from '../ecs/world';
 import {
   POSITION, SELECTABLE,
   posX, posY, renderWidth, renderHeight,
-  selected, faction, RENDERABLE,
+  selected, faction, RENDERABLE, UNIT_TYPE,
+  unitType,
 } from '../ecs/components';
 import type { InputState } from '../input/InputManager';
 import { Faction } from '../constants';
@@ -56,6 +57,23 @@ export function selectionSystem(
         const fac = faction[closest];
         if (fac === Faction.Terran || fac === Faction.None) {
           selected[closest] = selected[closest] === 1 && input.shiftHeld ? 0 : 1;
+
+          // Double-click: select all visible units of the same type
+          if (m.leftDoubleClick && fac === Faction.Terran && hasComponents(world, closest, UNIT_TYPE)) {
+            const uType = unitType[closest];
+            const screenW = viewport.screenWidth;
+            const screenH = viewport.screenHeight;
+            for (let eid2 = 1; eid2 < world.nextEid; eid2++) {
+              if (!hasComponents(world, eid2, POSITION | SELECTABLE | UNIT_TYPE)) continue;
+              if (faction[eid2] !== Faction.Terran) continue;
+              if (unitType[eid2] !== uType) continue;
+              // Check if on screen
+              const screen = viewport.toScreen(posX[eid2], posY[eid2]);
+              if (screen.x >= 0 && screen.x <= screenW && screen.y >= 0 && screen.y <= screenH) {
+                selected[eid2] = 1;
+              }
+            }
+          }
         }
       }
     }

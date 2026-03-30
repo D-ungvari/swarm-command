@@ -5,13 +5,16 @@ import {
   prodUnitType, prodProgress, prodTimeTotal,
   posX, posY, faction, rallyX, rallyY,
   commandMode, setPath, movePathIndex,
+  workerState, workerTargetEid, workerBaseX, workerBaseY,
+  unitType as unitTypeArr, WORKER,
 } from '../ecs/components';
-import { BuildState, CommandMode } from '../constants';
+import { BuildState, CommandMode, UnitType, WorkerState } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import { BUILDING_DEFS } from '../data/buildings';
+import { findNearestMineral } from '../ecs/queries';
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
 
@@ -73,6 +76,31 @@ export function productionSystem(
           return [wp.x, wp.y] as [number, number];
         });
         setPath(newEid, worldPath);
+      }
+    }
+
+    // Workers auto-gather nearest minerals if no rally set
+    if (newEid > 0 && hasComponents(world, newEid, WORKER) && rallyX[eid] < 0) {
+      const mineral = findNearestMineral(world, sx, sy);
+      if (mineral > 0) {
+        workerTargetEid[newEid] = mineral;
+        workerState[newEid] = WorkerState.MovingToResource;
+        commandMode[newEid] = CommandMode.Gather;
+        workerBaseX[newEid] = posX[eid]; // Return to this building
+        workerBaseY[newEid] = posY[eid];
+        const resTile = worldToTile(posX[mineral], posY[mineral]);
+        const walkTile = findNearestWalkableTile(map, resTile.col, resTile.row);
+        if (walkTile) {
+          const startTile = worldToTile(sx, sy);
+          const tilePath = findPath(map, startTile.col, startTile.row, walkTile.col, walkTile.row);
+          if (tilePath.length > 0) {
+            const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+              const wp = tileToWorld(c, r);
+              return [wp.x, wp.y] as [number, number];
+            });
+            setPath(newEid, worldPath);
+          }
+        }
       }
     }
 

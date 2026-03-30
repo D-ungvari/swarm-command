@@ -256,7 +256,7 @@ export class InfoPanelRenderer {
         const unitName = unitDef ? unitDef.name : 'Unit';
         const progress = prodProgress[eid];
         const total = prodTimeTotal[eid];
-        const pct = total > 0 ? Math.min(1, progress / total) : 0;
+        const pct = total > 0 ? Math.min(1, 1 - progress / total) : 0;
         this.prodLabel.textContent = `Training: ${unitName}`;
         this.prodBarFill.style.width = `${pct * 100}%`;
         this.prodRow.style.display = 'flex';

@@ -182,11 +182,28 @@ export class MinimapRenderer {
       return false;
     }
 
-    // Convert minimap coordinates to world coordinates
     const worldX = (localX / MINIMAP_SIZE) * MAP_WIDTH;
     const worldY = (localY / MINIMAP_SIZE) * MAP_HEIGHT;
-
     this.viewport.moveCenter(worldX, worldY);
     return true;
+  }
+
+  /**
+   * Check if the mouse is being held down on the minimap (drag-to-pan).
+   * Call every frame with current mouse state.
+   */
+  handleDrag(screenX: number, screenY: number, leftDown: boolean): void {
+    if (!leftDown) return;
+
+    const localX = screenX - this.container.x;
+    const localY = screenY - this.container.y;
+
+    if (localX < 0 || localX > MINIMAP_SIZE || localY < 0 || localY > MINIMAP_SIZE) {
+      return;
+    }
+
+    const worldX = (localX / MINIMAP_SIZE) * MAP_WIDTH;
+    const worldY = (localY / MINIMAP_SIZE) * MAP_HEIGHT;
+    this.viewport.moveCenter(worldX, worldY);
   }
 }

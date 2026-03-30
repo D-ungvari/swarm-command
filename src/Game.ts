@@ -193,6 +193,13 @@ export class Game {
     while (this.accumulator >= MS_PER_TICK) {
       this.tick(MS_PER_TICK / 1000);
       this.accumulator -= MS_PER_TICK;
+      // Clear one-shot input flags after first tick to prevent double-processing
+      const m = this.input.state.mouse;
+      m.leftJustPressed = false;
+      m.leftJustReleased = false;
+      m.rightJustPressed = false;
+      m.leftDoubleClick = false;
+      this.input.state.keysJustPressed.clear();
     }
 
     this.render();
@@ -296,6 +303,8 @@ export class Game {
 
             this.placementMode = false;
             this.placementBuildingType = 0;
+            // Consume click so selection system doesn't also process it
+            input.mouse.leftJustReleased = false;
           }
         }
       }
@@ -375,12 +384,25 @@ export class Game {
     this.ghostGraphics.stroke({ color, width: 2, alpha: 0.6 });
   }
 
-  /** If the player clicks on the minimap, move camera and consume the click */
+  /** If the player clicks/drags on the minimap, move camera and consume the click */
   private handleMinimapClick(): void {
     const m = this.input.state.mouse;
+
+    // Drag on minimap — continuously pan camera
+    this.minimapRenderer.handleDrag(m.x, m.y, m.leftDown);
+
+    // Click on minimap — jump camera and consume click
     if (m.leftJustReleased && !m.isDragging) {
       if (this.minimapRenderer.handleClick(m.x, m.y)) {
-        // Consume the click so selection/command systems don't process it
+        m.leftJustReleased = false;
+      }
+    }
+    // Also consume leftJustPressed on minimap to prevent drag-select
+    if (m.leftJustPressed) {
+      const localX = m.x - this.minimapRenderer.container.x;
+      const localY = m.y - this.minimapRenderer.container.y;
+      if (localX >= 0 && localX <= 160 && localY >= 0 && localY <= 160) {
+        m.leftJustPressed = false;
         m.leftJustReleased = false;
       }
     }

@@ -8,6 +8,7 @@ import {
 import type { InputState } from '../input/InputManager';
 import { Faction } from '../constants';
 import { entityExists } from '../ecs/world';
+import { attackMoveMode } from './CommandSystem';
 import type { Viewport } from 'pixi-viewport';
 
 // Control groups: 10 groups (0-9), each stores a set of entity IDs
@@ -57,7 +58,8 @@ export function selectionSystem(
   const worldPos = viewport.toWorld(m.x, m.y);
 
   // Left click release — either single select or box select
-  if (m.leftJustReleased) {
+  // Skip if attack-move mode is consuming this click
+  if (m.leftJustReleased && !attackMoveMode) {
     if (m.isDragging) {
       // Box select — only Terran units/buildings
       const startWorld = viewport.toWorld(m.dragStartX, m.dragStartY);

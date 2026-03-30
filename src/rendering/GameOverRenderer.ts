@@ -1,9 +1,10 @@
 import { type World, hasComponents } from '../ecs/world';
 import {
   POSITION, HEALTH, BUILDING, UNIT_TYPE,
-  faction, hpCurrent, buildingType, buildState,
+  faction, hpCurrent, buildingType, buildState, unitType,
 } from '../ecs/components';
 import { Faction, BuildingType, BuildState } from '../constants';
+import { getAIState } from '../systems/AISystem';
 
 /**
  * HTML overlay for victory/defeat screen.
@@ -58,7 +59,7 @@ export class GameOverRenderer {
 
     // Check defeat: player has no Command Centers
     let playerHasCC = false;
-    let enemyUnitCount = 0;
+    let zergUnitCount = 0;
 
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (hpCurrent[eid] <= 0) continue;
@@ -71,18 +72,24 @@ export class GameOverRenderer {
         playerHasCC = true;
       }
 
-      // Count enemy units
-      if (hasComponents(world, eid, POSITION | HEALTH) &&
+      // Count enemy units (non-building Zerg entities with UNIT_TYPE)
+      if (hasComponents(world, eid, POSITION | HEALTH | UNIT_TYPE) &&
           faction[eid] === Faction.Zerg &&
           !hasComponents(world, eid, BUILDING)) {
-        enemyUnitCount++;
+        zergUnitCount++;
       }
     }
 
     if (!playerHasCC) {
       this.show('DEFEAT', 'Your Command Center has been destroyed.', '#ff4444');
+      return;
     }
-    // Victory is harder to detect without Zerg buildings — skip for now
+
+    // Victory: all Zerg units dead AND AI has sent at least 1 wave
+    const aiState = getAIState();
+    if (zergUnitCount === 0 && aiState.waveCount >= 1 && aiState.armySize === 0) {
+      this.show('VICTORY', 'All enemy forces have been eliminated.', '#44ff44');
+    }
   }
 
   private show(title: string, subtitle: string, color: string): void {

@@ -123,6 +123,9 @@ export class UnitRenderer {
         if (bt === BuildingType.CommandCenter) borderColor = 0x5588bb;
         else if (bt === BuildingType.SupplyDepot) borderColor = 0x3366aa;
         else if (bt === BuildingType.Barracks) borderColor = 0x6644aa;
+        else if (bt === BuildingType.Refinery) borderColor = 0x448844;
+        else if (bt === BuildingType.Factory) borderColor = 0x886644;
+        else if (bt === BuildingType.Starport) borderColor = 0x4466aa;
         g.rect(x - w / 2, y - h / 2, w, h);
         g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
 
@@ -209,6 +212,73 @@ export class UnitRenderer {
           g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
           g.rect(x - doorW / 2, y + h / 2 - doorH, doorW, doorH);
           g.stroke({ color: 0x6688aa, width: 1, alpha: 0.6 * baseAlpha });
+        } else if (bt === BuildingType.Refinery) {
+          // Green gas venting pipes — two small circles on top
+          g.circle(x - w * 0.2, y - h * 0.15, 4);
+          g.fill({ color: 0x44ff66, alpha: 0.4 * baseAlpha });
+          g.circle(x + w * 0.2, y - h * 0.15, 4);
+          g.fill({ color: 0x44ff66, alpha: 0.4 * baseAlpha });
+          // Central pipe
+          g.rect(x - 2, y - h * 0.3, 4, h * 0.6);
+          g.fill({ color: 0x556655, alpha: 0.6 * baseAlpha });
+        } else if (bt === BuildingType.Factory) {
+          // Gear icon shape — circle with teeth
+          const gearR = 8;
+          const gearInner = 5;
+          const teeth = 6;
+          for (let t = 0; t < teeth; t++) {
+            const angle = (t / teeth) * Math.PI * 2;
+            const nextAngle = ((t + 0.5) / teeth) * Math.PI * 2;
+            g.moveTo(
+              x + Math.cos(angle) * gearInner,
+              y + Math.sin(angle) * gearInner,
+            );
+            g.lineTo(
+              x + Math.cos(angle) * gearR,
+              y + Math.sin(angle) * gearR,
+            );
+            g.lineTo(
+              x + Math.cos(nextAngle) * gearR,
+              y + Math.sin(nextAngle) * gearR,
+            );
+            g.lineTo(
+              x + Math.cos(nextAngle) * gearInner,
+              y + Math.sin(nextAngle) * gearInner,
+            );
+            g.stroke({ color: 0xccaa44, width: 1.5, alpha: 0.6 * baseAlpha });
+          }
+          // Center dot
+          g.circle(x, y, 3);
+          g.fill({ color: 0xccaa44, alpha: 0.5 * baseAlpha });
+
+          // Door rectangle at bottom
+          const doorW2 = 12;
+          const doorH2 = 7;
+          g.rect(x - doorW2 / 2, y + h / 2 - doorH2, doorW2, doorH2);
+          g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
+          g.rect(x - doorW2 / 2, y + h / 2 - doorH2, doorW2, doorH2);
+          g.stroke({ color: 0x886644, width: 1, alpha: 0.6 * baseAlpha });
+        } else if (bt === BuildingType.Starport) {
+          // Wing icon shape — V with horizontal line
+          g.moveTo(x - w * 0.35, y - h * 0.2);
+          g.lineTo(x, y + h * 0.15);
+          g.lineTo(x + w * 0.35, y - h * 0.2);
+          g.stroke({ color: 0x88aaff, width: 2, alpha: 0.6 * baseAlpha });
+          // Horizontal stabilizer
+          g.moveTo(x - w * 0.25, y);
+          g.lineTo(x + w * 0.25, y);
+          g.stroke({ color: 0x88aaff, width: 1.5, alpha: 0.4 * baseAlpha });
+          // Landing pad circle
+          g.circle(x, y + h * 0.2, 5);
+          g.stroke({ color: 0x6688cc, width: 1, alpha: 0.5 * baseAlpha });
+
+          // Door rectangle at bottom
+          const doorW3 = 12;
+          const doorH3 = 7;
+          g.rect(x - doorW3 / 2, y + h / 2 - doorH3, doorW3, doorH3);
+          g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
+          g.rect(x - doorW3 / 2, y + h / 2 - doorH3, doorW3, doorH3);
+          g.stroke({ color: 0x4466aa, width: 1, alpha: 0.6 * baseAlpha });
         }
 
         // Construction progress bar (yellow)

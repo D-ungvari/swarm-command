@@ -150,6 +150,26 @@ export function findNearestWalkableTile(map: MapData, col: number, row: number):
   return null;
 }
 
+/** Check if a building footprint contains a gas geyser tile (for Refinery placement) */
+export function isGeyserTile(map: MapData, col: number, row: number, tileW: number, tileH: number): boolean {
+  const startCol = col - Math.floor(tileW / 2);
+  const startRow = row - Math.floor(tileH / 2);
+  let hasGas = false;
+  for (let r = startRow; r < startRow + tileH; r++) {
+    for (let c = startCol; c < startCol + tileW; c++) {
+      if (c < 0 || c >= map.cols || r < 0 || r >= map.rows) return false;
+      const t = map.tiles[r * map.cols + c] as TileType;
+      if (t === TileType.Gas) {
+        hasGas = true;
+      } else if (t !== TileType.Ground && t !== TileType.Ramp) {
+        // Non-gas non-ground tile in footprint — invalid placement
+        return false;
+      }
+    }
+  }
+  return hasGas;
+}
+
 /** Check if a building footprint can be placed at (col, row) */
 export function isBuildable(map: MapData, col: number, row: number, tileW: number, tileH: number): boolean {
   const startCol = col - Math.floor(tileW / 2);

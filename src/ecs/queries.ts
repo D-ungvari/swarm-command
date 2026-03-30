@@ -157,6 +157,54 @@ export function findNearestMineral(world: World, wx: number, wy: number): number
 }
 
 /**
+ * Find a completed building of a specific type at a world position (click targeting).
+ * Returns entity ID or 0 if none found.
+ */
+export function findBuildingAt(world: World, wx: number, wy: number, bType: BuildingType): number {
+  const bits = POSITION | BUILDING | RENDERABLE;
+  let closestEid = 0;
+  let closestDist = Infinity;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (buildingType[eid] !== bType) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const halfW = renderWidth[eid] / 2 + 6;
+    const halfH = renderHeight[eid] / 2 + 6;
+
+    if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
+      const dist = dx * dx + dy * dy;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestEid = eid;
+      }
+    }
+  }
+
+  return closestEid;
+}
+
+/**
+ * Check if a completed building of a specific type exists for a faction.
+ */
+export function hasCompletedBuilding(world: World, fac: Faction, bType: BuildingType): boolean {
+  const bits = POSITION | BUILDING;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (faction[eid] !== fac) continue;
+    if (buildingType[eid] !== bType) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
  * Find the nearest completed Command Center for a given faction.
  */
 export function findNearestCommandCenter(world: World, fac: Faction, wx: number, wy: number): number {

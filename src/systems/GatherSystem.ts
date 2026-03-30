@@ -1,14 +1,18 @@
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import {
-  POSITION, MOVEMENT, WORKER, RESOURCE,
+  POSITION, MOVEMENT, WORKER, RESOURCE, BUILDING,
   posX, posY, faction,
   workerState, workerCarrying, workerTargetEid, workerMineTimer,
   workerBaseX, workerBaseY,
   movePathIndex, setPath,
   resourceRemaining, hpCurrent, resourceType,
+  buildingType, buildState,
 } from '../ecs/components';
 import { findNearestMineral } from '../ecs/queries';
-import { WorkerState, ResourceType, WORKER_CARRY_MINERALS, MINE_DURATION, WORKER_MINE_RANGE } from '../constants';
+import {
+  WorkerState, ResourceType, BuildingType, BuildState,
+  WORKER_CARRY_MINERALS, WORKER_CARRY_GAS, MINE_DURATION, WORKER_MINE_RANGE,
+} from '../constants';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
 import type { PlayerResources } from '../types';
@@ -47,12 +51,51 @@ export function gatherSystem(
   }
 }
 
+/** Determine if a target entity is a gas source (Refinery building or gas resource with refinery) */
+function isGasTarget(world: World, target: number): boolean {
+  // Refinery building that is complete and has gas remaining
+  if (hasComponents(world, target, BUILDING)) {
+    return buildingType[target] === BuildingType.Refinery &&
+           buildState[target] === BuildState.Complete &&
+           resourceRemaining[target] > 0;
+  }
+  return false;
+}
+
+/** Get the carry amount for a given target */
+function getCarryAmount(world: World, target: number): number {
+  if (isGasTarget(world, target)) {
+    return WORKER_CARRY_GAS;
+  }
+  return WORKER_CARRY_MINERALS;
+}
+
 function tickMovingToResource(world: World, eid: number, map: MapData): void {
   const target = workerTargetEid[eid];
 
   // Validate target still exists and has resources
-  if (target < 1 || !entityExists(world, target) || resourceRemaining[target] <= 0) {
+  if (target < 1 || !entityExists(world, target)) {
     // Try to find a new mineral patch nearby
+    const alt = findNearestMineral(world, posX[eid], posY[eid]);
+    if (alt > 0) {
+      workerTargetEid[eid] = alt;
+      pathToResource(eid, alt, map);
+    } else {
+      workerState[eid] = WorkerState.Idle;
+      workerTargetEid[eid] = -1;
+    }
+    return;
+  }
+
+  // For Refinery buildings, check build state and resource remaining
+  if (hasComponents(world, target, BUILDING)) {
+    if (!isGasTarget(world, target)) {
+      workerState[eid] = WorkerState.Idle;
+      workerTargetEid[eid] = -1;
+      return;
+    }
+  } else if (resourceRemaining[target] <= 0) {
+    // Mineral patch depleted
     const alt = findNearestMineral(world, posX[eid], posY[eid]);
     if (alt > 0) {
       workerTargetEid[eid] = alt;
@@ -93,11 +136,16 @@ function tickMining(world: World, eid: number, dt: number, map: MapData): void {
     return;
   }
 
-  // Pick up minerals (capped at remaining)
-  const amount = Math.min(WORKER_CARRY_MINERALS, resourceRemaining[target]);
+  // Pick up resources (capped at remaining)
+  const carryAmount = getCarryAmount(world, target);
+  const amount = Math.min(carryAmount, resourceRemaining[target]);
   workerCarrying[eid] = amount;
   resourceRemaining[target] -= amount;
-  hpCurrent[target] -= amount; // DeathSystem will remove when <= 0
+
+  // For non-Refinery resource entities, also reduce HP for depletion visual
+  if (!hasComponents(world, target, BUILDING)) {
+    hpCurrent[target] -= amount; // DeathSystem will remove when <= 0
+  }
 
   // Head back to base
   workerState[eid] = WorkerState.ReturningToBase;
@@ -123,16 +171,29 @@ function tickReturningToBase(
 
   // Close enough OR path finished (worker is as close as it can get) — deposit
   if (distSq <= ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD || movePathIndex[eid] < 0) {
+    // Determine what we're carrying based on target
+    const target = workerTargetEid[eid];
+    const isGas = target >= 1 && entityExists(world, target) && isGasTarget(world, target);
+
     // Deposit
     const fac = faction[eid];
     if (resources[fac]) {
-      resources[fac].minerals += workerCarrying[eid];
+      if (isGas) {
+        resources[fac].gas += workerCarrying[eid];
+      } else {
+        resources[fac].minerals += workerCarrying[eid];
+      }
     }
     workerCarrying[eid] = 0;
 
     // Go back for more if target still exists
-    const target = workerTargetEid[eid];
     if (target >= 1 && entityExists(world, target) && resourceRemaining[target] > 0) {
+      // For Refinery, also check it's still complete
+      if (hasComponents(world, target, BUILDING) && !isGasTarget(world, target)) {
+        workerState[eid] = WorkerState.Idle;
+        workerTargetEid[eid] = -1;
+        return;
+      }
       workerState[eid] = WorkerState.MovingToResource;
       pathToResource(eid, target, map);
     } else {

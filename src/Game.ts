@@ -31,10 +31,11 @@ import { UNIT_DEFS } from './data/units';
 import { BUILDING_DEFS } from './data/buildings';
 import {
   generateMap, tileToWorld, worldToTile, getResourceTiles,
-  isBuildable, markBuildingTiles,
+  isBuildable, isGeyserTile, markBuildingTiles,
   findNearestWalkableTile,
   type MapData,
 } from './map/MapData';
+import { hasCompletedBuilding } from './ecs/queries';
 import { findPath } from './map/Pathfinder';
 import { InputManager } from './input/InputManager';
 import { TilemapRenderer } from './rendering/TilemapRenderer';
@@ -229,7 +230,7 @@ export class Game {
     this.renderGhost();
     const res = this.resources[Faction.Terran];
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
-    this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType);
+    this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
@@ -255,24 +256,49 @@ export class Game {
     }
   }
 
+  /** Check if tech prerequisite is met for a building type */
+  private isTechAvailable(bType: BuildingType): boolean {
+    const def = BUILDING_DEFS[bType];
+    if (!def || def.requires === null) return true;
+    return hasCompletedBuilding(this.world, Faction.Terran, def.requires);
+  }
+
+  /** Get tech availability for all 6 build menu entries */
+  private getTechAvailability(): boolean[] {
+    return [
+      this.isTechAvailable(BuildingType.CommandCenter),
+      this.isTechAvailable(BuildingType.SupplyDepot),
+      this.isTechAvailable(BuildingType.Barracks),
+      this.isTechAvailable(BuildingType.Refinery),
+      this.isTechAvailable(BuildingType.Factory),
+      this.isTechAvailable(BuildingType.Starport),
+    ];
+  }
+
   private handleBuildPlacement(): void {
     const input = this.input.state;
 
     // B key opens build mode
     if (input.keysJustPressed.has('KeyB') && !this.placementMode) {
       this.placementMode = true;
-      this.placementBuildingType = 0; // Wait for 1/2/3
+      this.placementBuildingType = 0; // Wait for 1/2/3/4/5/6
       return;
     }
 
     if (this.placementMode) {
-      // Select building type
-      if (input.keysJustPressed.has('Digit1')) {
+      // Select building type (with tech tree check)
+      if (input.keysJustPressed.has('Digit1') && this.isTechAvailable(BuildingType.CommandCenter)) {
         this.placementBuildingType = BuildingType.CommandCenter;
-      } else if (input.keysJustPressed.has('Digit2')) {
+      } else if (input.keysJustPressed.has('Digit2') && this.isTechAvailable(BuildingType.SupplyDepot)) {
         this.placementBuildingType = BuildingType.SupplyDepot;
-      } else if (input.keysJustPressed.has('Digit3')) {
+      } else if (input.keysJustPressed.has('Digit3') && this.isTechAvailable(BuildingType.Barracks)) {
         this.placementBuildingType = BuildingType.Barracks;
+      } else if (input.keysJustPressed.has('Digit4') && this.isTechAvailable(BuildingType.Refinery)) {
+        this.placementBuildingType = BuildingType.Refinery;
+      } else if (input.keysJustPressed.has('Digit5') && this.isTechAvailable(BuildingType.Factory)) {
+        this.placementBuildingType = BuildingType.Factory;
+      } else if (input.keysJustPressed.has('Digit6') && this.isTechAvailable(BuildingType.Starport)) {
+        this.placementBuildingType = BuildingType.Starport;
       }
 
       // Escape cancels
@@ -290,13 +316,25 @@ export class Game {
         const worldPos = this.viewport.toWorld(input.mouse.x, input.mouse.y);
         const tile = worldToTile(worldPos.x, worldPos.y);
 
-        if (isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)) {
+        // Placement validation: Refinery needs gas geyser, others need normal buildable
+        const isRefinery = this.placementBuildingType === BuildingType.Refinery;
+        const valid = isRefinery
+          ? isGeyserTile(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)
+          : isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
+
+        if (valid) {
           const res = this.resources[Faction.Terran];
           if (res.minerals >= def.costMinerals && res.gas >= def.costGas) {
             res.minerals -= def.costMinerals;
             res.gas -= def.costGas;
 
             const bEid = this.spawnBuilding(this.placementBuildingType as BuildingType, Faction.Terran, tile.col, tile.row);
+
+            // For Refinery, store gas resource data on the building entity
+            if (isRefinery) {
+              resourceType[bEid] = ResourceType.Gas;
+              resourceRemaining[bEid] = GAS_PER_GEYSER;
+            }
 
             // Find nearest selected SCV and command it to build
             this.assignBuilderToBuilding(bEid);
@@ -376,7 +414,10 @@ export class Game {
 
     const w = def.tileWidth * TILE_SIZE;
     const h = def.tileHeight * TILE_SIZE;
-    const valid = isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
+    const isRefinery = this.placementBuildingType === BuildingType.Refinery;
+    const valid = isRefinery
+      ? isGeyserTile(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)
+      : isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
     const color = valid ? 0x44ff44 : 0xff4444;
 
     this.ghostGraphics.rect(center.x - w / 2, center.y - h / 2, w, h);

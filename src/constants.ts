@@ -66,6 +66,9 @@ export const enum BuildingType {
   CommandCenter = 20,
   SupplyDepot = 21,
   Barracks = 22,
+  Refinery = 23,
+  Factory = 24,
+  Starport = 25,
 }
 
 // ── Building states ──
@@ -132,6 +135,7 @@ export const BUILDING_COLOR = 0x2266aa;
 export const MINERAL_PER_PATCH = 1500;
 export const GAS_PER_GEYSER = 2500;
 export const WORKER_CARRY_MINERALS = 5;
+export const WORKER_CARRY_GAS = 4;
 export const MINE_DURATION = 1.5; // seconds
 export const STARTING_MINERALS = 50;
 export const STARTING_GAS = 0;

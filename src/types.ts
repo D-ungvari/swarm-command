@@ -49,4 +49,6 @@ export interface BuildingDef {
   supplyProvided: number;
   produces: UnitType[];
   color: number;
+  /** Prerequisite building type that must exist and be complete, null = no requirement */
+  requires: BuildingType | null;
 }

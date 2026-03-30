@@ -10,11 +10,13 @@ import {
   buildState, buildProgress, buildingType, rallyX, rallyY,
   workerCarrying, workerState,
   prodUnitType, prodProgress, prodTimeTotal,
+  prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   velX, velY,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
 import { damageEvents } from '../systems/CombatSystem';
+import { isTileVisible } from '../systems/FogSystem';
 
 /** Command ping visual marker */
 interface CommandPing {
@@ -60,6 +62,12 @@ export class UnitRenderer {
       let h = renderHeight[eid];
       const tint = renderTint[eid];
       const isSelected = hasComponents(world, eid, SELECTABLE) && selected[eid] === 1;
+
+      // Fog of war: skip enemy entities (Zerg) on non-visible tiles
+      const fac = faction[eid] as Faction;
+      if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(x, y)) {
+        continue;
+      }
 
       // Resource entities render differently
       if (hasComponents(world, eid, RESOURCE)) {
@@ -328,7 +336,6 @@ export class UnitRenderer {
         continue;
       }
 
-      const fac = faction[eid] as Faction;
       const uType = unitType[eid] as UnitType;
       const isFlashing = atkFlashTimer[eid] > 0;
       const isStimmed = stimEndTime[eid] > gameTime;

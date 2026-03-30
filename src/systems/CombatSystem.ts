@@ -12,6 +12,7 @@ import { findClosestEnemy } from '../ecs/queries';
 import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
+import { isTileVisible } from './FogSystem';
 
 /** How far a target must move before we re-path to chase it */
 const CHASE_REPATH_THRESHOLD = TILE_SIZE;
@@ -84,6 +85,16 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     if (targetEntity[eid] < 1) {
       const enemy = findClosestEnemy(world, eid, range);
       if (enemy > 0) {
+        // Terran units can't auto-acquire targets hidden in fog
+        const myFac = faction[eid] as Faction;
+        if (myFac === Faction.Terran && !isTileVisible(posX[enemy], posY[enemy])) {
+          // Enemy is in fog — pretend we don't see them
+          if (commandMode[eid] === CommandMode.Idle || commandMode[eid] === CommandMode.AttackTarget) {
+            continue;
+          } else {
+            continue;
+          }
+        }
         targetEntity[eid] = enemy;
         // Stop movement to engage
         movePathIndex[eid] = -1;

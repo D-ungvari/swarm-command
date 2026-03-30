@@ -12,6 +12,7 @@ import {
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
 import { type MapData } from '../map/MapData';
+import { isTileVisible } from '../systems/FogSystem';
 
 const MINIMAP_SIZE = 160;
 const MINIMAP_PADDING = 12;
@@ -138,6 +139,8 @@ export class MinimapRenderer {
       // Buildings: larger squares in faction color
       if (hasComponents(world, eid, BUILDING)) {
         const fac = faction[eid] as Faction;
+        // Skip enemy buildings in fog
+        if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(posX[eid], posY[eid])) continue;
         const color = fac === Faction.Terran ? TERRAN_COLOR
           : fac === Faction.Zerg ? ZERG_COLOR : 0x888888;
         g.rect(mx - 2, my - 2, 4, 4);
@@ -148,6 +151,8 @@ export class MinimapRenderer {
       // Units: small dots in faction color
       const fac = faction[eid] as Faction;
       if (fac === Faction.None) continue;
+      // Skip enemy units in fog
+      if (fac !== Faction.Terran && !isTileVisible(posX[eid], posY[eid])) continue;
       const color = fac === Faction.Terran ? TERRAN_COLOR : ZERG_COLOR;
       g.rect(mx - 1, my - 1, 2, 2);
       g.fill({ color });

@@ -129,6 +129,13 @@ export const supplyProvided = new Uint8Array(MAX_ENTITIES);
 /** How much supply this entity costs (1 for units, 0 for buildings) */
 export const supplyCost = new Uint8Array(MAX_ENTITIES);
 
+// ── Production Queue (up to 5 items per building) ──
+export const PROD_QUEUE_MAX = 5;
+/** Flat queue: prodQueue[eid * 5 + 0..4] = UnitType values */
+export const prodQueue = new Uint8Array(MAX_ENTITIES * PROD_QUEUE_MAX);
+/** Number of items currently in the queue for each entity */
+export const prodQueueLen = new Uint8Array(MAX_ENTITIES);
+
 // ── Path storage (per-entity, up to 64 waypoints) ──
 const MAX_PATH_LENGTH = 64;
 export const paths: Float32Array[] = new Array(MAX_ENTITIES);
@@ -214,4 +221,10 @@ export function resetComponents(eid: number): void {
   prodTimeTotal[eid] = 0;
   supplyProvided[eid] = 0;
   supplyCost[eid] = 0;
+  // Clear production queue
+  prodQueueLen[eid] = 0;
+  const qBase = eid * PROD_QUEUE_MAX;
+  for (let i = 0; i < PROD_QUEUE_MAX; i++) {
+    prodQueue[qBase + i] = 0;
+  }
 }

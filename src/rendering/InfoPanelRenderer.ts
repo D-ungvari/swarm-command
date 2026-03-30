@@ -2,6 +2,7 @@ import { Faction, BuildState, BuildingType, ResourceType } from '../constants';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
+  prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   resourceRemaining, resourceType, unitType,
   selected, hpCurrent, hpMax, faction, renderTint,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
@@ -30,6 +31,7 @@ export class InfoPanelRenderer {
   private prodLabel: HTMLDivElement;
   private prodButtonsRow: HTMLDivElement;
   private prodButtons: HTMLDivElement[] = [];
+  private queueRow: HTMLDivElement;
   private wasVisible = false;
   private productionCallback: ProductionCallback | null = null;
   private lastButtonConfig = '';
@@ -119,6 +121,11 @@ export class InfoPanelRenderer {
     this.prodButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto;';
     this.panel.appendChild(this.prodButtonsRow);
 
+    // Production queue display row
+    this.queueRow = document.createElement('div');
+    this.queueRow.style.cssText = 'display: none; flex-direction: row; gap: 3px; margin-top: 4px; align-items: center;';
+    this.panel.appendChild(this.queueRow);
+
     container.appendChild(this.panel);
   }
 
@@ -145,6 +152,7 @@ export class InfoPanelRenderer {
     }
     if (!visible) {
       this.prodButtonsRow.style.display = 'none';
+      this.queueRow.style.display = 'none';
       return;
     }
 
@@ -203,6 +211,7 @@ export class InfoPanelRenderer {
 
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      this.queueRow.style.display = 'none';
       // Border stays blue (player's faction)
       this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
       return;
@@ -226,6 +235,7 @@ export class InfoPanelRenderer {
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      this.queueRow.style.display = 'none';
       // Cyan border for resources
       this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)';
       return;
@@ -263,9 +273,14 @@ export class InfoPanelRenderer {
         this.detailEl.textContent = bs === BuildState.UnderConstruction
           ? `${facName} | Under Construction`
           : facName;
+
+        // Show production queue
+        this.updateQueueDisplay(eid);
+
         this.prodButtonsRow.style.display = 'none';
       } else {
         this.prodRow.style.display = 'none';
+        this.queueRow.style.display = 'none';
 
         // Show available production hotkeys/buttons for completed buildings
         if (bs === BuildState.Complete && def && def.produces.length > 0) {
@@ -317,6 +332,7 @@ export class InfoPanelRenderer {
 
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      this.queueRow.style.display = 'none';
       // Faction-colored border for units
       this.panel.style.borderColor = fac === Faction.Zerg
         ? 'rgba(255, 80, 80, 0.3)'
@@ -329,6 +345,7 @@ export class InfoPanelRenderer {
     this.detailEl.textContent = '';
     this.prodRow.style.display = 'none';
     this.prodButtonsRow.style.display = 'none';
+    this.queueRow.style.display = 'none';
     this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
   }
 
@@ -404,5 +421,42 @@ export class InfoPanelRenderer {
     }
 
     this.prodButtonsRow.style.display = produces.length > 0 ? 'flex' : 'none';
+  }
+
+  /** Show the production queue (up to 5 slots) below the production bar */
+  private updateQueueDisplay(buildingEid: number): void {
+    const qLen = prodQueueLen[buildingEid];
+    if (qLen === 0) {
+      this.queueRow.style.display = 'none';
+      return;
+    }
+
+    this.queueRow.style.display = 'flex';
+    this.queueRow.innerHTML = '';
+
+    // Label
+    const label = document.createElement('span');
+    label.style.cssText = 'font-size: 10px; color: #999; margin-right: 2px;';
+    label.textContent = 'Queue:';
+    this.queueRow.appendChild(label);
+
+    const qBase = buildingEid * PROD_QUEUE_MAX;
+    for (let i = 0; i < qLen; i++) {
+      const uType = prodQueue[qBase + i];
+      const uDef = UNIT_DEFS[uType];
+      const name = uDef ? uDef.name : '?';
+
+      const slot = document.createElement('span');
+      slot.style.cssText = `
+        font-size: 10px;
+        color: #ffcc44;
+        background: rgba(255, 170, 34, 0.15);
+        border: 1px solid rgba(255, 170, 34, 0.3);
+        border-radius: 2px;
+        padding: 1px 4px;
+      `;
+      slot.textContent = name;
+      this.queueRow.appendChild(slot);
+    }
   }
 }

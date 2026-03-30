@@ -24,6 +24,7 @@ import {
   resourceType, resourceRemaining,
   buildingType, buildState, buildProgress, buildTimeTotal, builderEid,
   rallyX, rallyY, prodUnitType, prodProgress, prodTimeTotal,
+  prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   supplyProvided, supplyCost,
   selected, setPath,
 } from './ecs/components';
@@ -59,6 +60,8 @@ import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
 import { aiSystem, initAI, getAIState } from './systems/AISystem';
+import { fogSystem } from './systems/FogSystem';
+import { FogRenderer } from './rendering/FogRenderer';
 import type { PlayerResources } from './types';
 
 export class Game {
@@ -88,6 +91,7 @@ export class Game {
   private modeIndicatorRenderer!: ModeIndicatorRenderer;
   private hotkeyPanelRenderer!: HotkeyPanelRenderer;
   private minimapRenderer!: MinimapRenderer;
+  private fogRenderer!: FogRenderer;
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
   private lastAIAttacking = false;
@@ -144,6 +148,10 @@ export class Game {
     // Ghost preview for building placement (world space)
     this.ghostGraphics = new Graphics();
     this.viewport.addChild(this.ghostGraphics);
+
+    // Fog of war overlay (world space, above units and ghost)
+    this.fogRenderer = new FogRenderer(this.viewport);
+    this.viewport.addChild(this.fogRenderer.container);
 
     this.selectionRenderer = new SelectionRenderer();
     this.app.stage.addChild(this.selectionRenderer.container);
@@ -214,13 +222,14 @@ export class Game {
     buildSystem(this.world, dt, this.resources);
     productionSystem(this.world, dt, this.resources, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y));
-    movementSystem(this.world, dt);
+    movementSystem(this.world, dt, this.map);
     combatSystem(this.world, dt, this.gameTime, this.map);
     abilitySystem(this.world, dt, this.gameTime);
     gatherSystem(this.world, dt, this.map, this.resources);
     deathSystem(this.world, this.gameTime, this.map, this.resources);
     aiSystem(this.world, dt, this.gameTime, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources);
+    fogSystem(this.world);
   }
 
   private render(): void {
@@ -228,6 +237,7 @@ export class Game {
     this.unitRenderer.render(this.world, this.gameTime);
     this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();
+    this.fogRenderer.render();
     const res = this.resources[Faction.Terran];
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
@@ -649,11 +659,13 @@ export class Game {
 
   /** Handle production button click from info panel */
   private handleProductionButtonClick(buildingEid: number, uType: number): void {
-    // Already producing
-    if (prodUnitType[buildingEid] !== 0) return;
-
     // Must be a completed building
     if (buildState[buildingEid] !== BuildState.Complete) return;
+
+    // Check if queue is full
+    const qLen = prodQueueLen[buildingEid];
+    const totalQueued = (prodUnitType[buildingEid] !== 0 ? 1 : 0) + qLen;
+    if (totalQueued >= PROD_QUEUE_MAX) return;
 
     const fac = faction[buildingEid];
     const res = this.resources[fac];
@@ -672,9 +684,16 @@ export class Game {
     res.minerals -= uDef.costMinerals;
     res.gas -= uDef.costGas;
 
-    // Start production
-    prodUnitType[buildingEid] = uType;
-    prodProgress[buildingEid] = uDef.buildTime;
-    prodTimeTotal[buildingEid] = uDef.buildTime;
+    // If nothing is currently producing, start immediately
+    if (prodUnitType[buildingEid] === 0) {
+      prodUnitType[buildingEid] = uType;
+      prodProgress[buildingEid] = uDef.buildTime;
+      prodTimeTotal[buildingEid] = uDef.buildTime;
+    } else {
+      // Add to queue
+      const qBase = buildingEid * PROD_QUEUE_MAX;
+      prodQueue[qBase + qLen] = uType;
+      prodQueueLen[buildingEid] = qLen + 1;
+    }
   }
 }

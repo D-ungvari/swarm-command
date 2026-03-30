@@ -1,20 +1,27 @@
 import { type World, hasComponents } from '../ecs/world';
 import {
-  POSITION, MOVEMENT,
+  POSITION, MOVEMENT, BUILDING, RESOURCE,
   posX, posY, velX, velY,
   moveSpeed, moveTargetX, moveTargetY,
   movePathIndex, pathLengths, getPathWaypoint,
-  slowFactor, siegeMode,
+  slowFactor, siegeMode, faction, hpCurrent,
 } from '../ecs/components';
-import { SiegeMode } from '../constants';
+import { SiegeMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE } from '../constants';
+import type { MapData } from '../map/MapData';
 
 const ARRIVAL_THRESHOLD = 4; // px — close enough to waypoint
 
+// ── Separation constants ──
+const SEPARATION_RADIUS = 12; // px — half a tile
+const SEPARATION_RADIUS_SQ = SEPARATION_RADIUS * SEPARATION_RADIUS;
+const SEPARATION_STRENGTH = 0.5;
+
 /**
- * Moves entities along their paths toward their targets.
+ * Moves entities along their paths toward their targets,
+ * then applies separation steering to prevent unit stacking.
  * Runs every tick.
  */
-export function movementSystem(world: World, dt: number): void {
+export function movementSystem(world: World, dt: number, map?: MapData): void {
   const bits = POSITION | MOVEMENT;
 
   for (let eid = 1; eid < world.nextEid; eid++) {
@@ -75,5 +82,92 @@ export function movementSystem(world: World, dt: number): void {
 
     posX[eid] += nx * speed;
     posY[eid] += ny * speed;
+  }
+
+  // ── Separation pass ──
+  // Push overlapping same-faction units apart. Only affects entities with MOVEMENT
+  // (not buildings/resources). O(n^2) but fine for <200 units.
+  separationPass(world, map);
+}
+
+function separationPass(world: World, map?: MapData): void {
+  const bits = POSITION | MOVEMENT;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    // Skip buildings and resources
+    if (hasComponents(world, eid, BUILDING) || hasComponents(world, eid, RESOURCE)) continue;
+
+    const ax = posX[eid];
+    const ay = posY[eid];
+    const facA = faction[eid];
+
+    // Only check entities with higher EIDs to avoid double-processing
+    for (let other = eid + 1; other < world.nextEid; other++) {
+      if (!hasComponents(world, other, bits)) continue;
+      if (hpCurrent[other] <= 0) continue;
+      if (hasComponents(world, other, BUILDING) || hasComponents(world, other, RESOURCE)) continue;
+
+      // Only separate same-faction units
+      if (faction[other] !== facA) continue;
+
+      const bx = posX[other];
+      const by = posY[other];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq >= SEPARATION_RADIUS_SQ || distSq < 0.01) continue;
+
+      const dist = Math.sqrt(distSq);
+      const overlap = SEPARATION_RADIUS - dist;
+      const pushDist = overlap * SEPARATION_STRENGTH;
+
+      // Normalize direction
+      const nx = dx / dist;
+      const ny = dy / dist;
+
+      const pushX = nx * pushDist;
+      const pushY = ny * pushDist;
+
+      // Apply equal-opposite offset
+      let newAX = ax - pushX;
+      let newAY = ay - pushY;
+      let newBX = bx + pushX;
+      let newBY = by + pushY;
+
+      // Clamp to map bounds
+      newAX = Math.max(TILE_SIZE / 2, Math.min(MAP_WIDTH - TILE_SIZE / 2, newAX));
+      newAY = Math.max(TILE_SIZE / 2, Math.min(MAP_HEIGHT - TILE_SIZE / 2, newAY));
+      newBX = Math.max(TILE_SIZE / 2, Math.min(MAP_WIDTH - TILE_SIZE / 2, newBX));
+      newBY = Math.max(TILE_SIZE / 2, Math.min(MAP_HEIGHT - TILE_SIZE / 2, newBY));
+
+      // Don't push onto unwalkable tiles
+      if (map) {
+        const colA = Math.floor(newAX / TILE_SIZE);
+        const rowA = Math.floor(newAY / TILE_SIZE);
+        if (colA >= 0 && colA < map.cols && rowA >= 0 && rowA < map.rows) {
+          if (map.walkable[rowA * map.cols + colA] === 1) {
+            posX[eid] = newAX;
+            posY[eid] = newAY;
+          }
+        }
+
+        const colB = Math.floor(newBX / TILE_SIZE);
+        const rowB = Math.floor(newBY / TILE_SIZE);
+        if (colB >= 0 && colB < map.cols && rowB >= 0 && rowB < map.rows) {
+          if (map.walkable[rowB * map.cols + colB] === 1) {
+            posX[other] = newBX;
+            posY[other] = newBY;
+          }
+        }
+      } else {
+        posX[eid] = newAX;
+        posY[eid] = newAY;
+        posX[other] = newBX;
+        posY[other] = newBY;
+      }
+    }
   }
 }

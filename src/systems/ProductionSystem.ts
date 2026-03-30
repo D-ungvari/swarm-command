@@ -3,6 +3,7 @@ import {
   BUILDING, POSITION,
   buildState, buildingType,
   prodUnitType, prodProgress, prodTimeTotal,
+  prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   posX, posY, faction, rallyX, rallyY,
   commandMode, setPath, movePathIndex,
   workerState, workerTargetEid, workerBaseX, workerBaseY,
@@ -14,12 +15,13 @@ import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import { BUILDING_DEFS } from '../data/buildings';
+import { UNIT_DEFS } from '../data/units';
 import { findNearestMineral } from '../ecs/queries';
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
 
 /**
- * Handles unit production from completed buildings.
+ * Handles unit production from completed buildings, with a queue of up to 5.
  * Runs every tick.
  */
 export function productionSystem(
@@ -104,9 +106,42 @@ export function productionSystem(
       }
     }
 
-    // Reset production
-    prodUnitType[eid] = 0;
-    prodProgress[eid] = 0;
-    prodTimeTotal[eid] = 0;
+    // Advance the queue: shift items 1..N-1 to 0..N-2, decrement length
+    const qBase = eid * PROD_QUEUE_MAX;
+    const qLen = prodQueueLen[eid];
+    if (qLen > 0) {
+      // Shift queue forward
+      for (let i = 0; i < qLen - 1; i++) {
+        prodQueue[qBase + i] = prodQueue[qBase + i + 1];
+      }
+      prodQueue[qBase + qLen - 1] = 0;
+      prodQueueLen[eid] = qLen - 1;
+
+      // Start producing the next queued item
+      if (qLen - 1 > 0) {
+        const nextType = prodQueue[qBase];
+        const nextDef = UNIT_DEFS[nextType];
+        if (nextDef) {
+          prodUnitType[eid] = nextType;
+          prodProgress[eid] = nextDef.buildTime;
+          prodTimeTotal[eid] = nextDef.buildTime;
+        } else {
+          // Invalid type in queue, clear
+          prodUnitType[eid] = 0;
+          prodProgress[eid] = 0;
+          prodTimeTotal[eid] = 0;
+        }
+      } else {
+        // Queue empty
+        prodUnitType[eid] = 0;
+        prodProgress[eid] = 0;
+        prodTimeTotal[eid] = 0;
+      }
+    } else {
+      // No queue — just reset
+      prodUnitType[eid] = 0;
+      prodProgress[eid] = 0;
+      prodTimeTotal[eid] = 0;
+    }
   }
 }

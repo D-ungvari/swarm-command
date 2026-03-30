@@ -8,6 +8,7 @@ import {
   siegeMode, siegeTransitionEnd,
   workerState, workerTargetEid, resourceType, resourceRemaining,
   rallyX, rallyY, buildState, buildingType, prodUnitType, prodProgress, prodTimeTotal,
+  prodQueue, prodQueueLen, PROD_QUEUE_MAX,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -369,7 +370,10 @@ function handleProductionHotkey(
   const slotIndex = isQ ? 0 : 1;
 
   for (const eid of buildings) {
-    if (prodUnitType[eid] !== 0) continue; // Already producing
+    // Check if queue is full (current production + queue items)
+    const qLen = prodQueueLen[eid];
+    const totalQueued = (prodUnitType[eid] !== 0 ? 1 : 0) + qLen;
+    if (totalQueued >= PROD_QUEUE_MAX) continue; // Queue full
 
     const bDef = BUILDING_DEFS[buildingType[eid]];
     if (!bDef || slotIndex >= bDef.produces.length) continue;
@@ -392,10 +396,17 @@ function handleProductionHotkey(
     res.minerals -= uDef.costMinerals;
     res.gas -= uDef.costGas;
 
-    // Start production
-    prodUnitType[eid] = uType;
-    prodProgress[eid] = uDef.buildTime;
-    prodTimeTotal[eid] = uDef.buildTime;
+    // If nothing is currently producing, start immediately
+    if (prodUnitType[eid] === 0) {
+      prodUnitType[eid] = uType;
+      prodProgress[eid] = uDef.buildTime;
+      prodTimeTotal[eid] = uDef.buildTime;
+    } else {
+      // Add to queue
+      const qBase = eid * PROD_QUEUE_MAX;
+      prodQueue[qBase + qLen] = uType;
+      prodQueueLen[eid] = qLen + 1;
+    }
     break; // Only queue on the first available building
   }
 }

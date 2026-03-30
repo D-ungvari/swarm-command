@@ -9,7 +9,7 @@ import {
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
 } from '../ecs/components';
 import { findClosestEnemy } from '../ecs/queries';
-import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR } from '../constants';
+import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
 
@@ -23,11 +23,30 @@ const chaseTargetY = new Float32Array(MAX_ENTITIES);
 
 const FLASH_DURATION = 0.12; // seconds
 
+// ── Damage events for floating damage indicators ──
+export interface DamageEvent {
+  x: number;
+  y: number;
+  amount: number;
+  time: number;
+  /** Color based on victim's faction: red = Terran hit, blue-white = Zerg hit */
+  color: number;
+}
+
+const MAX_DAMAGE_EVENTS = 64;
+const DAMAGE_EVENT_LIFETIME = 0.8; // seconds
+export const damageEvents: DamageEvent[] = [];
+
 /**
  * Handles target acquisition, attack execution, damage, splash, and chase logic.
  * Runs every tick after MovementSystem.
  */
 export function combatSystem(world: World, dt: number, gameTime: number, map: MapData): void {
+  // Clean up expired damage events
+  while (damageEvents.length > 0 && gameTime - damageEvents[0].time > DAMAGE_EVENT_LIFETIME) {
+    damageEvents.shift();
+  }
+
   const combatBits = POSITION | HEALTH | ATTACK;
 
   for (let eid = 1; eid < world.nextEid; eid++) {
@@ -112,6 +131,20 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // Apply damage
     hpCurrent[tgt] -= atkDamage[eid];
 
+    // Push damage event for floating indicator
+    if (damageEvents.length < MAX_DAMAGE_EVENTS) {
+      // Color based on victim faction: red if Terran got hit, blue-white if Zerg got hit
+      const victimFac = faction[tgt] as Faction;
+      const dmgColor = victimFac === Faction.Terran ? 0xff4444 : 0xaaddff;
+      damageEvents.push({
+        x: posX[tgt],
+        y: posY[tgt],
+        amount: atkDamage[eid],
+        time: gameTime,
+        color: dmgColor,
+      });
+    }
+
     // Track combat time for Roach regen
     lastCombatTime[eid] = gameTime;
     lastCombatTime[tgt] = gameTime;
@@ -141,6 +174,19 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         if (sdx * sdx + sdy * sdy <= splashRangeSq) {
           hpCurrent[other] -= atkDamage[eid];
           lastCombatTime[other] = gameTime;
+
+          // Splash damage event
+          if (damageEvents.length < MAX_DAMAGE_EVENTS) {
+            const splashVictimFac = faction[other] as Faction;
+            const splashColor = splashVictimFac === Faction.Terran ? 0xff4444 : 0xaaddff;
+            damageEvents.push({
+              x: posX[other],
+              y: posY[other],
+              amount: atkDamage[eid],
+              time: gameTime,
+              color: splashColor,
+            });
+          }
         }
       }
     }

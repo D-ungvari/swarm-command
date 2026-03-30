@@ -12,6 +12,7 @@ import {
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
+import { damageEvents } from '../systems/CombatSystem';
 
 /** Command ping visual marker */
 interface CommandPing {
@@ -446,8 +447,10 @@ export class UnitRenderer {
         }
       }
 
-      // Health bar (only if damaged)
-      if (hasComponents(world, eid, HEALTH) && hpCurrent[eid] < hpMax[eid] && hpCurrent[eid] > 0) {
+      // Health bar: show if damaged OR if selected (so player can see relative HP of their army)
+      const showHealthBar = hasComponents(world, eid, HEALTH) && hpCurrent[eid] > 0 &&
+        (hpCurrent[eid] < hpMax[eid] || isSelected);
+      if (showHealthBar) {
         const barW = w + 4;
         const barH = 3;
         const barX = x - barW / 2;
@@ -528,6 +531,35 @@ export class UnitRenderer {
         g.circle(px, py, particleSize);
         g.fill({ color: particleColor, alpha: particleAlpha });
       }
+    }
+
+    // Floating damage indicators — colored markers that drift upward and fade
+    for (let i = damageEvents.length - 1; i >= 0; i--) {
+      const evt = damageEvents[i];
+      const age = gameTime - evt.time;
+      const duration = 0.8;
+      if (age >= duration) continue;
+
+      const t = age / duration;
+      const alpha = Math.max(0, 1 - t);
+      const floatY = age * 30; // drift upward
+
+      const dx = evt.x;
+      const dy = evt.y - floatY;
+
+      // Small colored diamond marker that shrinks as it fades
+      const size = Math.max(1, 3 - t * 2);
+      g.moveTo(dx, dy - size);
+      g.lineTo(dx + size, dy);
+      g.lineTo(dx, dy + size);
+      g.lineTo(dx - size, dy);
+      g.closePath();
+      g.fill({ color: evt.color, alpha: alpha * 0.9 });
+
+      // Thin dash line above the diamond to indicate "damage"
+      g.moveTo(dx - 2, dy - size - 2);
+      g.lineTo(dx + 2, dy - size - 2);
+      g.stroke({ color: evt.color, width: 1.5, alpha: alpha * 0.7 });
     }
   }
 

@@ -45,6 +45,7 @@ import { BuildMenuRenderer } from './rendering/BuildMenuRenderer';
 import { InfoPanelRenderer } from './rendering/InfoPanelRenderer';
 import { ModeIndicatorRenderer } from './rendering/ModeIndicatorRenderer';
 import { HotkeyPanelRenderer } from './rendering/HotkeyPanelRenderer';
+import { MinimapRenderer } from './rendering/MinimapRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem, attackMoveMode } from './systems/CommandSystem';
@@ -83,6 +84,7 @@ export class Game {
   private infoPanelRenderer!: InfoPanelRenderer;
   private modeIndicatorRenderer!: ModeIndicatorRenderer;
   private hotkeyPanelRenderer!: HotkeyPanelRenderer;
+  private minimapRenderer!: MinimapRenderer;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -146,6 +148,9 @@ export class Game {
     this.modeIndicatorRenderer = new ModeIndicatorRenderer(container);
     this.hotkeyPanelRenderer = new HotkeyPanelRenderer(container);
 
+    // Minimap (screen space, bottom-right corner)
+    this.minimapRenderer = new MinimapRenderer(this.app.stage, this.viewport, this.map);
+
     // Wire up production button callback
     this.infoPanelRenderer.setProductionCallback((buildingEid, uType) => {
       this.handleProductionButtonClick(buildingEid, uType);
@@ -160,6 +165,7 @@ export class Game {
 
     window.addEventListener('resize', () => {
       this.viewport.resize(window.innerWidth, window.innerHeight);
+      this.minimapRenderer.resize(window.innerWidth, window.innerHeight);
     });
 
     this.lastTime = performance.now();
@@ -173,6 +179,7 @@ export class Game {
     this.accumulator += frameTime;
 
     this.input.update();
+    this.handleMinimapClick();
     this.handleEdgeScroll();
     this.handleBuildPlacement();
 
@@ -212,6 +219,7 @@ export class Game {
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
+    this.minimapRenderer.render(this.world);
   }
 
   private handleBuildPlacement(): void {
@@ -339,6 +347,17 @@ export class Game {
     this.ghostGraphics.rect(center.x - w / 2, center.y - h / 2, w, h);
     this.ghostGraphics.fill({ color, alpha: 0.3 });
     this.ghostGraphics.stroke({ color, width: 2, alpha: 0.6 });
+  }
+
+  /** If the player clicks on the minimap, move camera and consume the click */
+  private handleMinimapClick(): void {
+    const m = this.input.state.mouse;
+    if (m.leftJustReleased && !m.isDragging) {
+      if (this.minimapRenderer.handleClick(m.x, m.y)) {
+        // Consume the click so selection/command systems don't process it
+        m.leftJustReleased = false;
+      }
+    }
   }
 
   private handleEdgeScroll(): void {

@@ -2,7 +2,7 @@ import { type World, hasComponents } from '../ecs/world';
 import {
   POSITION, SELECTABLE, MOVEMENT, UNIT_TYPE, BUILDING,
   posX, posY, selected, moveTargetX, moveTargetY,
-  setPath, faction, movePathIndex, unitType,
+  setPath, faction, movePathIndex, unitType, velX, velY,
   targetEntity, commandMode,
   stimEndTime, hpCurrent, moveSpeed, atkCooldown,
   siegeMode, siegeTransitionEnd,
@@ -165,6 +165,9 @@ export function commandSystem(
     for (const eid of selectedUnits) {
       targetEntity[eid] = enemy;
       commandMode[eid] = CommandMode.AttackTarget;
+      movePathIndex[eid] = -1;
+      velX[eid] = 0;
+      velY[eid] = 0;
     }
     addCommandPing(worldPos.x, worldPos.y, 0xff4444, gameTime);
     return;
@@ -278,6 +281,10 @@ function issuePathCommand(
     moveTargetY[eid] = destY;
     targetEntity[eid] = -1;
     commandMode[eid] = mode;
+    velX[eid] = 0;
+    velY[eid] = 0;
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
   }
 }
 

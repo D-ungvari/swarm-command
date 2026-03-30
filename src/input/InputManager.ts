@@ -34,7 +34,12 @@ export class InputManager {
   private rawKeysDown = new Set<string>();
   private rawKeysJustPressed = new Set<string>();
   private lastClickTime = 0;
-  private rawDoubleClick = false;
+
+  // Buffered events — survive even if mousedown+mouseup happens between frames
+  private bufferedRightClick = false;
+  private bufferedLeftClick = false;
+  private bufferedLeftRelease = false;
+  private bufferedDoubleClick = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -66,17 +71,24 @@ export class InputManager {
     el.addEventListener('mousedown', (e) => {
       if (e.button === 0) {
         this.rawLeftDown = true;
+        this.bufferedLeftClick = true;
         const now = performance.now();
         if (now - this.lastClickTime < 300) {
-          this.rawDoubleClick = true;
+          this.bufferedDoubleClick = true;
         }
         this.lastClickTime = now;
       }
-      if (e.button === 2) this.rawRightDown = true;
+      if (e.button === 2) {
+        this.rawRightDown = true;
+        this.bufferedRightClick = true;
+      }
     });
 
     el.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.rawLeftDown = false;
+      if (e.button === 0) {
+        this.rawLeftDown = false;
+        this.bufferedLeftRelease = true;
+      }
       if (e.button === 2) this.rawRightDown = false;
     });
 
@@ -92,17 +104,23 @@ export class InputManager {
     });
   }
 
-  /** Call once per game tick to snapshot input state */
+  /** Call once per frame to snapshot input state */
   update(): void {
     const m = this.state.mouse;
     m.x = this.rawX;
     m.y = this.rawY;
 
-    m.leftJustPressed = this.rawLeftDown && !this.prevLeftDown;
-    m.rightJustPressed = this.rawRightDown && !this.prevRightDown;
-    m.leftJustReleased = !this.rawLeftDown && this.prevLeftDown;
-    m.leftDoubleClick = this.rawDoubleClick;
-    this.rawDoubleClick = false;
+    // Use buffered events so fast clicks between frames aren't lost
+    m.leftJustPressed = this.bufferedLeftClick;
+    m.rightJustPressed = this.bufferedRightClick;
+    m.leftJustReleased = this.bufferedLeftRelease;
+    m.leftDoubleClick = this.bufferedDoubleClick;
+
+    // Clear buffers
+    this.bufferedLeftClick = false;
+    this.bufferedRightClick = false;
+    this.bufferedLeftRelease = false;
+    this.bufferedDoubleClick = false;
 
     // Track drag
     if (m.leftJustPressed) {
@@ -116,9 +134,6 @@ export class InputManager {
       if (dx * dx + dy * dy > 25) { // 5px threshold
         m.isDragging = true;
       }
-    }
-    if (m.leftJustReleased) {
-      // isDragging stays true for one frame so selection system can read it
     }
 
     m.leftDown = this.rawLeftDown;
@@ -135,7 +150,7 @@ export class InputManager {
     this.state.ctrlHeld = this.rawKeysDown.has('ControlLeft') || this.rawKeysDown.has('ControlRight');
   }
 
-  /** Reset per-frame flags (call at end of tick) */
+  /** Reset per-frame flags (call at end of frame) */
   lateUpdate(): void {
     const m = this.state.mouse;
     if (m.leftJustReleased) {

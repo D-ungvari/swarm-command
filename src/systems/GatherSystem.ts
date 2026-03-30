@@ -13,7 +13,7 @@ import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
 import type { PlayerResources } from '../types';
 
-const ARRIVAL_THRESHOLD = 8; // px — close enough to base to deposit
+const ARRIVAL_THRESHOLD = 64; // px — close enough to base to deposit (~2 tiles, accounts for building footprint)
 
 /**
  * Worker AI state machine: gather resources and deposit at base.
@@ -116,14 +116,13 @@ function tickReturningToBase(
   const dy = by - posY[eid];
   const distSq = dx * dx + dy * dy;
 
-  if (distSq <= ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD || movePathIndex[eid] < 0) {
-    // Check if actually close enough (might have been stopped by path ending)
-    if (distSq > ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD && movePathIndex[eid] < 0) {
-      // Path finished but not close enough — re-path
-      pathToBase(eid, map);
-      return;
-    }
+  // If path finished but not close enough, re-path
+  if (movePathIndex[eid] < 0 && distSq > ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD) {
+    pathToBase(eid, map);
+    return;
+  }
 
+  if (distSq <= ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD) {
     // Deposit
     const fac = faction[eid];
     if (resources[fac]) {
@@ -171,8 +170,12 @@ function pathToResource(eid: number, target: number, map: MapData): void {
 
 function pathToBase(eid: number, map: MapData): void {
   const baseTile = worldToTile(workerBaseX[eid], workerBaseY[eid]);
+  // Base tile may be unwalkable (building sits on it) — find nearest walkable tile
+  const walkable = findNearestWalkableTile(map, baseTile.col, baseTile.row);
+  if (!walkable) return;
+
   const startTile = worldToTile(posX[eid], posY[eid]);
-  const tilePath = findPath(map, startTile.col, startTile.row, baseTile.col, baseTile.row);
+  const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
 
   if (tilePath.length > 0) {
     const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {

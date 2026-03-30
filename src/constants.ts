@@ -137,6 +137,17 @@ export const STARTING_MINERALS = 50;
 export const STARTING_GAS = 0;
 export const WORKER_MINE_RANGE = 48; // px (~1.5 tiles)
 
+// ── AI constants ──
+export const AI_DECISION_INTERVAL = 30; // ticks between decisions (0.5s)
+export const AI_MINERAL_INCOME = 1.5; // minerals/sec base income
+export const AI_INITIAL_DELAY = 30; // seconds before AI starts
+export const AI_ATTACK_THRESHOLD_BASE = 8;
+export const AI_ATTACK_THRESHOLD_GROWTH = 3;
+export const AI_INCOME_GROWTH = 0.15; // income multiplier growth per wave
+export const AI_MAX_WAVE_SIZE = 25;
+export const AI_SPAWN_BASE_COL = 117;
+export const AI_SPAWN_BASE_ROW = 117;
+
 // ── Colors ──
 export const TERRAN_COLOR = 0x3399ff;
 export const ZERG_COLOR = 0xcc3333;

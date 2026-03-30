@@ -50,6 +50,7 @@ import { combatSystem } from './systems/CombatSystem';
 import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
+import { aiSystem, initAI } from './systems/AISystem';
 import type { PlayerResources } from './types';
 
 export class Game {
@@ -62,7 +63,7 @@ export class Game {
   // Per-player resource state
   resources: Record<number, PlayerResources> = {
     [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY },
-    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY },
+    [Faction.Zerg]: { minerals: 0, gas: 0, supplyUsed: 0, supplyProvided: 200 }, // Cheating AI: unlimited supply
   };
 
   // Building placement state
@@ -138,6 +139,7 @@ export class Game {
     this.spawnResourceNodes();
     this.spawnStartingBase();
     this.spawnDemoUnits();
+    initAI();
 
     window.addEventListener('resize', () => {
       this.viewport.resize(window.innerWidth, window.innerHeight);
@@ -178,6 +180,8 @@ export class Game {
     abilitySystem(this.world, dt, this.gameTime);
     gatherSystem(this.world, dt, this.map, this.resources);
     deathSystem(this.world, this.gameTime);
+    aiSystem(this.world, dt, this.gameTime, this.map,
+      (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources);
   }
 
   private render(): void {
@@ -409,25 +413,7 @@ export class Game {
       }
     }
 
-    // Zerg swarm
-    const zergUnits = [
-      { type: UnitType.Zergling, col: 115, row: 115 },
-      { type: UnitType.Zergling, col: 116, row: 115 },
-      { type: UnitType.Zergling, col: 117, row: 115 },
-      { type: UnitType.Zergling, col: 115, row: 116 },
-      { type: UnitType.Zergling, col: 116, row: 116 },
-      { type: UnitType.Zergling, col: 117, row: 116 },
-      { type: UnitType.Hydralisk, col: 116, row: 117 },
-      { type: UnitType.Hydralisk, col: 117, row: 117 },
-      { type: UnitType.Roach, col: 115, row: 118 },
-      { type: UnitType.Baneling, col: 118, row: 116 },
-      { type: UnitType.Drone, col: 118, row: 118 },
-      { type: UnitType.Drone, col: 119, row: 118 },
-    ];
-
-    for (const u of zergUnits) {
-      this.spawnUnit(u.type, Faction.Zerg, u.col, u.row);
-    }
+    // Zerg units are spawned by AISystem — no hardcoded demo units
   }
 
   spawnBuilding(type: BuildingType, fac: Faction, col: number, row: number): number {

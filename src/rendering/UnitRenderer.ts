@@ -87,24 +87,106 @@ export class UnitRenderer {
         }
 
         const bs = buildState[eid] as BuildState;
-        const alpha = bs === BuildState.UnderConstruction ? 0.6 : 1.0;
-        g.rect(x - w / 2, y - h / 2, w, h);
-        g.fill({ color: tint, alpha });
-        g.stroke({ color: 0x446688, width: 1.5, alpha });
-
-        // Building type label
         const bt = buildingType[eid] as BuildingType;
+        const baseAlpha = bs === BuildState.UnderConstruction ? 0.6 : 1.0;
+
+        // Main building rect
+        g.rect(x - w / 2, y - h / 2, w, h);
+        g.fill({ color: tint, alpha: baseAlpha });
+
+        // Per-type border colors and thickness
+        let borderColor = 0x446688;
+        if (bt === BuildingType.CommandCenter) borderColor = 0x5588bb;
+        else if (bt === BuildingType.SupplyDepot) borderColor = 0x3366aa;
+        else if (bt === BuildingType.Barracks) borderColor = 0x6644aa;
+        g.rect(x - w / 2, y - h / 2, w, h);
+        g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
+
+        // Under construction: animated diagonal stripes
+        if (bs === BuildState.UnderConstruction) {
+          const stripeSpacing = 8;
+          const offset = (gameTime * 20) % stripeSpacing;
+          const hw = w / 2;
+          const hh = h / 2;
+          for (let s = -w - h; s < w + h; s += stripeSpacing) {
+            const sx = s + offset;
+            // Diagonal line from top-left to bottom-right direction
+            const x1 = Math.max(-hw, sx);
+            const y1 = Math.max(-hh, x1 - sx - hh);
+            const x2 = Math.min(hw, sx + h);
+            const y2 = Math.min(hh, x2 - sx + hh);
+            // Clip to building bounds
+            const lx1 = Math.max(x - hw, x + Math.max(-hw, sx - hh));
+            const ly1 = y - hh;
+            const lx2 = Math.min(x + hw, x + Math.min(hw, sx + hh));
+            const ly2 = y + hh;
+            if (lx1 < lx2) {
+              g.moveTo(lx1, ly1);
+              g.lineTo(lx2, ly2);
+              g.stroke({ color: 0xffaa22, width: 1, alpha: 0.15 });
+            }
+          }
+        }
+
+        // Building type details
         if (bt === BuildingType.CommandCenter) {
-          // CC indicator dot
-          g.circle(x, y, 4);
-          g.fill({ color: 0xffcc44 });
+          // Inner base outline rectangle
+          const inset = 6;
+          g.rect(x - w / 2 + inset, y - h / 2 + inset, w - inset * 2, h - inset * 2);
+          g.stroke({ color: 0x6699cc, width: 1, alpha: 0.5 * baseAlpha });
+
+          // Bright gold star in center (4-pointed)
+          const starR = 5;
+          const starInner = 2;
+          g.moveTo(x, y - starR);
+          g.lineTo(x + starInner, y - starInner);
+          g.lineTo(x + starR, y);
+          g.lineTo(x + starInner, y + starInner);
+          g.lineTo(x, y + starR);
+          g.lineTo(x - starInner, y + starInner);
+          g.lineTo(x - starR, y);
+          g.lineTo(x - starInner, y - starInner);
+          g.closePath();
+          g.fill({ color: 0xffcc44, alpha: baseAlpha });
+        } else if (bt === BuildingType.SupplyDepot) {
+          // Diagonal cross-hatch pattern
+          const hw2 = w / 2 - 3;
+          const hh2 = h / 2 - 3;
+          const step = 6;
+          for (let d = -Math.max(hw2, hh2); d <= Math.max(hw2, hh2); d += step) {
+            // Forward diagonals
+            const fx1 = Math.max(-hw2, d - hh2);
+            const fy1 = Math.max(-hh2, d - hw2);
+            const fx2 = Math.min(hw2, d + hh2);
+            const fy2 = Math.min(hh2, d + hw2);
+            if (fx1 < fx2) {
+              g.moveTo(x + fx1, y + (fx1 - d));
+              g.lineTo(x + fx2, y + (fx2 - d));
+              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.35 * baseAlpha });
+            }
+            // Backward diagonals
+            if (fx1 < fx2) {
+              g.moveTo(x + fx1, y - (fx1 - d));
+              g.lineTo(x + fx2, y - (fx2 - d));
+              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.35 * baseAlpha });
+            }
+          }
         } else if (bt === BuildingType.Barracks) {
-          // Barracks X indicator
-          g.moveTo(x - 4, y - 4);
-          g.lineTo(x + 4, y + 4);
-          g.moveTo(x + 4, y - 4);
-          g.lineTo(x - 4, y + 4);
-          g.stroke({ color: 0xffffff, width: 1.5, alpha: 0.6 });
+          // Larger X indicator
+          const xSize = 7;
+          g.moveTo(x - xSize, y - xSize);
+          g.lineTo(x + xSize, y + xSize);
+          g.moveTo(x + xSize, y - xSize);
+          g.lineTo(x - xSize, y + xSize);
+          g.stroke({ color: 0xffffff, width: 2, alpha: 0.5 * baseAlpha });
+
+          // Door rectangle at bottom edge
+          const doorW = 10;
+          const doorH = 6;
+          g.rect(x - doorW / 2, y + h / 2 - doorH, doorW, doorH);
+          g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
+          g.rect(x - doorW / 2, y + h / 2 - doorH, doorW, doorH);
+          g.stroke({ color: 0x6688aa, width: 1, alpha: 0.6 * baseAlpha });
         }
 
         // Construction progress bar (yellow)

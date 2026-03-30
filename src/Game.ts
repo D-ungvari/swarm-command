@@ -41,6 +41,8 @@ import { TilemapRenderer } from './rendering/TilemapRenderer';
 import { UnitRenderer } from './rendering/UnitRenderer';
 import { SelectionRenderer } from './rendering/SelectionRenderer';
 import { HudRenderer } from './rendering/HudRenderer';
+import { BuildMenuRenderer } from './rendering/BuildMenuRenderer';
+import { InfoPanelRenderer } from './rendering/InfoPanelRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem } from './systems/CommandSystem';
@@ -75,6 +77,8 @@ export class Game {
   private unitRenderer!: UnitRenderer;
   private selectionRenderer!: SelectionRenderer;
   private hudRenderer!: HudRenderer;
+  private buildMenuRenderer!: BuildMenuRenderer;
+  private infoPanelRenderer!: InfoPanelRenderer;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -133,6 +137,8 @@ export class Game {
     this.app.stage.addChild(this.selectionRenderer.container);
 
     this.hudRenderer = new HudRenderer(container);
+    this.buildMenuRenderer = new BuildMenuRenderer(container);
+    this.infoPanelRenderer = new InfoPanelRenderer(container);
 
     this.tilemapRenderer.render(this.map);
 
@@ -185,11 +191,14 @@ export class Game {
   }
 
   private render(): void {
+    this.tilemapRenderer.updateWater(this.gameTime);
     this.unitRenderer.render(this.world, this.gameTime);
     this.selectionRenderer.render(this.input.state);
     this.renderGhost();
     const res = this.resources[Faction.Terran];
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
+    this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas);
+    this.infoPanelRenderer.update(this.world, this.gameTime);
   }
 
   private handleBuildPlacement(): void {

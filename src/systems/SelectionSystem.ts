@@ -55,6 +55,11 @@ export function selectionSystem(
     }
   }
 
+  // Tab = cycle through unit types in current selection (SC2 subgroup cycling)
+  if (input.keysJustPressed.has('Tab')) {
+    cycleSubgroup(world);
+  }
+
   // Convert screen position to world position
   const worldPos = viewport.toWorld(m.x, m.y);
 
@@ -113,7 +118,19 @@ export function selectionSystem(
         }
       }
     }
-    soundManager.playSelect();
+    // Play unit-specific select sound based on first selected entity
+    let firstSelectedType = 0;
+    for (let eid3 = 1; eid3 < world.nextEid; eid3++) {
+      if (selected[eid3] === 1 && hasComponents(world, eid3, UNIT_TYPE)) {
+        firstSelectedType = unitType[eid3];
+        break;
+      }
+    }
+    if (firstSelectedType > 0) {
+      soundManager.playSelectUnit(firstSelectedType);
+    } else {
+      soundManager.playSelect();
+    }
   }
 }
 
@@ -146,4 +163,39 @@ function findUnitAt(world: World, wx: number, wy: number): number {
   }
 
   return closestEid;
+}
+
+/** Track which subgroup index we're on for Tab cycling */
+let subgroupIndex = 0;
+
+/** Cycle through unit types in the current selection. Press Tab to show only one type at a time. */
+function cycleSubgroup(world: World): void {
+  // Collect all selected unit types
+  const types: number[] = [];
+  const typeSet = new Set<number>();
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (selected[eid] !== 1) continue;
+    if (faction[eid] !== Faction.Terran) continue;
+    if (!hasComponents(world, eid, UNIT_TYPE)) continue;
+    const ut = unitType[eid];
+    if (!typeSet.has(ut)) {
+      typeSet.add(ut);
+      types.push(ut);
+    }
+  }
+
+  if (types.length <= 1) return; // Nothing to cycle
+
+  // Advance to next type
+  subgroupIndex = (subgroupIndex + 1) % types.length;
+  const targetType = types[subgroupIndex];
+
+  // Deselect all, then select only the target type
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (selected[eid] !== 1) continue;
+    if (faction[eid] !== Faction.Terran) continue;
+    if (!hasComponents(world, eid, UNIT_TYPE) || unitType[eid] !== targetType) {
+      selected[eid] = 0;
+    }
+  }
 }

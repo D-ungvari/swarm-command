@@ -12,7 +12,7 @@ import {
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
   addUnitComponents, addWorkerComponent, addResourceComponents, addBuildingComponents,
-  POSITION, WORKER,
+  POSITION, WORKER, MOVEMENT, BUILDING,
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
@@ -41,7 +41,7 @@ import { hasCompletedBuilding } from './ecs/queries';
 import { findPath } from './map/Pathfinder';
 import { InputManager } from './input/InputManager';
 import { TilemapRenderer } from './rendering/TilemapRenderer';
-import { UnitRenderer } from './rendering/UnitRenderer';
+import { UnitRenderer, addCommandPing } from './rendering/UnitRenderer';
 import { SelectionRenderer } from './rendering/SelectionRenderer';
 import { HudRenderer } from './rendering/HudRenderer';
 import { BuildMenuRenderer } from './rendering/BuildMenuRenderer';
@@ -493,6 +493,64 @@ export class Game {
         m.leftJustReleased = false;
       }
     }
+
+    // Right-click minimap — issue move command to that world position
+    if (m.rightJustPressed) {
+      const dest = this.minimapRenderer.handleRightClick(m.x, m.y);
+      if (dest) {
+        // Issue move command to selected units at the minimap world position
+        // Fake a right-click at that world position by temporarily overriding
+        // We import issuePathCommand indirectly — instead, just set the world pos
+        // and let CommandSystem handle it. But CommandSystem converts screen→world.
+        // Simpler: directly set paths for selected units here.
+        this.moveSelectedUnitsTo(dest.x, dest.y);
+        m.rightJustPressed = false; // Consume so CommandSystem doesn't also process
+      }
+    }
+  }
+
+  private moveSelectedUnitsTo(wx: number, wy: number): void {
+    const units: number[] = [];
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (selected[eid] !== 1) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (!hasComponents(this.world, eid, POSITION | MOVEMENT)) continue;
+      if (hasComponents(this.world, eid, BUILDING)) continue; // Buildings can't move
+      if (hpCurrent[eid] <= 0) continue;
+      units.push(eid);
+    }
+    if (units.length === 0) return;
+
+    const cols = Math.ceil(Math.sqrt(units.length));
+    const spacing = TILE_SIZE * 0.8;
+    for (let i = 0; i < units.length; i++) {
+      const eid = units[i];
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const offsetX = (col - (cols - 1) / 2) * spacing;
+      const offsetY = (row - Math.floor(units.length / cols - 1) / 2) * spacing;
+      const destX = wx + offsetX;
+      const destY = wy + offsetY;
+
+      const startTile = worldToTile(posX[eid], posY[eid]);
+      let endTile = worldToTile(destX, destY);
+      if (endTile.col >= 0 && endTile.col < this.map.cols && endTile.row >= 0 && endTile.row < this.map.rows) {
+        if (this.map.walkable[endTile.row * this.map.cols + endTile.col] !== 1) {
+          const walkable = findNearestWalkableTile(this.map, endTile.col, endTile.row);
+          if (walkable) endTile = walkable;
+        }
+      }
+      const tilePath = findPath(this.map, startTile.col, startTile.row, endTile.col, endTile.row);
+      if (tilePath.length > 0) {
+        const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+          const wp = tileToWorld(c, r);
+          return [wp.x, wp.y] as [number, number];
+        });
+        setPath(eid, worldPath);
+      }
+      commandMode[eid] = CommandMode.AttackMove;
+    }
+    addCommandPing(wx, wy, 0x44ff44, this.gameTime);
   }
 
   private countWorkers(): number {

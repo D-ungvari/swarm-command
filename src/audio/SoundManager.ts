@@ -138,6 +138,40 @@ class SoundManager {
     this.trackSound(50);
   }
 
+  /** Unit-specific select sound — different pitch per unit type */
+  playSelectUnit(unitTypeId: number): void {
+    if (!this.canPlay()) return;
+    const ctx = this.getCtx();
+    const master = this.getMaster();
+    if (!ctx || !master) return;
+    const t = ctx.currentTime;
+
+    // Map unit types to distinct frequencies for audible identity
+    const freqMap: Record<number, number> = {
+      1: 600,    // SCV — low mechanical
+      2: 900,    // Marine — crisp mid
+      3: 700,    // Marauder — deeper
+      4: 500,    // Siege Tank — low rumble
+      5: 1100,   // Medivac — high whine
+    };
+    const freq = freqMap[unitTypeId] || 800;
+
+    const osc = ctx.createOscillator();
+    osc.type = unitTypeId >= 10 ? 'sawtooth' : 'sine'; // Zerg get harsher tone
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.2, t + 0.04);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(t);
+    osc.stop(t + 0.06);
+    this.trackSound(60);
+  }
+
   /** Rising sine sweep — building placed sound (150ms) */
   playBuild(): void {
     if (!this.canPlay()) return;

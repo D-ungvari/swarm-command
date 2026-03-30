@@ -223,4 +223,21 @@ export class MinimapRenderer {
     const worldY = (localY / MINIMAP_SIZE) * MAP_HEIGHT;
     this.viewport.moveCenter(worldX, worldY);
   }
+
+  /**
+   * Check if a right-click hits the minimap. Returns world coords or null.
+   */
+  handleRightClick(screenX: number, screenY: number): { x: number; y: number } | null {
+    const localX = screenX - this.container.x;
+    const localY = screenY - this.container.y;
+
+    if (localX < 0 || localX > MINIMAP_SIZE || localY < 0 || localY > MINIMAP_SIZE) {
+      return null;
+    }
+
+    return {
+      x: (localX / MINIMAP_SIZE) * MAP_WIDTH,
+      y: (localY / MINIMAP_SIZE) * MAP_HEIGHT,
+    };
+  }
 }

@@ -2,7 +2,7 @@ import { type World, hasComponents } from '../ecs/world';
 import {
   POSITION, SELECTABLE, MOVEMENT, UNIT_TYPE, BUILDING,
   posX, posY, selected, moveTargetX, moveTargetY,
-  setPath, faction, movePathIndex, unitType, velX, velY,
+  setPath, appendPath, getPathWaypoint, pathLengths, faction, movePathIndex, unitType, velX, velY,
   targetEntity, commandMode,
   stimEndTime, hpCurrent, moveSpeed, atkCooldown,
   siegeMode, siegeTransitionEnd,
@@ -79,6 +79,11 @@ export function commandSystem(
   // E key = Siege Mode toggle (Siege Tanks only)
   if (input.keysJustPressed.has('KeyE')) {
     toggleSiegeMode(world, gameTime);
+  }
+
+  // Delete key = cancel building under construction (partial refund)
+  if (input.keysJustPressed.has('Delete') && resources) {
+    cancelSelectedBuildings(world, resources);
   }
 
   // Attack-move: A + left-click on ground
@@ -218,8 +223,8 @@ export function commandSystem(
     return;
   }
 
-  issuePathCommand(world, selectedUnits, worldPos.x, worldPos.y, map, CommandMode.Move);
-  addCommandPing(worldPos.x, worldPos.y, 0x44ff44, gameTime);
+  issuePathCommand(world, selectedUnits, worldPos.x, worldPos.y, map, CommandMode.Move, input.shiftHeld);
+  addCommandPing(worldPos.x, worldPos.y, input.shiftHeld ? 0xffff44 : 0x44ff44, gameTime);
 }
 
 function applyStim(world: World, gameTime: number): void {
@@ -290,6 +295,7 @@ function issuePathCommand(
   ty: number,
   map: MapData,
   mode: CommandMode,
+  shiftQueue: boolean = false,
 ): void {
   const cols = Math.ceil(Math.sqrt(units.length));
   const spacing = TILE_SIZE * 0.8;
@@ -321,24 +327,44 @@ function issuePathCommand(
       }
     }
 
-    const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+    // For shift-queue: path from the END of current path to destination
+    let pathStartCol = startTile.col;
+    let pathStartRow = startTile.row;
+    if (shiftQueue && movePathIndex[eid] >= 0 && pathLengths[eid] > 0) {
+      // Use the last waypoint of the current path as the start
+      const lastIdx = pathLengths[eid] - 1;
+      const lastWp = getPathWaypoint(eid, lastIdx);
+      if (lastWp) {
+        const lastTile = worldToTile(lastWp[0], lastWp[1]);
+        pathStartCol = lastTile.col;
+        pathStartRow = lastTile.row;
+      }
+    }
+
+    const tilePath = findPath(map, pathStartCol, pathStartRow, endTile.col, endTile.row);
 
     if (tilePath.length > 0) {
       const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
         const wp = tileToWorld(c, r);
         return [wp.x, wp.y] as [number, number];
       });
-      setPath(eid, worldPath);
+      if (shiftQueue) {
+        appendPath(eid, worldPath);
+      } else {
+        setPath(eid, worldPath);
+      }
     }
 
     moveTargetX[eid] = destX;
     moveTargetY[eid] = destY;
-    targetEntity[eid] = -1;
-    commandMode[eid] = mode;
-    velX[eid] = 0;
-    velY[eid] = 0;
-    workerState[eid] = WorkerState.Idle;
-    workerTargetEid[eid] = -1;
+    if (!shiftQueue) {
+      targetEntity[eid] = -1;
+      commandMode[eid] = mode;
+      velX[eid] = 0;
+      velY[eid] = 0;
+      workerState[eid] = WorkerState.Idle;
+      workerTargetEid[eid] = -1;
+    }
   }
 }
 
@@ -417,5 +443,28 @@ function handleProductionHotkey(
       prodQueueLen[eid] = qLen + 1;
     }
     break; // Only queue on the first available building
+  }
+}
+
+/** Cancel selected buildings under construction — refund 75% of cost, destroy the building */
+function cancelSelectedBuildings(world: World, resources: Record<number, PlayerResources>): void {
+  const bits = SELECTABLE | POSITION | BUILDING;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (selected[eid] !== 1) continue;
+    if (buildState[eid] !== BuildState.UnderConstruction) continue;
+
+    const fac = faction[eid];
+    const res = resources[fac];
+    const bDef = BUILDING_DEFS[buildingType[eid]];
+
+    // Refund 75% of mineral/gas cost
+    if (res && bDef) {
+      res.minerals += Math.floor(bDef.costMinerals * 0.75);
+      res.gas += Math.floor(bDef.costGas * 0.75);
+    }
+
+    // Kill the building (DeathSystem will clean up tiles, release builder)
+    hpCurrent[eid] = 0;
   }
 }

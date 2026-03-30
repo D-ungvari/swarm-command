@@ -154,6 +154,24 @@ export function setPath(eid: number, waypoints: Array<[number, number]>): void {
   movePathIndex[eid] = 0;
 }
 
+/** Append waypoints to an existing path (for shift-queue commands) */
+export function appendPath(eid: number, waypoints: Array<[number, number]>): void {
+  if (!paths[eid]) {
+    paths[eid] = new Float32Array(MAX_PATH_LENGTH * 2);
+  }
+  const currentLen = pathLengths[eid];
+  const addLen = Math.min(waypoints.length, MAX_PATH_LENGTH - currentLen);
+  for (let i = 0; i < addLen; i++) {
+    paths[eid][(currentLen + i) * 2] = waypoints[i][0];
+    paths[eid][(currentLen + i) * 2 + 1] = waypoints[i][1];
+  }
+  pathLengths[eid] = currentLen + addLen;
+  // If unit was idle (no path), start following from the beginning of the appended segment
+  if (movePathIndex[eid] < 0) {
+    movePathIndex[eid] = currentLen;
+  }
+}
+
 export function getPathWaypoint(eid: number, index: number): [number, number] | null {
   if (index < 0 || index >= pathLengths[eid]) return null;
   return [paths[eid][index * 2], paths[eid][index * 2 + 1]];

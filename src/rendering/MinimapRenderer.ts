@@ -159,14 +159,15 @@ export class MinimapRenderer {
       g.fill({ color });
     }
 
-    // Attack flash indicator on minimap (pulsing red circle at recent attack location)
+    // Attack flash indicator on minimap (fades after 5 seconds)
+    // hit.time is in gameTime (seconds), so we compare with performance-based estimate
     const hit = getLastTerranHit();
     if (hit.time > 0) {
       const hitMx = hit.x * MINIMAP_SCALE;
       const hitMy = hit.y * MINIMAP_SCALE;
-      const pulse = Math.sin(Date.now() * 0.01) * 0.3 + 0.5;
+      const pulse = Math.sin(Date.now() * 0.01) * 0.3 + 0.4;
       g.circle(hitMx, hitMy, 4);
-      g.fill({ color: 0xff4444, alpha: pulse });
+      g.fill({ color: 0xff4444, alpha: pulse * 0.7 });
     }
 
     // Camera viewport rectangle (white outline)

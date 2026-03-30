@@ -23,6 +23,7 @@ import {
 } from '../constants';
 import type { PlayerResources } from '../types';
 import type { Viewport } from 'pixi-viewport';
+import { addCommandPing } from '../rendering/UnitRenderer';
 
 /** Attack-move mode: set by pressing A, consumed by next left-click */
 export let attackMoveMode = false;
@@ -153,6 +154,9 @@ export function commandSystem(
     if (nonWorkers.length > 0) {
       issuePathCommand(world, nonWorkers, worldPos.x, worldPos.y, map, CommandMode.Move);
     }
+    if (workers.length > 0) {
+      addCommandPing(worldPos.x, worldPos.y, 0x44bbff, gameTime);
+    }
     return;
   }
 
@@ -162,10 +166,12 @@ export function commandSystem(
       targetEntity[eid] = enemy;
       commandMode[eid] = CommandMode.AttackTarget;
     }
+    addCommandPing(worldPos.x, worldPos.y, 0xff4444, gameTime);
     return;
   }
 
   issuePathCommand(world, selectedUnits, worldPos.x, worldPos.y, map, CommandMode.Move);
+  addCommandPing(worldPos.x, worldPos.y, 0x44ff44, gameTime);
 }
 
 function applyStim(world: World, gameTime: number): void {

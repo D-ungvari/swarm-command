@@ -9,6 +9,10 @@ import {
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
+import type { PlayerResources } from '../types';
+
+/** Callback type for production button clicks */
+export type ProductionCallback = (buildingEid: number, unitType: number) => void;
 
 /**
  * HTML-based info panel (bottom-left of screen).
@@ -24,7 +28,11 @@ export class InfoPanelRenderer {
   private prodRow: HTMLDivElement;
   private prodBarFill: HTMLDivElement;
   private prodLabel: HTMLDivElement;
+  private prodButtonsRow: HTMLDivElement;
+  private prodButtons: HTMLDivElement[] = [];
   private wasVisible = false;
+  private productionCallback: ProductionCallback | null = null;
+  private lastButtonConfig = '';
 
   constructor(container: HTMLElement) {
     this.panel = document.createElement('div');
@@ -83,7 +91,7 @@ export class InfoPanelRenderer {
     this.barContainer.appendChild(this.barLabel);
     this.panel.appendChild(this.barContainer);
 
-    // Production row (for buildings)
+    // Production progress row (for buildings currently producing)
     this.prodRow = document.createElement('div');
     this.prodRow.style.cssText = 'display: none; flex-direction: column; gap: 2px; margin-top: 4px;';
 
@@ -106,10 +114,20 @@ export class InfoPanelRenderer {
 
     this.panel.appendChild(this.prodRow);
 
+    // Production buttons row (clickable buttons for available units)
+    this.prodButtonsRow = document.createElement('div');
+    this.prodButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto;';
+    this.panel.appendChild(this.prodButtonsRow);
+
     container.appendChild(this.panel);
   }
 
-  update(world: World, _gameTime: number): void {
+  /** Wire up a callback for production button clicks */
+  setProductionCallback(fn: ProductionCallback): void {
+    this.productionCallback = fn;
+  }
+
+  update(world: World, _gameTime: number, playerResources?: PlayerResources): void {
     // Count selected entities and find first one
     let sel = -1;
     let selCount = 0;
@@ -125,7 +143,10 @@ export class InfoPanelRenderer {
       this.panel.style.display = visible ? 'flex' : 'none';
       this.wasVisible = visible;
     }
-    if (!visible) return;
+    if (!visible) {
+      this.prodButtonsRow.style.display = 'none';
+      return;
+    }
 
     // Multiple units selected — show group count
     if (selCount > 1) {
@@ -133,6 +154,7 @@ export class InfoPanelRenderer {
       this.detailEl.textContent = '';
       this.barContainer.style.display = 'none';
       this.prodRow.style.display = 'none';
+      this.prodButtonsRow.style.display = 'none';
       return;
     }
 
@@ -153,6 +175,7 @@ export class InfoPanelRenderer {
       this.barFill.style.background = rt === ResourceType.Mineral ? '#44bbff' : '#44ff66';
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       this.prodRow.style.display = 'none';
+      this.prodButtonsRow.style.display = 'none';
       return;
     }
 
@@ -166,9 +189,6 @@ export class InfoPanelRenderer {
 
       const fac = faction[eid] as Faction;
       const facName = fac === Faction.Terran ? 'Terran' : fac === Faction.Zerg ? 'Zerg' : '';
-      this.detailEl.textContent = bs === BuildState.UnderConstruction
-        ? `${facName} | Under Construction`
-        : facName;
 
       const hp = hpCurrent[eid];
       const maxHp = hpMax[eid];
@@ -177,7 +197,7 @@ export class InfoPanelRenderer {
       this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
 
-      // Production info
+      // Production info (currently producing)
       const pType = prodUnitType[eid];
       if (pType > 0 && prodTimeTotal[eid] > 0) {
         const unitDef = UNIT_DEFS[pType];
@@ -188,8 +208,33 @@ export class InfoPanelRenderer {
         this.prodLabel.textContent = `Training: ${unitName}`;
         this.prodBarFill.style.width = `${pct * 100}%`;
         this.prodRow.style.display = 'flex';
+        this.detailEl.textContent = bs === BuildState.UnderConstruction
+          ? `${facName} | Under Construction`
+          : facName;
+        this.prodButtonsRow.style.display = 'none';
       } else {
         this.prodRow.style.display = 'none';
+
+        // Show available production hotkeys/buttons for completed buildings
+        if (bs === BuildState.Complete && def && def.produces.length > 0) {
+          const hotkeys = ['Q', 'W'];
+          const hotkeyParts: string[] = [];
+          for (let i = 0; i < def.produces.length; i++) {
+            const uDef = UNIT_DEFS[def.produces[i]];
+            if (uDef && i < hotkeys.length) {
+              hotkeyParts.push(`${hotkeys[i]}: ${uDef.name}`);
+            }
+          }
+          this.detailEl.textContent = `${facName} | ${hotkeyParts.join('  ')}`;
+
+          // Show clickable production buttons
+          this.updateProductionButtons(eid, def.produces, playerResources);
+        } else {
+          this.detailEl.textContent = bs === BuildState.UnderConstruction
+            ? `${facName} | Under Construction`
+            : facName;
+          this.prodButtonsRow.style.display = 'none';
+        }
       }
       return;
     }
@@ -215,6 +260,7 @@ export class InfoPanelRenderer {
       }
 
       this.prodRow.style.display = 'none';
+      this.prodButtonsRow.style.display = 'none';
       return;
     }
 
@@ -222,5 +268,80 @@ export class InfoPanelRenderer {
     this.nameEl.textContent = 'Entity';
     this.detailEl.textContent = '';
     this.prodRow.style.display = 'none';
+    this.prodButtonsRow.style.display = 'none';
+  }
+
+  private updateProductionButtons(buildingEid: number, produces: readonly number[], playerResources?: PlayerResources): void {
+    const hotkeys = ['Q', 'W'];
+    // Build a config string to detect changes and avoid unnecessary DOM rebuilds
+    const configKey = `${buildingEid}:${produces.join(',')}`;
+
+    if (configKey !== this.lastButtonConfig) {
+      this.lastButtonConfig = configKey;
+      // Rebuild buttons
+      this.prodButtonsRow.innerHTML = '';
+      this.prodButtons = [];
+
+      for (let i = 0; i < produces.length; i++) {
+        const uType = produces[i];
+        const uDef = UNIT_DEFS[uType];
+        if (!uDef || i >= hotkeys.length) continue;
+
+        const btn = document.createElement('div');
+        btn.style.cssText = `
+          padding: 3px 6px;
+          border: 1px solid rgba(100, 160, 255, 0.4);
+          border-radius: 3px;
+          font-size: 11px;
+          cursor: pointer;
+          white-space: nowrap;
+          pointer-events: auto;
+          transition: background 0.1s;
+        `;
+        const costText = uDef.costGas > 0
+          ? `${uDef.costMinerals}m ${uDef.costGas}g`
+          : `${uDef.costMinerals}m`;
+        btn.textContent = `${hotkeys[i]}: ${uDef.name} ${costText}`;
+
+        btn.addEventListener('mouseenter', () => {
+          if (btn.style.color !== 'rgb(102, 102, 102)') {
+            btn.style.background = 'rgba(40, 80, 160, 0.5)';
+          }
+        });
+        btn.addEventListener('mouseleave', () => {
+          btn.style.background = 'transparent';
+        });
+        btn.addEventListener('click', () => {
+          if (this.productionCallback) {
+            this.productionCallback(buildingEid, uType);
+          }
+        });
+
+        this.prodButtonsRow.appendChild(btn);
+        this.prodButtons.push(btn);
+      }
+    }
+
+    // Update button affordability styling
+    for (let i = 0; i < this.prodButtons.length && i < produces.length; i++) {
+      const uDef = UNIT_DEFS[produces[i]];
+      if (!uDef) continue;
+
+      const canAfford = playerResources
+        ? playerResources.minerals >= uDef.costMinerals && playerResources.gas >= uDef.costGas
+        : false;
+      const supplyCapped = playerResources
+        ? playerResources.supplyUsed >= playerResources.supplyProvided
+        : false;
+      const enabled = canAfford && !supplyCapped;
+
+      this.prodButtons[i].style.color = enabled ? '#eee' : '#666';
+      this.prodButtons[i].style.borderColor = enabled
+        ? 'rgba(100, 160, 255, 0.4)'
+        : 'rgba(100, 100, 100, 0.2)';
+      this.prodButtons[i].style.cursor = enabled ? 'pointer' : 'default';
+    }
+
+    this.prodButtonsRow.style.display = produces.length > 0 ? 'flex' : 'none';
   }
 }

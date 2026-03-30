@@ -44,6 +44,7 @@ import { HudRenderer } from './rendering/HudRenderer';
 import { BuildMenuRenderer } from './rendering/BuildMenuRenderer';
 import { InfoPanelRenderer } from './rendering/InfoPanelRenderer';
 import { ModeIndicatorRenderer } from './rendering/ModeIndicatorRenderer';
+import { HotkeyPanelRenderer } from './rendering/HotkeyPanelRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem, attackMoveMode } from './systems/CommandSystem';
@@ -81,6 +82,7 @@ export class Game {
   private buildMenuRenderer!: BuildMenuRenderer;
   private infoPanelRenderer!: InfoPanelRenderer;
   private modeIndicatorRenderer!: ModeIndicatorRenderer;
+  private hotkeyPanelRenderer!: HotkeyPanelRenderer;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -142,6 +144,12 @@ export class Game {
     this.buildMenuRenderer = new BuildMenuRenderer(container);
     this.infoPanelRenderer = new InfoPanelRenderer(container);
     this.modeIndicatorRenderer = new ModeIndicatorRenderer(container);
+    this.hotkeyPanelRenderer = new HotkeyPanelRenderer(container);
+
+    // Wire up production button callback
+    this.infoPanelRenderer.setProductionCallback((buildingEid, uType) => {
+      this.handleProductionButtonClick(buildingEid, uType);
+    });
 
     this.tilemapRenderer.render(this.map);
 
@@ -201,8 +209,9 @@ export class Game {
     const res = this.resources[Faction.Terran];
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType);
-    this.infoPanelRenderer.update(this.world, this.gameTime);
+    this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
+    this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
   }
 
   private handleBuildPlacement(): void {
@@ -528,5 +537,36 @@ export class Game {
     }
 
     return eid;
+  }
+
+  /** Handle production button click from info panel */
+  private handleProductionButtonClick(buildingEid: number, uType: number): void {
+    // Already producing
+    if (prodUnitType[buildingEid] !== 0) return;
+
+    // Must be a completed building
+    if (buildState[buildingEid] !== BuildState.Complete) return;
+
+    const fac = faction[buildingEid];
+    const res = this.resources[fac];
+    if (!res) return;
+
+    const uDef = UNIT_DEFS[uType];
+    if (!uDef) return;
+
+    // Check resources
+    if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) return;
+
+    // Check supply
+    if (res.supplyUsed >= res.supplyProvided) return;
+
+    // Deduct cost
+    res.minerals -= uDef.costMinerals;
+    res.gas -= uDef.costGas;
+
+    // Start production
+    prodUnitType[buildingEid] = uType;
+    prodProgress[buildingEid] = uDef.buildTime;
+    prodTimeTotal[buildingEid] = uDef.buildTime;
   }
 }

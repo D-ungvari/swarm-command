@@ -1,16 +1,33 @@
 import { Container, Graphics } from 'pixi.js';
 import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE } from '../constants';
 import {
-  POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING,
+  POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING, WORKER,
   posX, posY, renderWidth, renderHeight, renderTint,
   selected, faction, hpCurrent, hpMax, unitType,
   atkFlashTimer, atkRange, atkDamage, targetEntity,
   stimEndTime, slowEndTime, siegeMode, lastCombatTime,
   resourceType, resourceRemaining,
   buildState, buildProgress, buildingType, rallyX, rallyY,
+  workerCarrying, workerState,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
+
+/** Command ping visual marker */
+interface CommandPing {
+  x: number;
+  y: number;
+  time: number;
+  color: number;
+}
+
+const commandPings: CommandPing[] = [];
+const PING_DURATION = 0.5;
+
+/** Add a command feedback ping at a world-space position */
+export function addCommandPing(x: number, y: number, color: number, gameTime: number): void {
+  commandPings.push({ x, y, time: gameTime, color });
+}
 
 /**
  * Renders units as simple geometric shapes with ability visual feedback.
@@ -445,6 +462,33 @@ export class UnitRenderer {
         const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
         g.rect(barX, barY, barW * hpRatio, barH);
         g.fill({ color: hpColor });
+      }
+
+      // Worker carrying indicator — bright blue dot when carrying minerals
+      if (hasComponents(world, eid, WORKER) && workerCarrying[eid] > 0) {
+        g.circle(x, y - h / 2 - 2, 4);
+        g.fill({ color: 0x44bbff, alpha: 0.9 });
+      }
+    }
+
+    // Command pings — shrinking circles that fade out
+    for (let i = commandPings.length - 1; i >= 0; i--) {
+      const ping = commandPings[i];
+      const age = gameTime - ping.time;
+      if (age >= PING_DURATION) {
+        commandPings.splice(i, 1);
+        continue;
+      }
+      const t = age / PING_DURATION;
+      const alpha = Math.max(0, 1 - t);
+      const radius = 6 + t * 20;
+      g.circle(ping.x, ping.y, radius);
+      g.stroke({ color: ping.color, width: 2, alpha: alpha * 0.8 });
+      // Inner dot
+      const innerAlpha = Math.max(0, 1 - t * 2);
+      if (innerAlpha > 0) {
+        g.circle(ping.x, ping.y, 3);
+        g.fill({ color: ping.color, alpha: innerAlpha * 0.6 });
       }
     }
 

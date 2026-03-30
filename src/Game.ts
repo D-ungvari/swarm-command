@@ -46,6 +46,7 @@ import { InfoPanelRenderer } from './rendering/InfoPanelRenderer';
 import { ModeIndicatorRenderer } from './rendering/ModeIndicatorRenderer';
 import { HotkeyPanelRenderer } from './rendering/HotkeyPanelRenderer';
 import { MinimapRenderer } from './rendering/MinimapRenderer';
+import { GameOverRenderer } from './rendering/GameOverRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem, attackMoveMode } from './systems/CommandSystem';
@@ -85,6 +86,7 @@ export class Game {
   private modeIndicatorRenderer!: ModeIndicatorRenderer;
   private hotkeyPanelRenderer!: HotkeyPanelRenderer;
   private minimapRenderer!: MinimapRenderer;
+  private gameOverRenderer!: GameOverRenderer;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -150,6 +152,7 @@ export class Game {
 
     // Minimap (screen space, bottom-right corner)
     this.minimapRenderer = new MinimapRenderer(this.app.stage, this.viewport, this.map);
+    this.gameOverRenderer = new GameOverRenderer(container);
 
     // Wire up production button callback
     this.infoPanelRenderer.setProductionCallback((buildingEid, uType) => {
@@ -220,6 +223,8 @@ export class Game {
     this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world);
+
+    this.gameOverRenderer.update(this.world, this.gameTime);
 
     // Cursor change based on current mode
     if (this.placementMode) {

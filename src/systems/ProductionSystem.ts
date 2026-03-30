@@ -4,11 +4,13 @@ import {
   buildState, buildingType,
   prodUnitType, prodProgress, prodTimeTotal,
   posX, posY, faction, rallyX, rallyY,
+  commandMode, setPath, movePathIndex,
 } from '../ecs/components';
-import { BuildState } from '../constants';
+import { BuildState, CommandMode } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
+import { findPath } from '../map/Pathfinder';
 import { BUILDING_DEFS } from '../data/buildings';
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
@@ -57,7 +59,22 @@ export function productionSystem(
     }
 
     // spawnUnitAt handles supply tracking internally
-    spawnFn(uType, fac, sx, sy);
+    const newEid = spawnFn(uType, fac, sx, sy);
+
+    // Send to rally point if set
+    if (rallyX[eid] >= 0 && newEid > 0) {
+      commandMode[newEid] = CommandMode.Move;
+      const startTile = worldToTile(sx, sy);
+      const endTile = worldToTile(rallyX[eid], rallyY[eid]);
+      const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+      if (tilePath.length > 0) {
+        const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+          const wp = tileToWorld(c, r);
+          return [wp.x, wp.y] as [number, number];
+        });
+        setPath(newEid, worldPath);
+      }
+    }
 
     // Reset production
     prodUnitType[eid] = 0;

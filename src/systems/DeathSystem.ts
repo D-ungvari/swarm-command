@@ -1,9 +1,16 @@
 import { type World, hasComponents, entityExists, removeEntity } from '../ecs/world';
 import {
-  POSITION, HEALTH,
+  POSITION, HEALTH, BUILDING,
   posX, posY, faction, hpCurrent,
   resetComponents,
+  buildingType, buildState, builderEid, supplyProvided,
+  commandMode, workerState, workerTargetEid,
 } from '../ecs/components';
+import { BUILDING_DEFS } from '../data/buildings';
+import { clearBuildingTiles, worldToTile } from '../map/MapData';
+import { CommandMode, WorkerState } from '../constants';
+import type { PlayerResources } from '../types';
+import type { MapData } from '../map/MapData';
 
 export interface DeathEvent {
   x: number;
@@ -22,7 +29,12 @@ const DEATH_EVENT_LIFETIME = 0.5; // seconds
  * Removes entities with HP <= 0 and records death events.
  * Runs every tick after CombatSystem.
  */
-export function deathSystem(world: World, gameTime: number): void {
+export function deathSystem(
+  world: World,
+  gameTime: number,
+  map?: MapData,
+  resources?: Record<number, PlayerResources>,
+): void {
   // Clean up old death events
   while (deathEvents.length > 0 && gameTime - deathEvents[0].time > DEATH_EVENT_LIFETIME) {
     deathEvents.shift();
@@ -42,6 +54,29 @@ export function deathSystem(world: World, gameTime: number): void {
         faction: faction[eid],
         time: gameTime,
       });
+    }
+
+    // Building cleanup: clear tiles, release supply, release builder
+    if (hasComponents(world, eid, BUILDING) && map) {
+      const bDef = BUILDING_DEFS[buildingType[eid]];
+      if (bDef) {
+        const tile = worldToTile(posX[eid], posY[eid]);
+        clearBuildingTiles(map, tile.col, tile.row, bDef.tileWidth, bDef.tileHeight);
+      }
+      // Release supply
+      if (supplyProvided[eid] > 0 && resources) {
+        const fac = faction[eid];
+        if (resources[fac]) {
+          resources[fac].supplyProvided -= supplyProvided[eid];
+        }
+      }
+      // Release builder SCV
+      const builder = builderEid[eid];
+      if (builder > 0 && entityExists(world, builder)) {
+        commandMode[builder] = CommandMode.Idle;
+        workerState[builder] = WorkerState.Idle;
+        workerTargetEid[builder] = -1;
+      }
     }
 
     // Clean up entity

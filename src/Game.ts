@@ -210,7 +210,7 @@ export class Game {
     combatSystem(this.world, dt, this.gameTime, this.map);
     abilitySystem(this.world, dt, this.gameTime);
     gatherSystem(this.world, dt, this.map, this.resources);
-    deathSystem(this.world, this.gameTime);
+    deathSystem(this.world, this.gameTime, this.map, this.resources);
     aiSystem(this.world, dt, this.gameTime, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources);
   }

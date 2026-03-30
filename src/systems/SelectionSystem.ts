@@ -7,7 +7,11 @@ import {
 } from '../ecs/components';
 import type { InputState } from '../input/InputManager';
 import { Faction } from '../constants';
+import { entityExists } from '../ecs/world';
 import type { Viewport } from 'pixi-viewport';
+
+// Control groups: 10 groups (0-9), each stores a set of entity IDs
+const controlGroups: Set<number>[] = Array.from({ length: 10 }, () => new Set());
 
 /**
  * Handles click and drag-box unit selection.
@@ -19,6 +23,35 @@ export function selectionSystem(
   viewport: Viewport,
 ): void {
   const m = input.mouse;
+
+  // Control groups: Ctrl+0-9 assigns, 0-9 recalls
+  for (let i = 0; i <= 9; i++) {
+    const key = `Digit${i}`;
+    if (input.keysJustPressed.has(key)) {
+      if (input.ctrlHeld) {
+        // Assign current selection to control group
+        controlGroups[i].clear();
+        for (let eid = 1; eid < world.nextEid; eid++) {
+          if (selected[eid] === 1 && faction[eid] === Faction.Terran) {
+            controlGroups[i].add(eid);
+          }
+        }
+      } else {
+        // Recall control group
+        const group = controlGroups[i];
+        if (group.size > 0) {
+          clearSelection(world);
+          for (const eid of group) {
+            if (entityExists(world, eid) && hasComponents(world, eid, SELECTABLE)) {
+              selected[eid] = 1;
+            } else {
+              group.delete(eid); // Prune dead entities
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Convert screen position to world position
   const worldPos = viewport.toWorld(m.x, m.y);

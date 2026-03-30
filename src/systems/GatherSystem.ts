@@ -13,7 +13,7 @@ import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
 import type { PlayerResources } from '../types';
 
-const ARRIVAL_THRESHOLD = 64; // px — close enough to base to deposit (~2 tiles, accounts for building footprint)
+const ARRIVAL_THRESHOLD = 96; // px — close enough to base to deposit (~3 tiles, accounts for 3x3 CC footprint)
 
 /**
  * Worker AI state machine: gather resources and deposit at base.
@@ -116,13 +116,13 @@ function tickReturningToBase(
   const dy = by - posY[eid];
   const distSq = dx * dx + dy * dy;
 
-  // If path finished but not close enough, re-path
-  if (movePathIndex[eid] < 0 && distSq > ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD) {
-    pathToBase(eid, map);
+  // If still moving along path, wait
+  if (movePathIndex[eid] >= 0 && distSq > ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD) {
     return;
   }
 
-  if (distSq <= ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD) {
+  // Close enough OR path finished (worker is as close as it can get) — deposit
+  if (distSq <= ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD || movePathIndex[eid] < 0) {
     // Deposit
     const fac = faction[eid];
     if (resources[fac]) {

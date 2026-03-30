@@ -41,7 +41,7 @@ export function generateMap(): MapData {
   setTile(tiles, walkable, 8, 18, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
 
-  // Some unbuildable terrain in the middle for tactical interest
+  // Center terrain — rocky mesa with ramp chokepoints
   for (let r = 55; r < 73; r++) {
     for (let c = 55; c < 73; c++) {
       if (Math.abs(r - 64) + Math.abs(c - 64) < 10) {
@@ -50,7 +50,33 @@ export function generateMap(): MapData {
     }
   }
 
-  // Water features (small lakes)
+  // Natural ramp chokepoints between bases — forces armies through narrow corridors
+  // Top-left natural wall (near player base)
+  for (let r = 25; r < 35; r++) {
+    for (let c = 25; c < 35; c++) {
+      // Wall with a 3-tile wide ramp opening
+      if (r >= 28 && r <= 32 && c >= 28 && c <= 32) continue; // Leave ramp open
+      if (Math.abs(r - 30) + Math.abs(c - 30) < 7) {
+        setTile(tiles, walkable, r, c, TileType.Unbuildable);
+      }
+    }
+  }
+
+  // Bottom-right natural wall (near Zerg base)
+  for (let r = 93; r < 103; r++) {
+    for (let c = 93; c < 103; c++) {
+      if (r >= 96 && r <= 100 && c >= 96 && c <= 100) continue; // Leave ramp open
+      if (Math.abs(r - 98) + Math.abs(c - 98) < 7) {
+        setTile(tiles, walkable, r, c, TileType.Unbuildable);
+      }
+    }
+  }
+
+  // Side cliffs — force a diagonal path through the map
+  placeWaterPatch(tiles, walkable, 50, 20, 5);
+  placeWaterPatch(tiles, walkable, 78, 108, 5);
+
+  // Water features (lakes at flanking positions)
   placeWaterPatch(tiles, walkable, 30, 90, 6);
   placeWaterPatch(tiles, walkable, 90, 30, 6);
 

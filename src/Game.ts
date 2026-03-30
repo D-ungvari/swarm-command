@@ -9,9 +9,10 @@ import {
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState,
 } from './constants';
-import { createWorld, addEntity, type World } from './ecs/world';
+import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
   addUnitComponents, addWorkerComponent, addResourceComponents, addBuildingComponents,
+  POSITION, WORKER,
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
@@ -250,13 +251,27 @@ export class Game {
 
     this.gameOverRenderer.update(this.world, this.gameTime);
 
-    // AI attack warning
+    // AI attack warning — jump camera to base on attack
     const aiState = getAIState();
     if (aiState.isAttacking && !this.lastAIAttacking) {
       this.alertRenderer.show(`ENEMY WAVE ${aiState.waveCount} INCOMING`, 4, this.gameTime);
       soundManager.playWaveAlert();
+      // Jump camera to player base (CC position)
+      const ccPos = tileToWorld(15, 15);
+      this.viewport.moveCenter(ccPos.x, ccPos.y);
     }
     this.lastAIAttacking = aiState.isAttacking;
+
+    // Spacebar = jump camera to base
+    if (this.input.state.keysJustPressed.has('Space') && !this.placementMode) {
+      const ccPos = tileToWorld(15, 15);
+      this.viewport.moveCenter(ccPos.x, ccPos.y);
+    }
+
+    // F2 = select all idle workers
+    if (this.input.state.keysJustPressed.has('F2')) {
+      this.selectIdleWorkers();
+    }
     this.alertRenderer.update(this.gameTime);
 
     // Cursor change based on current mode
@@ -459,6 +474,27 @@ export class Game {
       if (localX >= 0 && localX <= 160 && localY >= 0 && localY <= 160) {
         m.leftJustPressed = false;
         m.leftJustReleased = false;
+      }
+    }
+  }
+
+  private selectIdleWorkers(): void {
+    // Clear selection, then select all idle Terran workers
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      selected[eid] = 0;
+    }
+    let found = false;
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (!hasComponents(this.world, eid, WORKER | POSITION)) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      if (workerState[eid] !== 0) continue; // Only idle workers (WorkerState.Idle = 0)
+      if (commandMode[eid] !== 0) continue; // CommandMode.Idle = 0
+      selected[eid] = 1;
+      if (!found) {
+        // Jump camera to first idle worker
+        this.viewport.moveCenter(posX[eid], posY[eid]);
+        found = true;
       }
     }
   }

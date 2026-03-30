@@ -41,8 +41,12 @@ export class HotkeyPanelRenderer {
       'S: Stop  H: Hold',
       'T: Stim (Marine)',
       'E: Siege (Tank)',
-      'B+1/2/3: Build',
+      'B+1-6: Build',
       'Q/W: Produce Unit',
+      'Ctrl+0-9: Set Group',
+      '0-9: Recall Group',
+      'Space: Jump to Base',
+      'F2: Select Idle Workers',
       'F1: Toggle Help',
     ];
 

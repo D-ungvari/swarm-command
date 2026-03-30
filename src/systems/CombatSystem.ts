@@ -84,17 +84,15 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // --- Auto-acquire target ---
     if (targetEntity[eid] < 1) {
-      const enemy = findClosestEnemy(world, eid, range);
+      // Search with a generous aggro range: max of attack range and 6 tiles (192px)
+      // This ensures melee units detect ranged attackers shooting them
+      const aggroRange = Math.max(range, 6 * TILE_SIZE);
+      const enemy = findClosestEnemy(world, eid, aggroRange);
       if (enemy > 0) {
         // Terran units can't auto-acquire targets hidden in fog
         const myFac = faction[eid] as Faction;
         if (myFac === Faction.Terran && !isTileVisible(posX[enemy], posY[enemy])) {
-          // Enemy is in fog — pretend we don't see them
-          if (commandMode[eid] === CommandMode.Idle || commandMode[eid] === CommandMode.AttackTarget) {
-            continue;
-          } else {
-            continue;
-          }
+          continue;
         }
         targetEntity[eid] = enemy;
         // Stop movement to engage
@@ -156,6 +154,12 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         time: gameTime,
         color: dmgColor,
       });
+    }
+
+    // Retaliation: victim auto-targets attacker if idle and can fight
+    if (targetEntity[tgt] < 1 && atkDamage[tgt] > 0 &&
+        commandMode[tgt] !== CommandMode.Move && commandMode[tgt] !== CommandMode.Gather) {
+      targetEntity[tgt] = eid;
     }
 
     // Track combat time for Roach regen

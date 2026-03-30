@@ -1,10 +1,13 @@
 /**
  * HTML-based resource HUD overlay (top-right corner).
+ * Shows minerals, gas, supply, and game timer.
  */
 export class HudRenderer {
   private mineralEl: HTMLSpanElement;
   private gasEl: HTMLSpanElement;
   private supplyEl: HTMLSpanElement;
+  private timerEl: HTMLSpanElement;
+  private workerEl: HTMLSpanElement;
 
   constructor(container: HTMLElement) {
     const hud = document.createElement('div');
@@ -27,57 +30,77 @@ export class HudRenderer {
     `;
 
     // Minerals
-    const mineralDiv = document.createElement('div');
-    mineralDiv.style.display = 'flex';
-    mineralDiv.style.alignItems = 'center';
-    mineralDiv.style.gap = '4px';
-
+    const mineralDiv = this.makeDiv();
     const mineralIcon = document.createElement('span');
     mineralIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#44bbff;border-radius:2px;';
     this.mineralEl = document.createElement('span');
     this.mineralEl.textContent = '0';
-
     mineralDiv.appendChild(mineralIcon);
     mineralDiv.appendChild(this.mineralEl);
 
     // Gas
-    const gasDiv = document.createElement('div');
-    gasDiv.style.display = 'flex';
-    gasDiv.style.alignItems = 'center';
-    gasDiv.style.gap = '4px';
-
+    const gasDiv = this.makeDiv();
     const gasIcon = document.createElement('span');
     gasIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#44ff66;border-radius:50%;';
     this.gasEl = document.createElement('span');
     this.gasEl.textContent = '0';
-
     gasDiv.appendChild(gasIcon);
     gasDiv.appendChild(this.gasEl);
 
     // Supply
-    const supplyDiv = document.createElement('div');
-    supplyDiv.style.display = 'flex';
-    supplyDiv.style.alignItems = 'center';
-    supplyDiv.style.gap = '4px';
-
+    const supplyDiv = this.makeDiv();
     const supplyIcon = document.createElement('span');
     supplyIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#ffcc44;border-radius:1px;';
     this.supplyEl = document.createElement('span');
     this.supplyEl.textContent = '0/0';
-
     supplyDiv.appendChild(supplyIcon);
     supplyDiv.appendChild(this.supplyEl);
+
+    // Workers
+    const workerDiv = this.makeDiv();
+    const workerIcon = document.createElement('span');
+    workerIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#88aacc;border-radius:1px;font-size:8px;line-height:10px;text-align:center;';
+    workerIcon.textContent = 'W';
+    this.workerEl = document.createElement('span');
+    this.workerEl.style.color = '#88aacc';
+    this.workerEl.textContent = '0';
+    workerDiv.appendChild(workerIcon);
+    workerDiv.appendChild(this.workerEl);
+
+    // Timer
+    const timerDiv = this.makeDiv();
+    this.timerEl = document.createElement('span');
+    this.timerEl.style.color = '#888';
+    this.timerEl.textContent = '0:00';
+    timerDiv.appendChild(this.timerEl);
 
     hud.appendChild(mineralDiv);
     hud.appendChild(gasDiv);
     hud.appendChild(supplyDiv);
+    hud.appendChild(workerDiv);
+    hud.appendChild(timerDiv);
     container.appendChild(hud);
   }
 
-  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number): void {
+  private makeDiv(): HTMLDivElement {
+    const div = document.createElement('div');
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '4px';
+    return div;
+  }
+
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
     this.supplyEl.style.color = supplyUsed >= supplyProvided ? '#ff4444' : '#eee';
+    this.workerEl.textContent = String(workerCount);
+
+    // Format game timer as M:SS
+    const totalSec = Math.floor(gameTime);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    this.timerEl.textContent = `${min}:${sec < 10 ? '0' : ''}${sec}`;
   }
 }

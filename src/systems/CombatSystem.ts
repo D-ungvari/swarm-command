@@ -39,6 +39,16 @@ const MAX_DAMAGE_EVENTS = 64;
 const DAMAGE_EVENT_LIFETIME = 0.8; // seconds
 export const damageEvents: DamageEvent[] = [];
 
+// ── Under-attack tracking (for player alerts) ──
+let lastTerranHitTime = 0;
+let lastTerranHitX = 0;
+let lastTerranHitY = 0;
+
+/** Returns the position and time of the most recent hit on a Terran entity */
+export function getLastTerranHit(): { x: number; y: number; time: number } {
+  return { x: lastTerranHitX, y: lastTerranHitY, time: lastTerranHitTime };
+}
+
 /**
  * Handles target acquisition, attack execution, damage, splash, and chase logic.
  * Runs every tick after MovementSystem.
@@ -154,6 +164,13 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         time: gameTime,
         color: dmgColor,
       });
+    }
+
+    // Track Terran under-attack for player alerts
+    if (faction[tgt] === Faction.Terran) {
+      lastTerranHitTime = gameTime;
+      lastTerranHitX = posX[tgt];
+      lastTerranHitY = posY[tgt];
     }
 
     // Retaliation: victim auto-targets attacker if idle and can fight

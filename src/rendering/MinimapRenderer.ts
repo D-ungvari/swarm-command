@@ -13,6 +13,7 @@ import {
 import { type World, hasComponents } from '../ecs/world';
 import { type MapData } from '../map/MapData';
 import { isTileVisible } from '../systems/FogSystem';
+import { getLastTerranHit } from '../systems/CombatSystem';
 
 const MINIMAP_SIZE = 160;
 const MINIMAP_PADDING = 12;
@@ -156,6 +157,16 @@ export class MinimapRenderer {
       const color = fac === Faction.Terran ? TERRAN_COLOR : ZERG_COLOR;
       g.rect(mx - 1, my - 1, 2, 2);
       g.fill({ color });
+    }
+
+    // Attack flash indicator on minimap (pulsing red circle at recent attack location)
+    const hit = getLastTerranHit();
+    if (hit.time > 0) {
+      const hitMx = hit.x * MINIMAP_SCALE;
+      const hitMy = hit.y * MINIMAP_SCALE;
+      const pulse = Math.sin(Date.now() * 0.01) * 0.3 + 0.5;
+      g.circle(hitMx, hitMy, 4);
+      g.fill({ color: 0xff4444, alpha: pulse });
     }
 
     // Camera viewport rectangle (white outline)

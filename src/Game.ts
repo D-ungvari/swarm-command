@@ -61,6 +61,7 @@ import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
 import { aiSystem, initAI, getAIState } from './systems/AISystem';
+import { getLastTerranHit } from './systems/CombatSystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import type { PlayerResources } from './types';
@@ -97,6 +98,7 @@ export class Game {
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
   private lastAIAttacking = false;
+  private lastUnderAttackAlert = 0;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -242,7 +244,8 @@ export class Game {
     this.renderGhost();
     this.fogRenderer.render();
     const res = this.resources[Faction.Terran];
-    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided);
+    const workerCount = this.countWorkers();
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
@@ -261,6 +264,20 @@ export class Game {
       this.viewport.moveCenter(ccPos.x, ccPos.y);
     }
     this.lastAIAttacking = aiState.isAttacking;
+
+    // Under-attack alert (throttled to every 10 seconds)
+    const hit = getLastTerranHit();
+    if (hit.time > 0 && hit.time > this.lastUnderAttackAlert + 10 && this.gameTime - hit.time < 1) {
+      // Check if camera is far from the attack location
+      const camX = this.viewport.center.x;
+      const camY = this.viewport.center.y;
+      const dx = hit.x - camX;
+      const dy = hit.y - camY;
+      if (dx * dx + dy * dy > (15 * TILE_SIZE) * (15 * TILE_SIZE)) {
+        this.alertRenderer.show('UNDER ATTACK', 3, this.gameTime);
+        this.lastUnderAttackAlert = this.gameTime;
+      }
+    }
 
     // Spacebar = jump camera to base
     if (this.input.state.keysJustPressed.has('Space') && !this.placementMode) {
@@ -476,6 +493,17 @@ export class Game {
         m.leftJustReleased = false;
       }
     }
+  }
+
+  private countWorkers(): number {
+    let count = 0;
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (!hasComponents(this.world, eid, WORKER | POSITION)) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      count++;
+    }
+    return count;
   }
 
   private selectIdleWorkers(): void {

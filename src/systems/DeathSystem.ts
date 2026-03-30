@@ -11,6 +11,7 @@ import { clearBuildingTiles, worldToTile } from '../map/MapData';
 import { CommandMode, WorkerState } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
+import { soundManager } from '../audio/SoundManager';
 
 export interface DeathEvent {
   x: number;
@@ -55,6 +56,7 @@ export function deathSystem(
         time: gameTime,
       });
     }
+    soundManager.playDeath();
 
     // Building cleanup: clear tiles, release supply, release builder
     if (hasComponents(world, eid, BUILDING) && map) {

@@ -13,6 +13,7 @@ import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATIO
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
 import { isTileVisible } from './FogSystem';
+import { soundManager } from '../audio/SoundManager';
 
 /** How far a target must move before we re-path to chase it */
 const CHASE_REPATH_THRESHOLD = TILE_SIZE;
@@ -135,6 +136,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // Fire!
     atkLastTime[eid] = gameTime;
     atkFlashTimer[eid] = FLASH_DURATION;
+    soundManager.playAttack();
 
     // Stop moving while attacking
     movePathIndex[eid] = -1;

@@ -1,12 +1,14 @@
-import { type World, entityExists } from '../ecs/world';
+import { type World, entityExists, hasComponents } from '../ecs/world';
 import {
+  POSITION, BUILDING,
   posX, posY, faction, hpCurrent, commandMode, unitType,
+  buildingType, buildState,
   setPath,
 } from '../ecs/components';
 import { findNearestCommandCenter } from '../ecs/queries';
 import {
   Faction, UnitType, CommandMode, MAX_ENTITIES, TILE_SIZE,
-  AI_SPAWN_BASE_COL, AI_SPAWN_BASE_ROW,
+  AI_SPAWN_BASE_COL, AI_SPAWN_BASE_ROW, BuildingType, BuildState,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import {
@@ -165,8 +167,26 @@ function getSpawnOptions() {
   }
 }
 
+/** Find the Zerg Hatchery entity. Returns eid or 0 if none alive. */
+function findZergHatchery(world: World): number {
+  const bits = POSITION | BUILDING;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (faction[eid] !== Faction.Zerg) continue;
+    if (buildingType[eid] !== BuildingType.Hatchery) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    return eid;
+  }
+  return 0;
+}
+
 function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
   if (world.nextEid >= MAX_ENTITIES - 50) return;
+
+  // AI can only spawn units if the Hatchery is alive
+  const hatchery = findZergHatchery(world);
+  if (hatchery === 0) return;
 
   const options = getSpawnOptions();
   const totalWeight = options.reduce((s, o) => s + o.weight, 0);
@@ -180,8 +200,10 @@ function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
 
   if (aiMinerals < chosen.costM || aiGas < chosen.costG) return;
 
-  const jitterCol = AI_SPAWN_BASE_COL + Math.floor(Math.random() * 5) - 2;
-  const jitterRow = AI_SPAWN_BASE_ROW + Math.floor(Math.random() * 5) - 2;
+  // Spawn near the Hatchery position
+  const hatchTile = worldToTile(posX[hatchery], posY[hatchery]);
+  const jitterCol = hatchTile.col + Math.floor(Math.random() * 5) - 2;
+  const jitterRow = hatchTile.row + Math.floor(Math.random() * 5) - 2;
   const walkable = findNearestWalkableTile(map, jitterCol, jitterRow);
   if (!walkable) return;
 

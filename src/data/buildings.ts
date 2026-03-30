@@ -1,4 +1,4 @@
-import { Faction, BuildingType, UnitType, BUILDING_COLOR } from '../constants';
+import { Faction, BuildingType, UnitType, BUILDING_COLOR, ZERG_COLOR } from '../constants';
 import type { BuildingDef } from '../types';
 
 export const BUILDING_DEFS: Record<number, BuildingDef> = {
@@ -91,5 +91,35 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     produces: [UnitType.Medivac],
     color: BUILDING_COLOR,
     requires: BuildingType.Factory,
+  },
+  [BuildingType.Hatchery]: {
+    type: BuildingType.Hatchery,
+    name: 'Hatchery',
+    faction: Faction.Zerg,
+    hp: 1500,
+    costMinerals: 300,
+    costGas: 0,
+    buildTime: 0,
+    tileWidth: 3,
+    tileHeight: 3,
+    supplyProvided: 10,
+    produces: [UnitType.Drone, UnitType.Zergling],
+    color: ZERG_COLOR,
+    requires: null,
+  },
+  [BuildingType.SpawningPool]: {
+    type: BuildingType.SpawningPool,
+    name: 'Spawning Pool',
+    faction: Faction.Zerg,
+    hp: 750,
+    costMinerals: 200,
+    costGas: 0,
+    buildTime: 0,
+    tileWidth: 2,
+    tileHeight: 2,
+    supplyProvided: 0,
+    produces: [UnitType.Zergling, UnitType.Baneling],
+    color: 0x882222,
+    requires: null,
   },
 };

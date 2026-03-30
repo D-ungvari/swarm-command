@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE } from '../constants';
+import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR } from '../constants';
 import {
   POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING, WORKER,
   posX, posY, renderWidth, renderHeight, renderTint,
@@ -117,6 +117,66 @@ export class UnitRenderer {
         const bs = buildState[eid] as BuildState;
         const bt = buildingType[eid] as BuildingType;
         const baseAlpha = bs === BuildState.UnderConstruction ? 0.6 : 1.0;
+        const isZergBuilding = bt === BuildingType.Hatchery || bt === BuildingType.SpawningPool;
+
+        if (isZergBuilding) {
+          // === Zerg buildings: organic ellipses ===
+
+          // Creep ground indicator (dark patch under building)
+          g.ellipse(x, y, w / 2 + 8, h / 2 + 8);
+          g.fill({ color: 0x331111, alpha: 0.5 * baseAlpha });
+
+          // Shadow behind
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+
+          // Main body ellipse
+          g.ellipse(x, y, w / 2, h / 2);
+          g.fill({ color: tint, alpha: baseAlpha });
+
+          if (bt === BuildingType.Hatchery) {
+            // Hatchery: large organic shape with inner membrane and veins
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0xaa4444, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Inner membrane ring
+            g.ellipse(x, y, w * 0.3, h * 0.3);
+            g.stroke({ color: 0xcc5555, width: 1.5, alpha: 0.5 * baseAlpha });
+
+            // Pulsing core
+            const pulse = 0.4 + 0.3 * Math.sin(gameTime * 2);
+            g.circle(x, y, 6);
+            g.fill({ color: 0xff6644, alpha: pulse * baseAlpha });
+
+            // Organic vein lines radiating outward
+            for (let v = 0; v < 6; v++) {
+              const angle = (v / 6) * Math.PI * 2;
+              const innerR = 8;
+              const outerR = Math.min(w, h) * 0.4;
+              g.moveTo(x + Math.cos(angle) * innerR, y + Math.sin(angle) * innerR);
+              g.lineTo(x + Math.cos(angle) * outerR, y + Math.sin(angle) * outerR);
+              g.stroke({ color: 0x993333, width: 1, alpha: 0.4 * baseAlpha });
+            }
+          } else {
+            // SpawningPool: smaller organic with pulsing glow
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x661111, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Pulsing glow ring
+            const glow = 0.3 + 0.3 * Math.sin(gameTime * 3);
+            g.ellipse(x, y, w / 2 + 4, h / 2 + 4);
+            g.stroke({ color: 0xff4422, width: 2, alpha: glow * baseAlpha });
+
+            // Inner bubbling circles
+            for (let b = 0; b < 3; b++) {
+              const bx = x + (b - 1) * (w * 0.2);
+              const by = y + Math.sin(gameTime * 4 + b * 2) * 3;
+              g.circle(bx, by, 3);
+              g.fill({ color: 0xaa3322, alpha: 0.5 * baseAlpha });
+            }
+          }
+        } else {
+        // === Terran buildings: rectangles ===
 
         // === Shadow outline behind building ===
         g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
@@ -288,6 +348,7 @@ export class UnitRenderer {
           g.rect(x - doorW3 / 2, y + h / 2 - doorH3, doorW3, doorH3);
           g.stroke({ color: 0x4466aa, width: 1, alpha: 0.6 * baseAlpha });
         }
+        } // close Terran buildings else block
 
         // Construction progress bar (yellow)
         if (bs === BuildState.UnderConstruction) {

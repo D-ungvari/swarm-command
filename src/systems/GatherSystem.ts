@@ -16,6 +16,7 @@ import {
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
 import type { PlayerResources } from '../types';
+import { soundManager } from '../audio/SoundManager';
 
 const ARRIVAL_THRESHOLD = 96; // px — close enough to base to deposit (~3 tiles, accounts for 3x3 CC footprint)
 
@@ -117,6 +118,7 @@ function tickMovingToResource(world: World, eid: number, map: MapData): void {
     workerState[eid] = WorkerState.Mining;
     workerMineTimer[eid] = MINE_DURATION;
     movePathIndex[eid] = -1; // Stop movement
+    soundManager.playGather();
   } else if (movePathIndex[eid] < 0) {
     // Not moving and not in range — path to resource
     pathToResource(eid, target, map);

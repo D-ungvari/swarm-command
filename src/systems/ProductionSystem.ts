@@ -17,6 +17,7 @@ import { findPath } from '../map/Pathfinder';
 import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
 import { findNearestMineral } from '../ecs/queries';
+import { soundManager } from '../audio/SoundManager';
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
 
@@ -65,6 +66,7 @@ export function productionSystem(
 
     // spawnUnitAt handles supply tracking internally
     const newEid = spawnFn(uType, fac, sx, sy);
+    soundManager.playProdComplete();
 
     // Send to rally point if set
     if (rallyX[eid] >= 0 && newEid > 0) {

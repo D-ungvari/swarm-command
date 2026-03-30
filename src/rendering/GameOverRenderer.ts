@@ -59,7 +59,7 @@ export class GameOverRenderer {
 
     // Check defeat: player has no Command Centers
     let playerHasCC = false;
-    let zergUnitCount = 0;
+    let zergBuildingCount = 0;
 
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (hpCurrent[eid] <= 0) continue;
@@ -72,11 +72,10 @@ export class GameOverRenderer {
         playerHasCC = true;
       }
 
-      // Count enemy units (non-building Zerg entities with UNIT_TYPE)
-      if (hasComponents(world, eid, POSITION | HEALTH | UNIT_TYPE) &&
-          faction[eid] === Faction.Zerg &&
-          !hasComponents(world, eid, BUILDING)) {
-        zergUnitCount++;
+      // Count enemy buildings (Zerg buildings with hp > 0)
+      if (hasComponents(world, eid, POSITION | HEALTH | BUILDING) &&
+          faction[eid] === Faction.Zerg) {
+        zergBuildingCount++;
       }
     }
 
@@ -85,10 +84,10 @@ export class GameOverRenderer {
       return;
     }
 
-    // Victory: all Zerg units dead AND AI has sent at least 1 wave
+    // Victory: all Zerg BUILDINGS destroyed AND AI has sent at least 1 wave
     const aiState = getAIState();
-    if (zergUnitCount === 0 && aiState.waveCount >= 1 && aiState.armySize === 0) {
-      this.show('VICTORY', 'All enemy forces have been eliminated.', '#44ff44');
+    if (zergBuildingCount === 0 && aiState.waveCount >= 1) {
+      this.show('VICTORY', 'The Zerg base has been destroyed.', '#44ff44');
     }
   }
 

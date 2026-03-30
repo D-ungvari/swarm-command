@@ -10,6 +10,7 @@ import { Faction } from '../constants';
 import { entityExists } from '../ecs/world';
 import { attackMoveMode } from './CommandSystem';
 import type { Viewport } from 'pixi-viewport';
+import { soundManager } from '../audio/SoundManager';
 
 // Control groups: 10 groups (0-9), each stores a set of entity IDs
 const controlGroups: Set<number>[] = Array.from({ length: 10 }, () => new Set());
@@ -112,6 +113,7 @@ export function selectionSystem(
         }
       }
     }
+    soundManager.playSelect();
   }
 }
 

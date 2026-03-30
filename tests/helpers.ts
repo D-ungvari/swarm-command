@@ -57,6 +57,8 @@ export const WorkerState = {
 } as const;
 export const BuildingType = {
   CommandCenter: 20, SupplyDepot: 21, Barracks: 22,
+  Refinery: 23, Factory: 24, Starport: 25,
+  Hatchery: 30, SpawningPool: 31,
 } as const;
 export const BuildState = {
   UnderConstruction: 1, Complete: 2,

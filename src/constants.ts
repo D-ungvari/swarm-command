@@ -69,6 +69,9 @@ export const enum BuildingType {
   Refinery = 23,
   Factory = 24,
   Starport = 25,
+  // Zerg
+  Hatchery = 30,
+  SpawningPool = 31,
 }
 
 // ── Building states ──

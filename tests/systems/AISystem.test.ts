@@ -2,10 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   createTestWorld,
   spawnUnit,
+  spawnBuilding,
   cleanupEntities,
   createPlayerResources,
   Faction,
   CommandMode,
+  BuildingType,
+  BuildState,
 } from '../helpers';
 import {
   aiSystem, initAI, getAIState, setAIMinerals,
@@ -53,6 +56,16 @@ describe('AISystem', () => {
     resources = createPlayerResources();
     eids.length = 0;
     initAI();
+    // AI needs a Hatchery to spawn units
+    const hatchEid = spawnBuilding(world, {
+      buildingTypeId: BuildingType.Hatchery,
+      buildStateId: BuildState.Complete,
+      factionId: Faction.Zerg,
+      x: 117 * 32 + 16, // tileToWorld(117, 117) approximation
+      y: 117 * 32 + 16,
+      hp: 1500,
+    });
+    eids.push(hatchEid);
   });
 
   afterEach(() => { cleanupEntities(eids); });

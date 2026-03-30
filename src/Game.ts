@@ -63,6 +63,7 @@ import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import type { PlayerResources } from './types';
+import { soundManager } from './audio/SoundManager';
 
 export class Game {
   app!: Application;
@@ -176,6 +177,7 @@ export class Game {
 
     this.spawnResourceNodes();
     this.spawnStartingBase();
+    this.spawnZergBase();
     this.spawnDemoUnits();
     initAI();
 
@@ -252,6 +254,7 @@ export class Game {
     const aiState = getAIState();
     if (aiState.isAttacking && !this.lastAIAttacking) {
       this.alertRenderer.show(`ENEMY WAVE ${aiState.waveCount} INCOMING`, 4, this.gameTime);
+      soundManager.playWaveAlert();
     }
     this.lastAIAttacking = aiState.isAttacking;
     this.alertRenderer.update(this.gameTime);
@@ -339,6 +342,7 @@ export class Game {
             res.gas -= def.costGas;
 
             const bEid = this.spawnBuilding(this.placementBuildingType as BuildingType, Faction.Terran, tile.col, tile.row);
+            soundManager.playBuild();
 
             // For Refinery, store gas resource data on the building entity
             if (isRefinery) {
@@ -493,6 +497,21 @@ export class Game {
     hpCurrent[ccEid] = hpMax[ccEid];
     supplyProvided[ccEid] = BUILDING_DEFS[BuildingType.CommandCenter].supplyProvided;
     // Starting supply already set in resources init
+  }
+
+  private spawnZergBase(): void {
+    // Spawn a completed Hatchery at AI spawn location
+    const hatchEid = this.spawnBuilding(BuildingType.Hatchery, Faction.Zerg, 117, 117);
+    buildState[hatchEid] = BuildState.Complete;
+    buildProgress[hatchEid] = 1.0;
+    hpCurrent[hatchEid] = hpMax[hatchEid];
+    supplyProvided[hatchEid] = BUILDING_DEFS[BuildingType.Hatchery].supplyProvided;
+
+    // Spawn a completed Spawning Pool nearby
+    const poolEid = this.spawnBuilding(BuildingType.SpawningPool, Faction.Zerg, 114, 117);
+    buildState[poolEid] = BuildState.Complete;
+    buildProgress[poolEid] = 1.0;
+    hpCurrent[poolEid] = hpMax[poolEid];
   }
 
   private spawnResourceNodes(): void {

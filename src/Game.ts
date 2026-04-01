@@ -34,10 +34,10 @@ import {
 import { UNIT_DEFS } from './data/units';
 import { BUILDING_DEFS } from './data/buildings';
 import {
-  generateMap, tileToWorld, worldToTile, getResourceTiles,
+  generateMap, spawnRockEntities, tileToWorld, worldToTile, getResourceTiles,
   isBuildable, isGeyserTile, markBuildingTiles,
   findNearestWalkableTile,
-  type MapData,
+  type MapData, type MapType,
 } from './map/MapData';
 import { hasCompletedBuilding } from './ecs/queries';
 import { findPath } from './map/Pathfinder';
@@ -107,6 +107,7 @@ export class Game {
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
   private difficulty: Difficulty = Difficulty.Normal;
+  private mapType: MapType = 0 as MapType; // MapType.Plains = 0
   private lastAIAttacking = false;
   private lastUnderAttackAlert = 0;
   private selectionQueue!: GameCommandQueue;
@@ -126,11 +127,16 @@ export class Game {
 
   constructor() {
     this.world = createWorld();
+    // Map is regenerated in init() once mapType is set; provide a default here
     this.map = generateMap();
   }
 
   setDifficulty(d: Difficulty): void {
     this.difficulty = d;
+  }
+
+  setMapType(m: MapType): void {
+    this.mapType = m;
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -205,8 +211,6 @@ export class Game {
     this.modeIndicatorRenderer = new ModeIndicatorRenderer(container);
     this.hotkeyPanelRenderer = new HotkeyPanelRenderer(container);
 
-    // Minimap (screen space, bottom-right corner)
-    this.minimapRenderer = new MinimapRenderer(this.app.stage, this.viewport, this.map);
     this.gameOverRenderer = new GameOverRenderer(container);
     this.alertRenderer = new AlertRenderer(container);
 
@@ -215,12 +219,19 @@ export class Game {
       this.handleProductionButtonClick(buildingEid, uType);
     });
 
+    // Generate map with selected layout (setMapType is called before init)
+    this.map = generateMap(this.mapType);
+
+    // Minimap (screen space, bottom-right corner)
+    this.minimapRenderer = new MinimapRenderer(this.app.stage, this.viewport, this.map);
+
     this.tilemapRenderer.render(this.map);
 
     this.spawnResourceNodes();
     this.spawnStartingBase();
     this.spawnZergBase();
     this.spawnDemoUnits();
+    spawnRockEntities(this.world, this.map);
     initAI(this.difficulty);
 
     window.addEventListener('resize', () => {

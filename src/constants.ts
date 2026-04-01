@@ -33,6 +33,7 @@ export const enum TileType {
   Ramp = 3,
   Unbuildable = 4,
   Water = 5,
+  Destructible = 6,
 }
 
 // ── Unit types ──
@@ -76,6 +77,8 @@ export const enum BuildingType {
   Hatchery = 30,
   SpawningPool = 31,
   EvolutionChamber = 32,
+  // Neutral / Map objects
+  Rock = 40,
 }
 
 // ── Building states ──
@@ -205,4 +208,5 @@ export const GAS_COLOR = 0x44ff66;
 export const GROUND_COLOR = 0x2a2a1a;
 export const UNBUILDABLE_COLOR = 0x1a1a12;
 export const WATER_COLOR = 0x0a2244;
+export const ROCK_COLOR = 0x666055;
 export const SELECTION_COLOR = 0x00ff00;

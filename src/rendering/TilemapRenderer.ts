@@ -3,7 +3,7 @@ import type { MapData } from '../map/MapData';
 import {
   TILE_SIZE, MAP_COLS, MAP_ROWS, TileType,
   GROUND_COLOR, MINERAL_COLOR, GAS_COLOR,
-  UNBUILDABLE_COLOR, WATER_COLOR,
+  UNBUILDABLE_COLOR, WATER_COLOR, ROCK_COLOR,
 } from '../constants';
 
 /**
@@ -67,6 +67,17 @@ export class TilemapRenderer {
           g.circle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE / 3);
           g.fill({ color: 0x88ff88, alpha: 0.3 });
         }
+        // Destructible rocks: grey boulder with darker border and angular highlight
+        if (tile === TileType.Destructible) {
+          const inset = 4;
+          g.rect(x + inset, y + inset, TILE_SIZE - inset * 2, TILE_SIZE - inset * 2);
+          g.fill({ color: 0x888070 });
+          g.rect(x + inset, y + inset, TILE_SIZE - inset * 2, TILE_SIZE - inset * 2);
+          g.stroke({ color: 0x333028, width: 2 });
+          // Small highlight chip — top-left corner
+          g.rect(x + inset + 2, y + inset + 2, 5, 5);
+          g.fill({ color: 0xaaa090, alpha: 0.5 });
+        }
       }
     }
   }
@@ -98,6 +109,7 @@ function tileColor(type: TileType): number {
     case TileType.Ramp: return 0x3a3a2a;
     case TileType.Unbuildable: return UNBUILDABLE_COLOR;
     case TileType.Water: return WATER_COLOR;
+    case TileType.Destructible: return ROCK_COLOR;
     default: return GROUND_COLOR;
   }
 }

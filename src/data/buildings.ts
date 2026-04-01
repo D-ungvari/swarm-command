@@ -1,4 +1,4 @@
-import { Faction, BuildingType, UnitType, BUILDING_COLOR, ZERG_COLOR } from '../constants';
+import { Faction, BuildingType, UnitType, BUILDING_COLOR, ZERG_COLOR, ROCK_COLOR } from '../constants';
 import type { BuildingDef } from '../types';
 
 export const BUILDING_DEFS: Record<number, BuildingDef> = {
@@ -151,5 +151,21 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     produces: [],
     color: ZERG_COLOR,
     requires: BuildingType.SpawningPool,
+  },
+  // ── Neutral / Map objects ──
+  [BuildingType.Rock]: {
+    type: BuildingType.Rock,
+    name: 'Destructible Rock',
+    faction: Faction.None,
+    hp: 500,
+    costMinerals: 0,
+    costGas: 0,
+    buildTime: 0,
+    tileWidth: 1,
+    tileHeight: 1,
+    supplyProvided: 0,
+    produces: [],
+    color: ROCK_COLOR,
+    requires: null,
   },
 };

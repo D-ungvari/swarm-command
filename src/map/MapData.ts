@@ -1,24 +1,41 @@
-import { MAP_COLS, MAP_ROWS, TileType, TILE_SIZE } from '../constants';
+import { MAP_COLS, MAP_ROWS, TileType, TILE_SIZE, Faction, BuildingType, BuildState } from '../constants';
+import type { World } from '../ecs/world';
+import { addEntity } from '../ecs/world';
+import {
+  addBuildingComponents,
+  posX, posY, hpCurrent, hpMax, faction, buildingType, buildState,
+  renderWidth, renderHeight, renderTint, selected,
+} from '../ecs/components';
+
+// ── Map layout variants ──
+export const enum MapType {
+  Plains = 0,  // current layout, refined
+  Canyon = 1,  // narrow choke points through center band
+  Islands = 2, // separated by water with one land bridge
+}
 
 export interface MapData {
   /** Flat tile grid, row-major. tiles[row * MAP_COLS + col] */
   tiles: Uint8Array;
   /** Walkable grid for pathfinding (1 = walkable, 0 = blocked) */
   walkable: Uint8Array;
+  /** HP for each destructible rock tile (0 = not a rock tile, > 0 = rock HP) */
+  destructibleHP: Uint16Array;
   cols: number;
   rows: number;
 }
 
-/** Generate a simple symmetric 2-player map */
-export function generateMap(): MapData {
+/** Generate a symmetric 2-player map with the given layout */
+export function generateMap(mapType: MapType = MapType.Plains): MapData {
   const tiles = new Uint8Array(MAP_COLS * MAP_ROWS);
   const walkable = new Uint8Array(MAP_COLS * MAP_ROWS);
+  const destructibleHP = new Uint16Array(MAP_COLS * MAP_ROWS);
 
   // Fill with ground (all walkable)
   tiles.fill(TileType.Ground);
   walkable.fill(1);
 
-  // Border walls
+  // Border walls (shared by all layouts)
   for (let c = 0; c < MAP_COLS; c++) {
     setTile(tiles, walkable, 0, c, TileType.Water);
     setTile(tiles, walkable, MAP_ROWS - 1, c, TileType.Water);
@@ -28,6 +45,22 @@ export function generateMap(): MapData {
     setTile(tiles, walkable, r, MAP_COLS - 1, TileType.Water);
   }
 
+  if (mapType === MapType.Plains) {
+    generatePlains(tiles, walkable);
+  } else if (mapType === MapType.Canyon) {
+    generateCanyon(tiles, walkable);
+  } else {
+    generateIslands(tiles, walkable);
+  }
+
+  // Place destructible rock clusters (shared by all layouts, symmetric placement)
+  placeRockClusters(tiles, walkable, destructibleHP);
+
+  return { tiles, walkable, destructibleHP, cols: MAP_COLS, rows: MAP_ROWS };
+}
+
+/** Plains layout — original design, refined */
+function generatePlains(tiles: Uint8Array, walkable: Uint8Array): void {
   // Mineral patches — player 1 (top-left area)
   placeMinerals(tiles, walkable, 10, 10);
   // Mineral patches — player 2 (bottom-right area)
@@ -54,7 +87,6 @@ export function generateMap(): MapData {
   // Top-left natural wall (near player base)
   for (let r = 25; r < 35; r++) {
     for (let c = 25; c < 35; c++) {
-      // Wall with a 3-tile wide ramp opening
       if (r >= 28 && r <= 32 && c >= 28 && c <= 32) continue; // Leave ramp open
       if (Math.abs(r - 30) + Math.abs(c - 30) < 7) {
         setTile(tiles, walkable, r, c, TileType.Unbuildable);
@@ -79,8 +111,127 @@ export function generateMap(): MapData {
   // Water features (lakes at flanking positions)
   placeWaterPatch(tiles, walkable, 30, 90, 6);
   placeWaterPatch(tiles, walkable, 90, 30, 6);
+}
 
-  return { tiles, walkable, cols: MAP_COLS, rows: MAP_ROWS };
+/** Canyon layout — narrow center choke, 2-3 paths through col band 58-68 */
+function generateCanyon(tiles: Uint8Array, walkable: Uint8Array): void {
+  // Same base resources
+  placeMinerals(tiles, walkable, 10, 10);
+  placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
+  placeMinerals(tiles, walkable, 10, 40);
+  placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 44);
+  setTile(tiles, walkable, 8, 18, TileType.Gas);
+  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
+
+  // Central canyon wall — solid unbuildable cliff from top to bottom,
+  // cols 58-68, with 3 gaps acting as passes.
+  // Gaps: rows 20-24, rows 58-62, rows 100-104
+  for (let r = 2; r < MAP_ROWS - 2; r++) {
+    const isGap = (r >= 20 && r <= 24) || (r >= 58 && r <= 62) || (r >= 100 && r <= 104);
+    if (isGap) continue;
+    for (let c = 58; c <= 68; c++) {
+      setTile(tiles, walkable, r, c, TileType.Unbuildable);
+    }
+  }
+
+  // Side lakes for flanking interest
+  placeWaterPatch(tiles, walkable, 35, 30, 5);
+  placeWaterPatch(tiles, walkable, 90, 95, 5);
+  placeWaterPatch(tiles, walkable, 35, 95, 4);
+  placeWaterPatch(tiles, walkable, 90, 30, 4);
+}
+
+/** Islands layout — water band across rows 55-75, single 6-tile land bridge at cols 62-67 */
+function generateIslands(tiles: Uint8Array, walkable: Uint8Array): void {
+  placeMinerals(tiles, walkable, 10, 10);
+  placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
+  placeMinerals(tiles, walkable, 10, 40);
+  placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 44);
+  setTile(tiles, walkable, 8, 18, TileType.Gas);
+  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
+
+  // Wide water band across center rows 55-73
+  // Land bridge: cols 62-67
+  for (let r = 55; r <= 73; r++) {
+    for (let c = 1; c < MAP_COLS - 1; c++) {
+      const isBridge = (c >= 62 && c <= 67);
+      if (!isBridge) {
+        setTile(tiles, walkable, r, c, TileType.Water);
+      }
+    }
+  }
+
+  // Additional water features on each island half
+  placeWaterPatch(tiles, walkable, 30, 90, 6);
+  placeWaterPatch(tiles, walkable, 90, 30, 6);
+}
+
+/**
+ * Place symmetric destructible rock clusters on both sides of the map.
+ * 4 clusters per side, each 1-2 tiles, at strategic choke-adjacent positions.
+ * Rocks are NOT walkable; destructibleHP is set to 500.
+ */
+function placeRockClusters(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+  // Player-side (top-left quadrant) rock positions — choke-adjacent
+  const playerRocks: Array<[number, number]> = [
+    // Near top-left ramp
+    [32, 18], [33, 18],
+    [18, 32],
+    // Mid-map flank blocker
+    [42, 35], [42, 36],
+    // Natural expansion choke
+    [22, 52],
+    [52, 22], [53, 22],
+  ];
+
+  // Zerg-side rocks are the mirror of player rocks (symmetric about center 64,64)
+  for (const [r, c] of playerRocks) {
+    placeRock(tiles, walkable, destructibleHP, r, c);
+    // Mirror: (127 - r, 127 - c)
+    placeRock(tiles, walkable, destructibleHP, MAP_ROWS - 1 - r, MAP_COLS - 1 - c);
+  }
+}
+
+function placeRock(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, row: number, col: number): void {
+  if (row < 1 || row >= MAP_ROWS - 1 || col < 1 || col >= MAP_COLS - 1) return;
+  // Only place on ground tiles — don't overwrite minerals, gas, or water
+  const idx = row * MAP_COLS + col;
+  if (tiles[idx] !== TileType.Ground) return;
+  setTile(tiles, walkable, row, col, TileType.Destructible);
+  destructibleHP[idx] = 500;
+}
+
+/**
+ * Spawn ECS entities for every destructible rock tile in the map.
+ * Each rock is a BUILDING entity (BuildingType.Rock) that can be attacked.
+ * When HP drops to 0, DeathSystem calls clearBuildingTiles which restores walkability.
+ * Called once during Game.init().
+ */
+export function spawnRockEntities(world: World, map: MapData): void {
+  for (let r = 0; r < map.rows; r++) {
+    for (let c = 0; c < map.cols; c++) {
+      const idx = r * map.cols + c;
+      if (map.tiles[idx] !== TileType.Destructible) continue;
+
+      const eid = addEntity(world);
+      addBuildingComponents(world, eid);
+
+      const wx = c * TILE_SIZE + TILE_SIZE / 2;
+      const wy = r * TILE_SIZE + TILE_SIZE / 2;
+
+      posX[eid] = wx;
+      posY[eid] = wy;
+      hpCurrent[eid] = 500;
+      hpMax[eid] = 500;
+      faction[eid] = Faction.None;
+      buildingType[eid] = BuildingType.Rock;
+      buildState[eid] = BuildState.Complete;
+      renderWidth[eid] = TILE_SIZE - 4;
+      renderHeight[eid] = TILE_SIZE - 4;
+      renderTint[eid] = 0x666055;
+      selected[eid] = 0;
+    }
+  }
 }
 
 function setTile(tiles: Uint8Array, walkable: Uint8Array, row: number, col: number, type: TileType): void {

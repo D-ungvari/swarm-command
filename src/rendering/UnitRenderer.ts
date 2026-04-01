@@ -117,6 +117,30 @@ export class UnitRenderer {
         const bs = buildState[eid] as BuildState;
         const bt = buildingType[eid] as BuildingType;
         const baseAlpha = bs === BuildState.UnderConstruction ? 0.6 : 1.0;
+
+        // Neutral rock obstacle — rendered by the tilemap; entity only contributes health bar
+        if (bt === BuildingType.Rock) {
+          // Subtle selection ring
+          if (isSelected) {
+            g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
+            g.stroke({ color: SELECTION_COLOR, width: 1.5, alpha: 0.7 });
+          }
+          // HP bar
+          if (hpCurrent[eid] < hpMax[eid]) {
+            const barW = w;
+            const barH = 3;
+            const barX = x - barW / 2;
+            const barY = y - h / 2 - 6;
+            const hpRatio = Math.max(0, hpCurrent[eid] / hpMax[eid]);
+            g.rect(barX, barY, barW, barH);
+            g.fill({ color: 0x333333, alpha: 0.8 });
+            const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
+            g.rect(barX, barY, barW * hpRatio, barH);
+            g.fill({ color: hpColor });
+          }
+          continue;
+        }
+
         const isZergBuilding = bt === BuildingType.Hatchery || bt === BuildingType.SpawningPool;
 
         if (isZergBuilding) {

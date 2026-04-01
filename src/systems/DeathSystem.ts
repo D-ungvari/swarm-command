@@ -9,7 +9,7 @@ import {
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
 import { clearBuildingTiles, worldToTile } from '../map/MapData';
-import { CommandMode, WorkerState } from '../constants';
+import { BuildingType, CommandMode, WorkerState } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { soundManager } from '../audio/SoundManager';
@@ -70,9 +70,15 @@ export function deathSystem(
 
     // Building cleanup: clear tiles, release supply, release builder
     if (hasComponents(world, eid, BUILDING) && map) {
-      const bDef = BUILDING_DEFS[buildingType[eid]];
+      const bType = buildingType[eid];
+      const bDef = BUILDING_DEFS[bType];
       if (bDef) {
         const tile = worldToTile(posX[eid], posY[eid]);
+        // For destructible rocks, zero out the HP entry (tile type is reset by clearBuildingTiles)
+        if (bType === BuildingType.Rock) {
+          const idx = tile.row * map.cols + tile.col;
+          map.destructibleHP[idx] = 0;
+        }
         clearBuildingTiles(map, tile.col, tile.row, bDef.tileWidth, bDef.tileHeight);
       }
       // Release supply

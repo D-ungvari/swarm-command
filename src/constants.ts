@@ -71,9 +71,11 @@ export const enum BuildingType {
   Refinery = 23,
   Factory = 24,
   Starport = 25,
+  EngineeringBay = 26,
   // Zerg
   Hatchery = 30,
   SpawningPool = 31,
+  EvolutionChamber = 32,
 }
 
 // ── Building states ──
@@ -113,6 +115,17 @@ export const enum DamageType {
 export const enum ArmorClass {
   Light = 0,
   Armored = 1,
+}
+
+// ── Upgrade types ──
+export enum UpgradeType {
+  InfantryWeapons = 0,
+  InfantryArmor   = 1,
+  VehicleWeapons  = 2,
+  ZergMelee       = 3,
+  ZergRanged      = 4,
+  ZergCarapace    = 5,
+  COUNT           = 6,
 }
 
 // ── Ability constants ──

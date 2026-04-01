@@ -64,6 +64,7 @@ import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
 import { aiSystem, initAI, getAIState } from './systems/AISystem';
+import { upgradeSystem } from './systems/UpgradeSystem';
 import { getLastTerranHit } from './systems/CombatSystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
@@ -80,8 +81,8 @@ export class Game {
 
   // Per-player resource state
   resources: Record<number, PlayerResources> = {
-    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY },
-    [Faction.Zerg]: { minerals: 0, gas: 0, supplyUsed: 0, supplyProvided: 200 }, // Cheating AI: unlimited supply
+    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(6) },
+    [Faction.Zerg]: { minerals: 0, gas: 0, supplyUsed: 0, supplyProvided: 200, upgrades: new Uint8Array(6) }, // Cheating AI: unlimited supply
   };
 
   // Building placement state
@@ -251,8 +252,9 @@ export class Game {
     buildSystem(this.world, dt, this.resources);
     productionSystem(this.world, dt, this.resources, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y));
+    upgradeSystem(this.world, dt, this.resources);
     movementSystem(this.world, dt, this.map);
-    combatSystem(this.world, dt, this.gameTime, this.map);
+    combatSystem(this.world, dt, this.gameTime, this.map, this.resources);
     abilitySystem(this.world, dt, this.gameTime);
     gatherSystem(this.world, dt, this.map, this.resources);
     deathSystem(this.world, this.gameTime, this.map, this.resources);
@@ -270,7 +272,7 @@ export class Game {
     this.fogRenderer.render();
     const res = this.resources[Faction.Terran];
     const workerCount = this.countWorkers();
-    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount);
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode);
@@ -336,7 +338,7 @@ export class Game {
     return hasCompletedBuilding(this.world, Faction.Terran, def.requires);
   }
 
-  /** Get tech availability for all 6 build menu entries */
+  /** Get tech availability for all 7 build menu entries */
   private getTechAvailability(): boolean[] {
     return [
       this.isTechAvailable(BuildingType.CommandCenter),
@@ -345,6 +347,7 @@ export class Game {
       this.isTechAvailable(BuildingType.Refinery),
       this.isTechAvailable(BuildingType.Factory),
       this.isTechAvailable(BuildingType.Starport),
+      this.isTechAvailable(BuildingType.EngineeringBay),
     ];
   }
 
@@ -372,6 +375,8 @@ export class Game {
         this.placementBuildingType = BuildingType.Factory;
       } else if (input.keysJustPressed.has('Digit6') && this.isTechAvailable(BuildingType.Starport)) {
         this.placementBuildingType = BuildingType.Starport;
+      } else if (input.keysJustPressed.has('Digit7') && this.isTechAvailable(BuildingType.EngineeringBay)) {
+        this.placementBuildingType = BuildingType.EngineeringBay;
       }
 
       // Escape cancels

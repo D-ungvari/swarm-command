@@ -9,7 +9,7 @@ import {
   workerState, workerTargetEid, workerBaseX, workerBaseY,
   unitType as unitTypeArr, WORKER,
 } from '../ecs/components';
-import { BuildState, CommandMode, UnitType, WorkerState } from '../constants';
+import { BuildState, BuildingType, CommandMode, UnitType, WorkerState } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
@@ -37,6 +37,9 @@ export function productionSystem(
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
+    // Upgrade buildings are handled by UpgradeSystem, not ProductionSystem
+    const bt = buildingType[eid] as BuildingType;
+    if (bt === BuildingType.EngineeringBay || bt === BuildingType.EvolutionChamber) continue;
     if (prodUnitType[eid] === 0) continue;
 
     // Decrement timer

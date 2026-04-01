@@ -1,4 +1,4 @@
-import { Faction, BuildState, BuildingType, ResourceType } from '../constants';
+import { Faction, BuildState, BuildingType, ResourceType, UnitType } from '../constants';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
@@ -321,6 +321,26 @@ export class InfoPanelRenderer {
       const facName = fac === Faction.Terran ? 'Terran' : fac === Faction.Zerg ? 'Zerg' : '';
       const kills = killCount[eid];
       this.detailEl.textContent = kills > 0 ? `${facName}  Kills: ${kills}` : facName;
+
+      // Show upgrade bonuses
+      if (playerResources?.upgrades && fac === Faction.Terran) {
+        const upgrades = playerResources.upgrades;
+        const ut = unitType[eid] as UnitType;
+        let wBonus = 0;
+        let aBonus = 0;
+        if (ut === UnitType.SiegeTank) {
+          wBonus = upgrades[2]; // VehicleWeapons
+        } else {
+          wBonus = upgrades[0]; // InfantryWeapons
+        }
+        aBonus = upgrades[1]; // InfantryArmor
+        if (wBonus > 0 || aBonus > 0) {
+          const bonusParts: string[] = [];
+          if (wBonus > 0) bonusParts.push(`+${wBonus} dmg`);
+          if (aBonus > 0) bonusParts.push(`+${aBonus} armor`);
+          this.detailEl.textContent += `  ${bonusParts.join(' ')}`;
+        }
+      }
 
       if (hasComponents(world, eid, HEALTH)) {
         const hp = hpCurrent[eid];

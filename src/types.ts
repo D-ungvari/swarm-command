@@ -14,6 +14,7 @@ export interface PlayerResources {
   gas: number;
   supplyUsed: number;
   supplyProvided: number;
+  upgrades: Uint8Array;
 }
 
 /** Unit stat definition from data tables */

@@ -49,6 +49,7 @@ export class BuildMenuRenderer {
       { key: '4', type: BuildingType.Refinery },
       { key: '5', type: BuildingType.Factory },
       { key: '6', type: BuildingType.Starport },
+      { key: '7', type: BuildingType.EngineeringBay },
     ];
 
     for (const entry of entries) {
@@ -78,6 +79,7 @@ export class BuildMenuRenderer {
     BuildingType.Refinery,
     BuildingType.Factory,
     BuildingType.Starport,
+    BuildingType.EngineeringBay,
   ];
 
   update(

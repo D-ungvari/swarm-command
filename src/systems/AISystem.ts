@@ -10,7 +10,7 @@ import { isTileVisible } from './FogSystem';
 import {
   Faction, UnitType, CommandMode, MAX_ENTITIES, TILE_SIZE,
   AI_SPAWN_BASE_COL, AI_SPAWN_BASE_ROW, BuildingType, BuildState,
-  MAP_COLS, MAP_ROWS,
+  MAP_COLS, MAP_ROWS, UpgradeType,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import {
@@ -102,6 +102,8 @@ const SCOUT_WAYPOINTS = [
 let aiMinerals = 0;
 let aiGas = 0;
 let waveCount = 0;
+let lastAIUpgradeWave = 0; // last wave count when AI upgraded
+let nextAIUpgradeType = 3; // ZergMelee=3, ZergRanged=4, ZergCarapace=5 cycling
 let tickCounter = 0;
 let lastDecisionTime = 0;
 let isAttacking = false;
@@ -131,6 +133,8 @@ export function initAI(): void {
   armyEids.clear();
   harassEids.clear();
   scoutEids.clear();
+  lastAIUpgradeWave = 0;
+  nextAIUpgradeType = 3;
   personality = randomPersonality();
   intel = resetIntel();
 }
@@ -153,7 +157,7 @@ export function aiSystem(
   gameTime: number,
   map: MapData,
   spawnFn: SpawnFn,
-  _resources: Record<number, PlayerResources>,
+  resources: Record<number, PlayerResources>,
 ): void {
   if (gameTime < INITIAL_DELAY + personality.timingOffset) return;
 
@@ -199,6 +203,8 @@ export function aiSystem(
       sendHarassment(world, map, gameTime);
     }
   }
+
+  attemptAIUpgrade(resources, waveCount);
 }
 
 // ─────────────────────────────────────────
@@ -534,6 +540,34 @@ function pruneDeadUnits(world: World): void {
     isAttacking = false;
     attackEndTime = lastDecisionTime;
   }
+}
+
+// ─────────────────────────────────────────
+// AI auto-upgrade (Zerg, after wave 3)
+// ─────────────────────────────────────────
+function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount: number): void {
+  if (waveCount < 3) return;
+  // Upgrade every 2 waves
+  if (waveCount - lastAIUpgradeWave < 2) return;
+
+  const res = resources[Faction.Zerg];
+  if (!res) return;
+
+  const upgradeType = nextAIUpgradeType as UpgradeType;
+  const currentLevel = res.upgrades[upgradeType];
+  if (currentLevel >= 3) {
+    // This track maxed — try next
+    nextAIUpgradeType = ((nextAIUpgradeType - 3 + 1) % 3) + 3;
+    return;
+  }
+
+  // Cost check (simplified: 100m per upgrade)
+  if (aiMinerals < 100) return;
+  aiMinerals -= 100;
+
+  res.upgrades[upgradeType] = Math.min(3, currentLevel + 1) as 0 | 1 | 2 | 3;
+  lastAIUpgradeWave = waveCount;
+  nextAIUpgradeType = ((nextAIUpgradeType - 3 + 1) % 3) + 3;
 }
 
 const enum AIPhase {

@@ -10,12 +10,13 @@ import {
   atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
 } from '../ecs/components';
 import { findBestTarget } from '../ecs/queries';
-import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, DamageType, ArmorClass } from '../constants';
+import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, DamageType, ArmorClass, UpgradeType } from '../constants';
 import { getDamageMultiplier } from '../combat/damageCalc';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
 import { isTileVisible } from './FogSystem';
 import { soundManager } from '../audio/SoundManager';
+import { type PlayerResources } from '../types';
 
 /** How far a target must move before we re-path to chase it */
 const CHASE_REPATH_THRESHOLD = TILE_SIZE;
@@ -51,11 +52,32 @@ export function getLastTerranHit(): { x: number; y: number; time: number } {
   return { x: lastTerranHitX, y: lastTerranHitY, time: lastTerranHitTime };
 }
 
+/** Returns the weapon upgrade bonus for an attacker based on faction and unit type. */
+function getWeaponBonus(resources: Record<number, PlayerResources>, attackerFaction: number, uType: UnitType): number {
+  const upgrades = resources[attackerFaction]?.upgrades;
+  if (!upgrades) return 0;
+  if (attackerFaction === Faction.Terran) {
+    if (uType === UnitType.SiegeTank) return upgrades[UpgradeType.VehicleWeapons];
+    return upgrades[UpgradeType.InfantryWeapons]; // Marine, Marauder, Medivac, SCV
+  }
+  // Zerg
+  if (uType === UnitType.Zergling || uType === UnitType.Baneling) return upgrades[UpgradeType.ZergMelee];
+  return upgrades[UpgradeType.ZergRanged]; // Hydralisk, Roach, Drone
+}
+
+/** Returns the armor upgrade bonus for a defender based on faction. */
+function getArmorBonus(resources: Record<number, PlayerResources>, defenderFaction: number): number {
+  const upgrades = resources[defenderFaction]?.upgrades;
+  if (!upgrades) return 0;
+  if (defenderFaction === Faction.Terran) return upgrades[UpgradeType.InfantryArmor];
+  return upgrades[UpgradeType.ZergCarapace]; // all Zerg units
+}
+
 /**
  * Handles target acquisition, attack execution, damage, splash, and chase logic.
  * Runs every tick after MovementSystem.
  */
-export function combatSystem(world: World, dt: number, gameTime: number, map: MapData): void {
+export function combatSystem(world: World, dt: number, gameTime: number, map: MapData, resources: Record<number, PlayerResources> = {}): void {
   // Clean up expired damage events
   while (damageEvents.length > 0 && gameTime - damageEvents[0].time > DAMAGE_EVENT_LIFETIME) {
     damageEvents.shift();
@@ -163,7 +185,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // Compute actual damage with type modifier and armor reduction
     const mult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[tgt] as ArmorClass);
-    const rawDmg = Math.max(1, (atkDamage[eid] * mult) - baseArmor[tgt]);
+    const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
+    const armorBonus = getArmorBonus(resources, faction[tgt]);
+    const rawDmg = Math.max(1, ((atkDamage[eid] + weaponBonus) * mult) - (baseArmor[tgt] + armorBonus));
 
     // Commit damage to pending (overkill prevention tracks this)
     pendingDamage[tgt] += rawDmg;
@@ -232,7 +256,8 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         const sdy = posY[other] - ty;
         if (sdx * sdx + sdy * sdy <= splashRangeSq) {
           const sMult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[other] as ArmorClass);
-          const sDmg = Math.max(1, (atkDamage[eid] * sMult) - baseArmor[other]);
+          const sArmorBonus = getArmorBonus(resources, faction[other]);
+          const sDmg = Math.max(1, ((atkDamage[eid] + weaponBonus) * sMult) - (baseArmor[other] + sArmorBonus));
           hpCurrent[other] -= sDmg;
           lastCombatTime[other] = gameTime;
 

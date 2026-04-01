@@ -60,6 +60,7 @@ export const WorkerState = {
 export const BuildingType = {
   CommandCenter: 20, SupplyDepot: 21, Barracks: 22,
   Refinery: 23, Factory: 24, Starport: 25,
+  EngineeringBay: 26,
   Hatchery: 30, SpawningPool: 31,
 } as const;
 export const BuildState = {
@@ -273,7 +274,7 @@ export function spawnBuilding(world: World, opts: SpawnBuildingOpts = {}): numbe
  */
 export function createPlayerResources(): Record<number, PlayerResources> {
   return {
-    [Faction.Terran]: { minerals: 50, gas: 0, supplyUsed: 0, supplyProvided: 10 },
-    [Faction.Zerg]: { minerals: 50, gas: 0, supplyUsed: 0, supplyProvided: 10 },
+    [Faction.Terran]: { minerals: 50, gas: 0, supplyUsed: 0, supplyProvided: 10, upgrades: new Uint8Array(6) },
+    [Faction.Zerg]: { minerals: 50, gas: 0, supplyUsed: 0, supplyProvided: 10, upgrades: new Uint8Array(6) },
   };
 }

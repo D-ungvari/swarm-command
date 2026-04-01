@@ -8,6 +8,7 @@ export class HudRenderer {
   private supplyEl: HTMLSpanElement;
   private timerEl: HTMLSpanElement;
   private workerEl: HTMLSpanElement;
+  private upgradeEl: HTMLDivElement;
 
   constructor(container: HTMLElement) {
     const hud = document.createElement('div');
@@ -74,11 +75,15 @@ export class HudRenderer {
     this.timerEl.textContent = '0:00';
     timerDiv.appendChild(this.timerEl);
 
+    this.upgradeEl = document.createElement('div');
+    this.upgradeEl.style.cssText = 'color: #88aaff; font-size: 11px; margin-top: 2px;';
+
     hud.appendChild(mineralDiv);
     hud.appendChild(gasDiv);
     hud.appendChild(supplyDiv);
     hud.appendChild(workerDiv);
     hud.appendChild(timerDiv);
+    hud.appendChild(this.upgradeEl);
     container.appendChild(hud);
   }
 
@@ -90,7 +95,7 @@ export class HudRenderer {
     return div;
   }
 
-  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number): void {
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
@@ -102,5 +107,19 @@ export class HudRenderer {
     const min = Math.floor(totalSec / 60);
     const sec = totalSec % 60;
     this.timerEl.textContent = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+
+    if (upgrades) {
+      const w = upgrades[0]; // InfantryWeapons
+      const a = upgrades[1]; // InfantryArmor
+      const v = upgrades[2]; // VehicleWeapons
+      const parts: string[] = [];
+      if (w > 0) parts.push(`Inf W+${w}`);
+      if (a > 0) parts.push(`Inf A+${a}`);
+      if (v > 0) parts.push(`Veh W+${v}`);
+      this.upgradeEl.textContent = parts.join('  ');
+      this.upgradeEl.style.display = parts.length > 0 ? 'block' : 'none';
+    } else {
+      this.upgradeEl.style.display = 'none';
+    }
   }
 }

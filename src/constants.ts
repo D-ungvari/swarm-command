@@ -170,6 +170,28 @@ export const STARTING_MINERALS = 50;
 export const STARTING_GAS = 0;
 export const WORKER_MINE_RANGE = 48; // px (~1.5 tiles)
 
+// ── Difficulty ──
+export enum Difficulty {
+  Easy = 0,
+  Normal = 1,
+  Hard = 2,
+  Brutal = 3,
+}
+
+export interface DifficultyConfig {
+  incomeMultiplier: number;       // multiply base AI income
+  upgradeStartWave: number;       // wave at which AI starts upgrading (99 = never)
+  waveIntervalBase: number;       // seconds between waves
+  armySizeCapMultiplier: number;  // multiply max army size
+}
+
+export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
+  [Difficulty.Easy]:   { incomeMultiplier: 0.7, upgradeStartWave: 99, waveIntervalBase: 45, armySizeCapMultiplier: 0.7 },
+  [Difficulty.Normal]: { incomeMultiplier: 1.0, upgradeStartWave: 5,  waveIntervalBase: 30, armySizeCapMultiplier: 1.0 },
+  [Difficulty.Hard]:   { incomeMultiplier: 1.4, upgradeStartWave: 3,  waveIntervalBase: 20, armySizeCapMultiplier: 1.3 },
+  [Difficulty.Brutal]: { incomeMultiplier: 1.8, upgradeStartWave: 1,  waveIntervalBase: 15, armySizeCapMultiplier: 1.6 },
+};
+
 // ── AI constants ──
 // Most AI tuning is now in AISystem.ts (phase-based build orders, wave timing)
 export const AI_SPAWN_BASE_COL = 117;

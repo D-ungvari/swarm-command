@@ -8,6 +8,7 @@ import {
   MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState, ArmorClass,
+  Difficulty,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
@@ -105,6 +106,7 @@ export class Game {
   private projRenderer!: ProjectileRenderer;
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
+  private difficulty: Difficulty = Difficulty.Normal;
   private lastAIAttacking = false;
   private lastUnderAttackAlert = 0;
   private selectionQueue!: GameCommandQueue;
@@ -120,6 +122,10 @@ export class Game {
   constructor() {
     this.world = createWorld();
     this.map = generateMap();
+  }
+
+  setDifficulty(d: Difficulty): void {
+    this.difficulty = d;
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -210,7 +216,7 @@ export class Game {
     this.spawnStartingBase();
     this.spawnZergBase();
     this.spawnDemoUnits();
-    initAI();
+    initAI(this.difficulty);
 
     window.addEventListener('resize', () => {
       this.viewport.resize(window.innerWidth, window.innerHeight);

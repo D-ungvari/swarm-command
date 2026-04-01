@@ -11,6 +11,7 @@ import {
   Faction, UnitType, CommandMode, MAX_ENTITIES, TILE_SIZE,
   AI_SPAWN_BASE_COL, AI_SPAWN_BASE_ROW, BuildingType, BuildState,
   MAP_COLS, MAP_ROWS, UpgradeType,
+  Difficulty, DIFFICULTY_CONFIGS,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import {
@@ -37,6 +38,11 @@ const WAVE_COOLDOWN = 8;
 const HARASSMENT_INTERVAL = 45;
 const SCOUT_INTERVAL = 25;        // seconds between scout sends
 const RETREAT_HP_RATIO = 0.35;    // retreat if army HP drops below 35% of max
+const RETREAT_MIN_REGROUP_TIME = 15; // seconds before re-attacking after retreat
+const RETREAT_REBUILT_RATIO = 0.5;   // army must be >= 50% rebuilt to re-attack
+
+// Alternate attack entry point for Hard/Brutal harass squad (far side of map from Zerg base)
+const HARASS_TARGET = { col: 112, row: 15 };
 
 // ─────────────────────────────────────────
 // Per-game personality (randomized at init)
@@ -99,6 +105,7 @@ const SCOUT_WAYPOINTS = [
 // ─────────────────────────────────────────
 // AI State
 // ─────────────────────────────────────────
+let currentDifficulty: Difficulty = Difficulty.Normal;
 let aiMinerals = 0;
 let aiGas = 0;
 let waveCount = 0;
@@ -111,13 +118,15 @@ let attackEndTime = 0;
 let lastHarassTime = 0;
 let lastScoutSendTime = 0;
 let retreating = false;
+let lastRetreatTime = 0;
 let regroupX = 0;
 let regroupY = 0;
 const armyEids = new Set<number>();
 const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
 
-export function initAI(): void {
+export function initAI(difficulty: Difficulty = Difficulty.Normal): void {
+  currentDifficulty = difficulty;
   aiMinerals = 0;
   aiGas = 0;
   waveCount = 0;
@@ -128,6 +137,7 @@ export function initAI(): void {
   lastHarassTime = 0;
   lastScoutSendTime = 0;
   retreating = false;
+  lastRetreatTime = 0;
   regroupX = 0;
   regroupY = 0;
   armyEids.clear();
@@ -172,10 +182,12 @@ export function aiSystem(
   pruneDeadUnits(world);
   gatherIntelFromUnits(world);
 
+  const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
+
   // Accumulate resources
   const incomeMultiplier = 1 + waveCount * INCOME_GROWTH_PER_WAVE;
-  aiMinerals += BASE_INCOME * incomeMultiplier * personality.aggressionMult * elapsed;
-  aiGas += BASE_INCOME * GAS_INCOME_RATIO * incomeMultiplier * elapsed;
+  aiMinerals += BASE_INCOME * diffConfig.incomeMultiplier * incomeMultiplier * personality.aggressionMult * elapsed;
+  aiGas += BASE_INCOME * GAS_INCOME_RATIO * diffConfig.incomeMultiplier * incomeMultiplier * elapsed;
 
   // Spawn units
   const spawnsThisTick = Math.min(MAX_SPAWNS_PER_DECISION, 1 + Math.floor(waveCount / 2));
@@ -190,21 +202,21 @@ export function aiSystem(
 
   // Retreat check (before attack decision)
   if (isAttacking && !retreating) {
-    checkRetreat(world, map);
+    checkRetreat(world, map, gameTime);
   }
   if (retreating) {
-    checkRegroupComplete(world);
+    checkRegroupComplete(world, gameTime, diffConfig.waveIntervalBase);
   }
 
   // Attack or harass
   if (!retreating) {
-    decideAttack(world, map, gameTime);
+    decideAttack(world, map, gameTime, diffConfig);
     if (gameTime - lastHarassTime > HARASSMENT_INTERVAL * personality.aggressionMult && !isAttacking && armyEids.size >= 3) {
       sendHarassment(world, map, gameTime);
     }
   }
 
-  attemptAIUpgrade(resources, waveCount);
+  attemptAIUpgrade(resources, waveCount, diffConfig.upgradeStartWave);
 }
 
 // ─────────────────────────────────────────
@@ -353,7 +365,7 @@ function sendScout(world: World, map: MapData, gameTime: number): void {
 // ─────────────────────────────────────────
 // Retreat logic
 // ─────────────────────────────────────────
-function checkRetreat(world: World, map: MapData): void {
+function checkRetreat(world: World, map: MapData, gameTime: number): void {
   let totalHp = 0;
   let totalMaxHp = 0;
   for (const eid of armyEids) {
@@ -367,6 +379,7 @@ function checkRetreat(world: World, map: MapData): void {
   if (ratio < RETREAT_HP_RATIO && armyEids.size > 2) {
     retreating = true;
     isAttacking = false;
+    lastRetreatTime = gameTime;
 
     // Regroup near Hatchery
     const hatch = findZergHatchery(world);
@@ -388,7 +401,10 @@ function checkRetreat(world: World, map: MapData): void {
   }
 }
 
-function checkRegroupComplete(world: World): void {
+function checkRegroupComplete(world: World, gameTime: number, waveIntervalBase: number): void {
+  // Enforce minimum regroup time after a retreat
+  if (gameTime < lastRetreatTime + RETREAT_MIN_REGROUP_TIME) return;
+
   // Check if most units have returned near base
   let nearBase = 0;
   let total = 0;
@@ -402,7 +418,20 @@ function checkRegroupComplete(world: World): void {
     if (dx * dx + dy * dy < rangeSq) nearBase++;
   }
 
-  if (total === 0 || nearBase >= total * 0.6) {
+  if (total === 0) {
+    retreating = false;
+    attackEndTime = lastDecisionTime;
+    return;
+  }
+
+  // Also require army is at least 50% rebuilt (measured by count vs wave size target)
+  const targetSize = Math.min(
+    Math.floor((FIRST_WAVE_SIZE + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
+    MAX_WAVE_SIZE,
+  );
+  const rebuiltRatio = total > 0 ? armyEids.size / Math.max(1, targetSize) : 0;
+
+  if (nearBase >= total * 0.6 && rebuiltRatio >= RETREAT_REBUILT_RATIO) {
     retreating = false;
     attackEndTime = lastDecisionTime; // Reset wave cooldown timer
   }
@@ -545,8 +574,8 @@ function pruneDeadUnits(world: World): void {
 // ─────────────────────────────────────────
 // AI auto-upgrade (Zerg, after wave 3)
 // ─────────────────────────────────────────
-function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount: number): void {
-  if (waveCount < 3) return;
+function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount: number, upgradeStartWave: number): void {
+  if (waveCount < upgradeStartWave) return;
   // Upgrade every 2 waves
   if (waveCount - lastAIUpgradeWave < 2) return;
 
@@ -656,18 +685,19 @@ function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
   armyEids.add(eid);
 }
 
-function decideAttack(world: World, map: MapData, gameTime: number): void {
+function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: { waveIntervalBase: number; armySizeCapMultiplier: number }): void {
   if (isAttacking) {
     // During active attack, apply focus fire
     assignFocusTargets(world);
     return;
   }
 
-  if (attackEndTime > 0 && gameTime - attackEndTime < WAVE_COOLDOWN) return;
+  if (attackEndTime > 0 && gameTime - attackEndTime < diffConfig.waveIntervalBase) return;
 
+  const armySizeCap = Math.floor(MAX_WAVE_SIZE * diffConfig.armySizeCapMultiplier);
   const threshold = Math.min(
     Math.floor((FIRST_WAVE_SIZE + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
-    MAX_WAVE_SIZE,
+    armySizeCap,
   );
 
   if (armyEids.size < threshold) return;
@@ -679,8 +709,11 @@ function decideAttack(world: World, map: MapData, gameTime: number): void {
 
   const target = findAttackTarget(world);
 
-  // Multi-prong: 30% chance to split army into 2 groups from different angles
-  if (armyEids.size >= 10 && Math.random() < 0.3) {
+  // Hard/Brutal: always send a dedicated harass squad to a second entry point
+  if (currentDifficulty >= Difficulty.Hard) {
+    sendDifficultyMultiProngAttack(world, map, target.x, target.y);
+  } else if (armyEids.size >= 10 && Math.random() < 0.3) {
+    // Easy/Normal: 30% chance random multi-prong from different angles (existing behavior)
     sendMultiProngAttack(world, map, target.x, target.y);
   } else {
     const angle = pickAttackAngle(target.x, target.y, map);
@@ -707,6 +740,33 @@ function sendMultiProngAttack(world: World, map: MapData, targetX: number, targe
   const set2 = new Set(group2);
   sendUnitsToAttack(world, map, set1, targetX, targetY, angle1);
   sendUnitsToAttack(world, map, set2, targetX, targetY, angle2);
+}
+
+// Hard/Brutal multi-prong: 70% main force on primary target, 30% harass squad on alternate entry
+function sendDifficultyMultiProngAttack(world: World, map: MapData, targetX: number, targetY: number): void {
+  const all: number[] = [];
+  for (const eid of armyEids) {
+    if (entityExists(world, eid) && hpCurrent[eid] > 0) all.push(eid);
+  }
+
+  const harassCount = Math.max(3, Math.floor(all.length * 0.3));
+  const mainCount = all.length - harassCount;
+
+  // Shuffle to avoid always picking the same units for harass
+  for (let i = all.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [all[i], all[j]] = [all[j], all[i]];
+  }
+
+  const mainForce = new Set(all.slice(0, mainCount));
+  const harassSquad = new Set(all.slice(mainCount));
+
+  const mainAngle = pickAttackAngle(targetX, targetY, map);
+  sendUnitsToAttack(world, map, mainForce, targetX, targetY, mainAngle);
+
+  // Harass squad attacks the alternate entry point (far side of map)
+  const harassWorld = tileToWorld(HARASS_TARGET.col, HARASS_TARGET.row);
+  sendUnitsToAttack(world, map, harassSquad, harassWorld.x, harassWorld.y);
 }
 
 function sendHarassment(world: World, map: MapData, gameTime: number): void {

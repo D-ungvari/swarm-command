@@ -9,8 +9,9 @@ import {
   workerState, workerTargetEid, workerBaseX, workerBaseY,
   unitType as unitTypeArr, WORKER,
   larvaCount, larvaRegenTimer, injectTimer,
+  addonType,
 } from '../ecs/components';
-import { BuildState, BuildingType, CommandMode, UnitType, WorkerState, LARVA_MAX, LARVA_REGEN_TIME, INJECT_LARVA_BONUS } from '../constants';
+import { BuildState, BuildingType, CommandMode, UnitType, WorkerState, LARVA_MAX, LARVA_REGEN_TIME, INJECT_LARVA_BONUS, AddonType } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
@@ -66,8 +67,9 @@ export function productionSystem(
     if (bt === BuildingType.EngineeringBay || bt === BuildingType.EvolutionChamber) continue;
     if (prodUnitType[eid] === 0) continue;
 
-    // Decrement timer
-    prodProgress[eid] -= dt;
+    // Decrement timer — Reactor doubles production speed
+    const speedMult = addonType[eid] === AddonType.Reactor ? 2.0 : 1.0;
+    prodProgress[eid] -= dt * speedMult;
     if (prodProgress[eid] > 0) continue;
 
     // Spawn the unit

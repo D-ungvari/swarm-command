@@ -1,4 +1,4 @@
-import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, STIM_DURATION } from '../constants';
+import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, STIM_DURATION } from '../constants';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
@@ -7,7 +7,7 @@ import {
   selected, hpCurrent, hpMax, faction, renderTint, killCount,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
   energy, cloaked, stimEndTime,
-  larvaCount,
+  larvaCount, addonType,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -20,6 +20,9 @@ export type ProductionCallback = (buildingEid: number, unitType: number) => void
 
 /** Callback type for research button clicks */
 export type ResearchCallback = (buildingEid: number, upgradeType: number) => void;
+
+/** Callback type for addon build button clicks */
+export type AddonCallback = (buildingEid: number, addonTypeVal: number) => void;
 
 /** Labels for the 3 Engineering Bay upgrades */
 const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
@@ -56,9 +59,11 @@ export class InfoPanelRenderer {
   private queueRow: HTMLDivElement;
   private researchButtonsRow: HTMLDivElement;
   private researchButtons: HTMLDivElement[] = [];
+  private addonButtonsRow: HTMLDivElement;
   private wasVisible = false;
   private productionCallback: ProductionCallback | null = null;
   private researchCallback: ResearchCallback | null = null;
+  private addonCallback: AddonCallback | null = null;
   private lastButtonConfig = '';
 
   constructor(container: HTMLElement) {
@@ -156,6 +161,11 @@ export class InfoPanelRenderer {
     this.researchButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto; flex-wrap: wrap;';
     this.panel.appendChild(this.researchButtonsRow);
 
+    // Addon buttons row (Tech Lab / Reactor for Barracks/Factory/Starport)
+    this.addonButtonsRow = document.createElement('div');
+    this.addonButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto; flex-wrap: wrap;';
+    this.panel.appendChild(this.addonButtonsRow);
+
     container.appendChild(this.panel);
   }
 
@@ -167,6 +177,11 @@ export class InfoPanelRenderer {
   /** Wire up a callback for research button clicks */
   setResearchCallback(fn: ResearchCallback): void {
     this.researchCallback = fn;
+  }
+
+  /** Wire up a callback for addon build button clicks */
+  setAddonCallback(fn: AddonCallback): void {
+    this.addonCallback = fn;
   }
 
   update(world: World, gameTime: number, playerResources?: PlayerResources): void {
@@ -188,6 +203,7 @@ export class InfoPanelRenderer {
     if (!visible) {
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
+      this.addonButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       return;
     }
@@ -248,6 +264,7 @@ export class InfoPanelRenderer {
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
+      this.addonButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Border stays blue (player's faction)
       this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
@@ -273,6 +290,7 @@ export class InfoPanelRenderer {
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
+      this.addonButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Cyan border for resources
       this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)';
@@ -304,6 +322,7 @@ export class InfoPanelRenderer {
           : facName;
         this.queueRow.style.display = 'none';
         this.prodButtonsRow.style.display = 'none';
+        this.addonButtonsRow.style.display = 'none';
 
         const pType = prodUnitType[eid];
         if (pType >= UPGRADE_RESEARCH_OFFSET && prodTimeTotal[eid] > 0) {
@@ -345,9 +364,15 @@ export class InfoPanelRenderer {
           this.updateQueueDisplay(eid);
 
           this.prodButtonsRow.style.display = 'none';
+          this.addonButtonsRow.style.display = 'none';
         } else {
           this.prodRow.style.display = 'none';
           this.queueRow.style.display = 'none';
+
+          // Addon-capable buildings: Barracks, Factory, Starport
+          const isAddonBuilding = bt === BuildingType.Barracks
+            || bt === BuildingType.Factory
+            || bt === BuildingType.Starport;
 
           // Show available production hotkeys/buttons for completed buildings
           if (bs === BuildState.Complete && def && def.produces.length > 0) {
@@ -363,11 +388,19 @@ export class InfoPanelRenderer {
 
             // Show clickable production buttons
             this.updateProductionButtons(eid, def.produces, playerResources);
+
+            // Show addon buttons if no addon yet (and building is addon-capable)
+            if (isAddonBuilding) {
+              this.updateAddonButtons(eid);
+            } else {
+              this.addonButtonsRow.style.display = 'none';
+            }
           } else {
             this.detailEl.textContent = bs === BuildState.UnderConstruction
               ? `${facName} | Under Construction`
               : facName;
             this.prodButtonsRow.style.display = 'none';
+            this.addonButtonsRow.style.display = 'none';
           }
         }
       }
@@ -446,6 +479,7 @@ export class InfoPanelRenderer {
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
+      this.addonButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Faction-colored border for units
       this.panel.style.borderColor = fac === Faction.Zerg
@@ -460,6 +494,7 @@ export class InfoPanelRenderer {
     this.prodRow.style.display = 'none';
     this.prodButtonsRow.style.display = 'none';
     this.researchButtonsRow.style.display = 'none';
+    this.addonButtonsRow.style.display = 'none';
     this.queueRow.style.display = 'none';
     this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
   }
@@ -573,6 +608,61 @@ export class InfoPanelRenderer {
       slot.textContent = name;
       this.queueRow.appendChild(slot);
     }
+  }
+
+  /** Render addon buttons (Tech Lab / Reactor) for Barracks/Factory/Starport. */
+  private updateAddonButtons(buildingEid: number): void {
+    const addon = addonType[buildingEid];
+    if (addon !== AddonType.None) {
+      // Already has an addon — show status label only, no build buttons
+      this.addonButtonsRow.innerHTML = '';
+      const label = document.createElement('div');
+      label.style.cssText = 'font-size: 11px; color: #88ffcc;';
+      label.textContent = addon === AddonType.TechLab ? 'Addon: Tech Lab' : 'Addon: Reactor (2x speed)';
+      this.addonButtonsRow.appendChild(label);
+      this.addonButtonsRow.style.display = 'flex';
+      return;
+    }
+
+    // No addon — show build buttons
+    this.addonButtonsRow.innerHTML = '';
+
+    const addons: { label: string; typeVal: AddonType }[] = [
+      { label: 'Tech Lab (50m/25g)', typeVal: AddonType.TechLab },
+      { label: 'Reactor (50m/25g)', typeVal: AddonType.Reactor },
+    ];
+
+    for (const { label, typeVal } of addons) {
+      const btn = document.createElement('div');
+      btn.style.cssText = `
+        padding: 3px 6px;
+        border: 1px solid rgba(100, 160, 255, 0.4);
+        border-radius: 3px;
+        font-size: 11px;
+        cursor: pointer;
+        white-space: nowrap;
+        pointer-events: auto;
+        transition: background 0.1s;
+        color: #eee;
+      `;
+      btn.textContent = label;
+
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = 'rgba(40, 80, 160, 0.5)';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = 'transparent';
+      });
+      btn.addEventListener('click', () => {
+        if (this.addonCallback) {
+          this.addonCallback(buildingEid, typeVal);
+        }
+      });
+
+      this.addonButtonsRow.appendChild(btn);
+    }
+
+    this.addonButtonsRow.style.display = 'flex';
   }
 
   /** Render research buttons for Engineering Bay (and similar research buildings). */

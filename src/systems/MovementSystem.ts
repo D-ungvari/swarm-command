@@ -6,7 +6,7 @@ import {
   movePathIndex, pathLengths, getPathWaypoint,
   slowFactor, siegeMode, faction, hpCurrent,
   patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
-  isAir,
+  isAir, lastMovedTime,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
 import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, Faction } from '../constants';
@@ -26,11 +26,14 @@ const SEPARATION_STRENGTH = 0.5;
  * then applies separation steering to prevent unit stacking.
  * Runs every tick.
  */
-export function movementSystem(world: World, dt: number, map?: MapData): void {
+export function movementSystem(world: World, dt: number, map?: MapData, gameTime = 0): void {
   const bits = POSITION | MOVEMENT;
 
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
+
+    // Skip dead units
+    if (hpCurrent[eid] <= 0) continue;
 
     // Siege immobilization: sieged or transitioning tanks can't move
     const sm = siegeMode[eid] as SiegeMode;
@@ -42,6 +45,12 @@ export function movementSystem(world: World, dt: number, map?: MapData): void {
     }
 
     const pathIdx = movePathIndex[eid];
+
+    // Stuck detection: if has a path but hasn't moved in 3s, force a repath
+    if (gameTime > 0 && pathIdx >= 0 && gameTime - lastMovedTime[eid] > 3.0) {
+      movePathIndex[eid] = -1;
+      lastMovedTime[eid] = gameTime;
+    }
     if (pathIdx < 0) {
       // If patrolling and idle (path cleared by combat), re-issue path toward origin
       if (commandMode[eid] === CommandMode.Patrol && map && targetEntity[eid] < 1) {
@@ -142,6 +151,9 @@ export function movementSystem(world: World, dt: number, map?: MapData): void {
 
     posX[eid] += nx * speed;
     posY[eid] += ny * speed;
+    if (gameTime > 0) {
+      lastMovedTime[eid] = gameTime;
+    }
   }
 
   // ── Separation pass ──

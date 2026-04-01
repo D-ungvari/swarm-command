@@ -121,6 +121,8 @@ export const cloaked = new Uint8Array(MAX_ENTITIES);
 /** ResourceType enum: Mineral=1, Gas=2 */
 export const resourceType = new Uint8Array(MAX_ENTITIES);
 export const resourceRemaining = new Float32Array(MAX_ENTITIES);
+/** How many workers are currently mining this resource entity */
+export const workerCountOnResource = new Uint8Array(MAX_ENTITIES);
 
 // ── Worker ──
 /** WorkerState enum: Idle=0, MovingToResource=1, Mining=2, ReturningToBase=3 */
@@ -137,6 +139,10 @@ export const workerBaseY = new Float32Array(MAX_ENTITIES);
 export const patrolOriginX = new Float32Array(MAX_ENTITIES);
 export const patrolOriginY = new Float32Array(MAX_ENTITIES);
 
+// ── Stuck detection ──
+/** gameTime when this entity last moved (path-following) */
+export const lastMovedTime = new Float32Array(MAX_ENTITIES);
+
 // ── Larva (Zerg Hatchery production) ──
 /** Current larva count on this Hatchery (0-LARVA_MAX) */
 export const larvaCount = new Uint8Array(MAX_ENTITIES);
@@ -144,6 +150,10 @@ export const larvaCount = new Uint8Array(MAX_ENTITIES);
 export const larvaRegenTimer = new Float32Array(MAX_ENTITIES);
 /** GameTime when inject larva completes (0 = no inject active) */
 export const injectTimer = new Float32Array(MAX_ENTITIES);
+
+// ── Addon (Tech Lab / Reactor) ──
+/** 0=none, 1=TechLab, 2=Reactor */
+export const addonType = new Uint8Array(MAX_ENTITIES);
 
 // ── Building ──
 /** BuildingType enum value */
@@ -272,6 +282,7 @@ export function resetComponents(eid: number): void {
   cloaked[eid] = 0;
   resourceType[eid] = 0;
   resourceRemaining[eid] = 0;
+  workerCountOnResource[eid] = 0;
   workerState[eid] = 0;
   workerCarrying[eid] = 0;
   workerTargetEid[eid] = -1;
@@ -280,9 +291,11 @@ export function resetComponents(eid: number): void {
   workerBaseY[eid] = 0;
   patrolOriginX[eid] = 0;
   patrolOriginY[eid] = 0;
+  lastMovedTime[eid] = 0;
   larvaCount[eid] = 0;
   larvaRegenTimer[eid] = 0;
   injectTimer[eid] = 0;
+  addonType[eid] = 0;
   buildingType[eid] = 0;
   buildState[eid] = 0;
   buildProgress[eid] = 0;

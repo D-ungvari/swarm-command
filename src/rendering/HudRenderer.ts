@@ -123,12 +123,13 @@ export class HudRenderer {
     return div;
   }
 
-  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number, speed?: number): void {
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number, speed?: number, isSaturated?: boolean): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
     this.supplyEl.style.color = supplyUsed >= supplyProvided ? '#ff4444' : '#eee';
     this.workerEl.textContent = String(workerCount);
+    this.workerEl.style.color = isSaturated ? '#ffaa22' : '#88aacc';
 
     // Format game timer as M:SS
     const totalSec = Math.floor(gameTime);

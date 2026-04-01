@@ -100,6 +100,13 @@ export const enum BuildingType {
   Rock = 40,
 }
 
+// ── Addon types ──
+export const enum AddonType {
+  None = 0,
+  TechLab = 1,
+  Reactor = 2,
+}
+
 // ── Building states ──
 export const enum BuildState {
   UnderConstruction = 1,

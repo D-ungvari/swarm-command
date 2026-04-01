@@ -7,6 +7,7 @@ import {
   movePathIndex, setPath,
   resourceRemaining, hpCurrent, resourceType,
   buildingType, buildState,
+  workerCountOnResource,
 } from '../ecs/components';
 import { findNearestMineral } from '../ecs/queries';
 import {
@@ -114,10 +115,11 @@ function tickMovingToResource(world: World, eid: number, map: MapData): void {
   const distSq = dx * dx + dy * dy;
 
   if (distSq <= WORKER_MINE_RANGE * WORKER_MINE_RANGE) {
-    // Start mining
+    // Start mining — track saturation
     workerState[eid] = WorkerState.Mining;
     workerMineTimer[eid] = MINE_DURATION;
     movePathIndex[eid] = -1; // Stop movement
+    workerCountOnResource[target]++;
     soundManager.playGather();
   } else if (movePathIndex[eid] < 0) {
     // Not moving and not in range — path to resource
@@ -133,13 +135,31 @@ function tickMining(world: World, eid: number, dt: number, map: MapData): void {
 
   // Validate target
   if (target < 1 || !entityExists(world, target) || resourceRemaining[target] <= 0) {
+    // Decrement saturation counter before going idle
+    if (target >= 1 && workerCountOnResource[target] > 0) {
+      workerCountOnResource[target]--;
+    }
     workerState[eid] = WorkerState.Idle;
     workerTargetEid[eid] = -1;
     return;
   }
 
+  // Decrement saturation — worker is leaving to return to base
+  if (workerCountOnResource[target] > 0) {
+    workerCountOnResource[target]--;
+  }
+
+  // Apply efficiency penalty for over-saturated patches (more than 2 workers)
+  const currentWorkers = workerCountOnResource[target]; // already decremented
+  // saturation check: if 2+ others were mining at same time (i.e. counter was >2 before decrement)
+  const totalOnPatch = currentWorkers + 1; // include this worker that just finished
+  let carryAmount = getCarryAmount(world, target);
+  if (totalOnPatch > 2) {
+    const efficiency = Math.min(1.0, 2.0 / totalOnPatch);
+    carryAmount = Math.round(carryAmount * efficiency);
+  }
+
   // Pick up resources (capped at remaining)
-  const carryAmount = getCarryAmount(world, target);
   const amount = Math.min(carryAmount, resourceRemaining[target]);
   workerCarrying[eid] = amount;
   resourceRemaining[target] -= amount;

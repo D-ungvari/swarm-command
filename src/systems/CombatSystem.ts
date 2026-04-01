@@ -199,7 +199,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       // Auto-acquire (findBestTarget) will never override a live explicit target
       // because targetEntity[eid] is only cleared on target death (above).
       if (commandMode[eid] !== CommandMode.Move) {
-        chaseTarget(eid, tgt, map);
+        chaseTarget(eid, tgt, map, gameTime);
       }
       continue;
     }
@@ -398,7 +398,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
   }
 }
 
-function chaseTarget(eid: number, tgt: number, map: MapData): void {
+function chaseTarget(eid: number, tgt: number, map: MapData, gameTime: number): void {
   // Air units fly in a straight line — no A* needed
   if (isAir[eid]) {
     setPath(eid, [[posX[tgt], posY[tgt]]]);
@@ -406,6 +406,9 @@ function chaseTarget(eid: number, tgt: number, map: MapData): void {
     chaseTargetY[eid] = posY[tgt];
     return;
   }
+
+  // Stagger re-path for large armies: only re-path every 4 ticks per unit
+  if ((Math.floor(gameTime * 60) % 4) !== (eid % 4)) return;
 
   const tx = posX[tgt];
   const ty = posY[tgt];

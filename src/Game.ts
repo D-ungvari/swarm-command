@@ -8,7 +8,7 @@ import {
   MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState, ArmorClass,
-  Difficulty, UpgradeType,
+  Difficulty, UpgradeType, AddonType,
   GAME_SPEEDS,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
@@ -34,6 +34,7 @@ import {
   energy,
   isAir, canTargetGround, canTargetAir,
   larvaCount, larvaRegenTimer,
+  addonType, workerCountOnResource, RESOURCE,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
 import { BUILDING_DEFS } from './data/buildings';
@@ -283,6 +284,16 @@ export class Game {
       prodTimeTotal[buildingEid] = cost.time;
     });
 
+    // Wire up addon button callback (Tech Lab / Reactor for Barracks/Factory/Starport)
+    this.infoPanelRenderer.setAddonCallback((buildingEid, addonTypeVal) => {
+      const res = this.resources[this.playerFaction];
+      if (res.minerals < 50 || res.gas < 25) return; // can't afford
+      if (addonType[buildingEid] !== AddonType.None) return; // already has addon
+      res.minerals -= 50;
+      res.gas -= 25;
+      addonType[buildingEid] = addonTypeVal; // 1=TechLab, 2=Reactor
+    });
+
     // Generate map with selected layout (setMapType is called before init)
     this.map = generateMap(this.mapType);
 
@@ -378,7 +389,7 @@ export class Game {
         return eid;
       }, this.gameTime);
     upgradeSystem(this.world, dt, this.resources);
-    movementSystem(this.world, dt, this.map);
+    movementSystem(this.world, dt, this.map, this.gameTime);
 
     // Snapshot resources before gather to calculate income delta
     const res = this.resources[this.playerFaction];
@@ -431,7 +442,12 @@ export class Game {
     if (this.fogEnabled) this.fogRenderer.render();
     const res = this.resources[this.playerFaction];
     const workerCount = this.countWorkers();
-    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex]);
+    let isSaturated = false;
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (!hasComponents(this.world, eid, RESOURCE)) continue;
+      if (workerCountOnResource[eid] > 2) { isSaturated = true; break; }
+    }
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode, this.inputProcessor.isPatrolPending);

@@ -58,6 +58,7 @@ import { HotkeyPanelRenderer } from './rendering/HotkeyPanelRenderer';
 import { MinimapRenderer } from './rendering/MinimapRenderer';
 import { GameOverRenderer } from './rendering/GameOverRenderer';
 import { AlertRenderer } from './rendering/AlertRenderer';
+import { DebugOverlay } from './rendering/DebugOverlay';
 import { movementSystem } from './systems/MovementSystem';
 import { spatialHash } from './ecs/SpatialHash';
 import { selectionSystem } from './systems/SelectionSystem';
@@ -135,6 +136,7 @@ export class Game {
   private projRenderer!: ProjectileRenderer;
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
+  private debugOverlay!: DebugOverlay;
   private difficulty: Difficulty = Difficulty.Normal;
   private mapType: MapType = 0 as MapType; // MapType.Plains = 0
   private lastAIAttacking = false;
@@ -288,6 +290,7 @@ export class Game {
 
     this.gameOverRenderer = new GameOverRenderer(container);
     this.alertRenderer = new AlertRenderer(container);
+    this.debugOverlay = new DebugOverlay(container);
 
     // Wire up production button callback
     this.infoPanelRenderer.setProductionCallback((buildingEid, uType) => {
@@ -367,6 +370,7 @@ export class Game {
     const frameTime = Math.min(now - this.lastTime, 100);
     this.lastTime = now;
     this.accumulator += frameTime;
+    this.debugOverlay.recordFrameTime(frameTime);
 
     this.input.update();
 
@@ -483,7 +487,7 @@ export class Game {
   private render(): void {
     this.tilemapRenderer.updateWater(this.gameTime);
     this.tilemapRenderer.updateCreep(this.map, this.gameTime);
-    this.unitRenderer.render(this.world, this.gameTime);
+    this.unitRenderer.render(this.world, this.gameTime, this.viewport.scale.x);
     this.projRenderer.update(this.gameTime);
     this.projRenderer.render(this.gameTime);
     this.waypointRenderer.render(this.world, this.input.state.shiftHeld);
@@ -506,6 +510,9 @@ export class Game {
     }
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world);
+
+    if (this.input.state.keysJustPressed.has('F12')) this.debugOverlay.toggle();
+    this.debugOverlay.update(this.world.nextEid - 1, 197, this.gameTime);
 
     const wasShown = this.gameOverRenderer.isShown;
     this.gameOverRenderer.update(this.world, this.gameTime);

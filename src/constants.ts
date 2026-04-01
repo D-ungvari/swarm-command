@@ -6,7 +6,7 @@ export const MAP_WIDTH = MAP_COLS * TILE_SIZE;
 export const MAP_HEIGHT = MAP_ROWS * TILE_SIZE;
 
 // ── ECS ──
-export const MAX_ENTITIES = 2048;
+export const MAX_ENTITIES = 4096;
 
 // ── Timing ──
 export const TICKS_PER_SECOND = 60;

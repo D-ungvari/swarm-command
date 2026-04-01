@@ -32,7 +32,7 @@ vi.mock('../../src/ecs/queries', () => ({
 const INITIAL_DELAY = 20;
 const DECISION_INTERVAL = 15;
 const FIRST_WAVE_SIZE = 6;
-const MAX_ENTITIES = 2048;
+const MAX_ENTITIES = 4096;
 
 function createLargeTestMap(): MapData {
   const cols = 128;

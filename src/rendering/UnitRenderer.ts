@@ -12,7 +12,7 @@ import {
   prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   velX, velY, commandMode,
-  cloaked, energy,
+  cloaked, energy, isAir,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -67,7 +67,7 @@ export class UnitRenderer {
     this.container.addChild(this.graphics);
   }
 
-  render(world: World, gameTime: number): void {
+  render(world: World, gameTime: number, viewportScale: number = 1): void {
     const g = this.graphics;
     g.clear();
 
@@ -88,6 +88,9 @@ export class UnitRenderer {
       if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(x, y)) {
         continue;
       }
+
+      // Skip entities whose death animation has already completed
+      if (deathTime[eid] > 0 && (gameTime - deathTime[eid]) >= 0.3) continue;
 
       // Resource entities render differently
       if (hasComponents(world, eid, RESOURCE)) {
@@ -525,6 +528,13 @@ export class UnitRenderer {
       let bodyColor = tint;
       if (isFlashing) bodyColor = 0xffffff;
       else if (isStimmed) bodyColor = 0x66ddff;
+
+      // LOD: at low zoom, render a simple colored dot instead of full geometry
+      if (viewportScale < 0.4) {
+        g.circle(posX[eid], posY[eid], Math.max(renderWidth[eid], renderHeight[eid]) * 0.4);
+        g.fill({ color: renderTint[eid], alpha: isAir[eid] ? 0.6 : 0.9 });
+        continue;
+      }
 
       if (fac === Faction.Zerg) {
         // ═══════════════════════════════════════════

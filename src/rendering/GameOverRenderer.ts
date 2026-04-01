@@ -16,6 +16,7 @@ export class GameOverRenderer {
   private subtitleEl: HTMLDivElement;
   private statsEl: HTMLDivElement;
   private playAgainBtn: HTMLButtonElement;
+  private saveReplayBtn: HTMLButtonElement;
   private shown = false;
 
   constructor(container: HTMLElement) {
@@ -82,10 +83,27 @@ export class GameOverRenderer {
     `;
     this.playAgainBtn.addEventListener('click', () => { window.location.reload(); });
 
+    this.saveReplayBtn = document.createElement('button');
+    this.saveReplayBtn.id = 'save-replay-btn';
+    this.saveReplayBtn.textContent = 'SAVE REPLAY';
+    this.saveReplayBtn.style.cssText = `
+      margin-top: 8px;
+      padding: 8px 24px;
+      background: #0a1a2a;
+      color: #7799bb;
+      border: 1px solid #2a4a6a;
+      font-size: 13px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      display: none;
+      pointer-events: auto;
+    `;
+
     this.overlay.appendChild(this.titleEl);
     this.overlay.appendChild(this.subtitleEl);
     this.overlay.appendChild(this.statsEl);
     this.overlay.appendChild(this.playAgainBtn);
+    this.overlay.appendChild(this.saveReplayBtn);
     container.appendChild(this.overlay);
   }
 
@@ -148,6 +166,23 @@ export class GameOverRenderer {
       `Waves defeated    ${stats.wavesDefeated}`,
     ].map(line => `<div>${line}</div>`).join('');
     this.statsEl.style.display = 'block';
+  }
+
+  /** Called by Game when a game ends — stores replay JSON and wires Save button. */
+  setReplay(replayJson: string, frameCount: number): void {
+    this.saveReplayBtn.style.display = 'block';
+    this.saveReplayBtn.textContent = 'SAVE REPLAY';
+    this.saveReplayBtn.onclick = () => {
+      try {
+        localStorage.setItem('swarm_last_replay', replayJson);
+        this.saveReplayBtn.textContent = `REPLAY SAVED (${frameCount} commands)`;
+        this.saveReplayBtn.style.color = '#44bb88';
+        this.saveReplayBtn.style.borderColor = '#2a6a4a';
+      } catch {
+        this.saveReplayBtn.textContent = 'SAVE FAILED';
+        this.saveReplayBtn.style.color = '#ff6644';
+      }
+    };
   }
 
   private show(title: string, subtitle: string, color: string): void {

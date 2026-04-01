@@ -19,6 +19,7 @@ import {
 } from '../map/MapData';
 import type { PlayerResources } from '../types';
 import { UNIT_DEFS } from '../data/units';
+import { rng } from '../utils/SeededRng';
 
 // ─────────────────────────────────────────
 // Build Order types
@@ -119,10 +120,10 @@ interface AIPersonality {
 let personality: AIPersonality;
 
 function randomPersonality(): AIPersonality {
-  const roll = Math.random();
+  const roll = rng.next();
   return {
-    aggressionMult: 0.7 + Math.random() * 0.6,  // 0.7 to 1.3
-    timingOffset: (Math.random() - 0.5) * 10,     // -5 to +5
+    aggressionMult: 0.7 + rng.next() * 0.6,  // 0.7 to 1.3
+    timingOffset: (rng.next() - 0.5) * 10,     // -5 to +5
     preferredStyle: roll < 0.33 ? 'rush' : roll < 0.66 ? 'balanced' : 'heavy',
   };
 }
@@ -228,7 +229,7 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   activeBuildOrder = null;
   buildOrderIndex = 0;
   if (currentAIFaction === Faction.Zerg) {
-    const roll = Math.random();
+    const roll = rng.next();
     if (currentDifficulty === Difficulty.Easy) {
       activeBuildOrder = [...ZERG_LAIR_MACRO];
     } else if (currentDifficulty === Difficulty.Hard || currentDifficulty === Difficulty.Brutal) {
@@ -302,7 +303,7 @@ function executeBuildOrder(
       aiGas -= def.costGas;
       const hatch = findZergHatchery(world);
       if (!hatch) return;
-      const eid = spawnUnit(step.action.type, currentAIFaction, posX[hatch] + (Math.random() - 0.5) * 48, posY[hatch] + (Math.random() - 0.5) * 48);
+      const eid = spawnUnit(step.action.type, currentAIFaction, posX[hatch] + (rng.next() - 0.5) * 48, posY[hatch] + (rng.next() - 0.5) * 48);
       armyEids.add(eid);
       step.done = true;
       if (step.trigger !== 'always') buildOrderIndex++;
@@ -384,7 +385,7 @@ function runTerranAI(
       if (terranAIMinerals >= cost) {
         terranAIMinerals -= cost;
         if (useMarauder) terranAIGas -= 25;
-        const eid = spawnUnit(uType, Faction.Terran, bx + (Math.random() - 0.5) * 64, by + 48);
+        const eid = spawnUnit(uType, Faction.Terran, bx + (rng.next() - 0.5) * 64, by + 48);
         terranArmyEids.add(eid);
         terranLastSpawnTime = gameTime;
       }
@@ -651,7 +652,7 @@ function sendScout(world: World, map: MapData, gameTime: number): void {
   scoutEids.add(scoutEid);
 
   // Pick a random scout waypoint
-  const wp = SCOUT_WAYPOINTS[Math.floor(Math.random() * SCOUT_WAYPOINTS.length)];
+  const wp = SCOUT_WAYPOINTS[rng.nextInt(SCOUT_WAYPOINTS.length)];
   const dest = tileToWorld(wp.col, wp.row);
 
   commandMode[scoutEid] = CommandMode.AttackMove;
@@ -832,7 +833,7 @@ function findAttackTarget(world: World): { x: number; y: number } {
 // ─────────────────────────────────────────
 function pickAttackAngle(targetX: number, targetY: number, map: MapData): { x: number; y: number } {
   // Randomly offset the approach angle to vary attack paths
-  const angle = Math.random() * Math.PI * 2;
+  const angle = rng.next() * Math.PI * 2;
   const offsetDist = 4 * TILE_SIZE; // 4 tiles offset from direct path
   const offsetX = Math.cos(angle) * offsetDist;
   const offsetY = Math.sin(angle) * offsetDist;
@@ -976,7 +977,7 @@ function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
   // Use reactive composition (intel-driven)
   const options = getReactiveWeights();
   const totalWeight = options.reduce((s, o) => s + o.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = rng.next() * totalWeight;
   let chosen = options[0];
 
   for (const opt of options) {
@@ -992,15 +993,15 @@ function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
     // Heavy style: prefer Roaches and Hydralisks
     const heavyOptions = options.filter(o => o.type === UnitType.Roach || o.type === UnitType.Hydralisk);
     if (heavyOptions.length > 0) {
-      chosen = heavyOptions[Math.floor(Math.random() * heavyOptions.length)];
+      chosen = heavyOptions[rng.nextInt(heavyOptions.length)];
     }
   }
 
   if (aiMinerals < chosen.costM || aiGas < chosen.costG) return;
 
   const hatchTile = worldToTile(posX[hatchery], posY[hatchery]);
-  const jitterCol = hatchTile.col + Math.floor(Math.random() * 5) - 2;
-  const jitterRow = hatchTile.row + Math.floor(Math.random() * 5) - 2;
+  const jitterCol = hatchTile.col + rng.nextInt(5) - 2;
+  const jitterRow = hatchTile.row + rng.nextInt(5) - 2;
   const walkable = findNearestWalkableTile(map, jitterCol, jitterRow);
   if (!walkable) return;
 
@@ -1038,7 +1039,7 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
   // Hard/Brutal: always send a dedicated harass squad to a second entry point
   if (currentDifficulty >= Difficulty.Hard) {
     sendDifficultyMultiProngAttack(world, map, target.x, target.y);
-  } else if (armyEids.size >= 10 && Math.random() < 0.3) {
+  } else if (armyEids.size >= 10 && rng.next() < 0.3) {
     // Easy/Normal: 30% chance random multi-prong from different angles (existing behavior)
     sendMultiProngAttack(world, map, target.x, target.y);
   } else {
@@ -1080,7 +1081,7 @@ function sendDifficultyMultiProngAttack(world: World, map: MapData, targetX: num
 
   // Shuffle to avoid always picking the same units for harass
   for (let i = all.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = rng.nextInt(i + 1);
     [all[i], all[j]] = [all[j], all[i]];
   }
 

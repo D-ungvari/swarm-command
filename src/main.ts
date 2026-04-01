@@ -4,9 +4,18 @@ import type { MapType } from './map/MapData';
 
 const startScreen = document.getElementById('start-screen');
 const playBtn = document.getElementById('play-btn');
+const watchReplayBtn = document.getElementById('watch-replay-btn') as HTMLButtonElement | null;
 const container = document.getElementById('game-container');
 
 if (!container) throw new Error('Missing #game-container element');
+
+// Enable Watch Replay button if a saved replay exists
+const savedReplay = localStorage.getItem('swarm_last_replay');
+if (watchReplayBtn && savedReplay) {
+  watchReplayBtn.style.opacity = '1';
+  watchReplayBtn.style.cursor = 'pointer';
+  watchReplayBtn.style.pointerEvents = 'auto';
+}
 
 function startGame(): void {
   if (startScreen) startScreen.style.display = 'none';
@@ -50,8 +59,23 @@ function startGame(): void {
   });
 }
 
+function watchReplay(): void {
+  const json = localStorage.getItem('swarm_last_replay');
+  if (!json) return;
+  if (startScreen) startScreen.style.display = 'none';
+  const game = new Game();
+  game.prepareReplay(json);
+  game.init(container!).catch((err) => {
+    console.error('Failed to start replay:', err);
+  });
+}
+
 if (playBtn) {
   playBtn.addEventListener('click', startGame);
 } else {
   startGame();
+}
+
+if (watchReplayBtn && savedReplay) {
+  watchReplayBtn.addEventListener('click', watchReplay);
 }

@@ -51,6 +51,23 @@ export class GameCommandQueue {
     return out;
   }
 
+  /**
+   * Drain commands, recording each into a CommandRecorder before returning.
+   * Pass null recorder to skip recording (no-op equivalent to flush()).
+   */
+  flushWithRecord(
+    recorder: { record(tick: number, gameTime: number, command: GameCommand): void } | null,
+    tick: number,
+    gt: number,
+  ): GameCommand[] {
+    const out = this._commands;
+    if (recorder) {
+      for (const c of out) recorder.record(tick, gt, c);
+    }
+    this._commands = [];
+    return out;
+  }
+
   get length(): number {
     return this._commands.length;
   }

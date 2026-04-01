@@ -81,6 +81,8 @@ import type { PlayerResources } from './types';
 import { soundManager } from './audio/SoundManager';
 import { GameStats } from './stats/GameStats';
 import { consumeCameraShake } from './rendering/CameraShake';
+import { seedRng } from './utils/SeededRng';
+import { CommandRecorder, type ReplayFrame } from './replay/CommandRecorder';
 
 export class Game {
   app!: Application;
@@ -102,6 +104,20 @@ export class Game {
 
   setPlayerFaction(f: Faction): void {
     this.playerFaction = f;
+  }
+
+  /**
+   * Load a replay JSON (from localStorage) and start the game in replay mode.
+   * Must be called before init().
+   */
+  prepareReplay(json: string): void {
+    const data = CommandRecorder.fromJSON(json);
+    this.gameSeed = data.seed;
+    this.setDifficulty(data.difficulty as Difficulty);
+    this.setPlayerFaction(data.faction as Faction);
+    this.replayMode = true;
+    this.replayFrames = data.frames;
+    this.replayFrameIndex = 0;
   }
 
   // Renderers
@@ -146,6 +162,16 @@ export class Game {
   private stats = new GameStats();
   private lastWaveCount = 0;
   private gameEnded = false;
+
+  // RNG seed (stored for replay system)
+  private gameSeed = 0;
+
+  // Replay system
+  private recorder = new CommandRecorder();
+  private tickCount = 0;
+  private replayMode = false;
+  private replayFrames: ReplayFrame[] = [];
+  private replayFrameIndex = 0;
 
   constructor() {
     this.world = createWorld();
@@ -314,6 +340,16 @@ export class Game {
       this.spawnZergBase();        // AI's Zerg base at (117, 117)
     }
     spawnRockEntities(this.world, this.map);
+
+    // Seed RNG at game start (replayMode reuses stored seed; live game picks a new one)
+    if (!this.replayMode) {
+      this.gameSeed = Date.now() & 0x7fffffff;
+    }
+    seedRng(this.gameSeed);
+    if (!this.replayMode) {
+      this.recorder.startRecording(this.gameSeed, this.difficulty, this.playerFaction);
+    }
+
     initAI(this.difficulty, this.playerFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg);
     resetCreepSystem();
 
@@ -344,9 +380,11 @@ export class Game {
 
     this.handleMinimapClick();         // runs first — consumes minimap clicks
     this.handleEdgeScroll();
-    this.handleBuildPlacement();       // runs second — consumes build placement clicks
-    this.inputProcessor.processFrame(); // processes remaining raw events into queues
-    this.applySelectionCommands();     // frame-rate: drain selectionQueue immediately
+    if (!this.replayMode) {
+      this.handleBuildPlacement();       // runs second — consumes build placement clicks
+      this.inputProcessor.processFrame(); // processes remaining raw events into queues
+      this.applySelectionCommands();     // frame-rate: drain selectionQueue immediately
+    }
 
     const currentMsPerTick = MS_PER_TICK / GAME_SPEEDS[this.gameSpeedIndex];
     if (!this.paused) {
@@ -363,7 +401,7 @@ export class Game {
 
   /** Drain selectionQueue and apply selection changes immediately (frame-rate). */
   private applySelectionCommands(): void {
-    const cmds = this.selectionQueue.flush();
+    const cmds = this.selectionQueue.flushWithRecord(this.recorder, this.tickCount, this.gameTime);
     if (cmds.length > 0) {
       this.stats.recordAction();
       selectionSystem(this.world, cmds, this.viewport, this.playerFaction);
@@ -371,7 +409,19 @@ export class Game {
   }
 
   private tick(dt: number): void {
+    this.tickCount++;
     this.gameTime += dt;
+
+    // In replay mode, inject recorded commands at their original ticks
+    if (this.replayMode) {
+      while (
+        this.replayFrameIndex < this.replayFrames.length &&
+        this.replayFrames[this.replayFrameIndex].tick <= this.tickCount
+      ) {
+        const frame = this.replayFrames[this.replayFrameIndex++];
+        this.simulationQueue.push(frame.command);
+      }
+    }
 
     // Rebuild spatial hash once per tick — must run before any system that queries it
     spatialHash.rebuild(this.world);
@@ -380,7 +430,7 @@ export class Game {
     if (this.simulationQueue.length > 0) {
       this.stats.recordAction();
     }
-    commandSystem(this.world, this.simulationQueue.flush(), this.viewport, this.map, this.gameTime, this.resources, this.playerFaction);
+    commandSystem(this.world, this.simulationQueue.flushWithRecord(this.replayMode ? null : this.recorder, this.tickCount, this.gameTime), this.viewport, this.map, this.gameTime, this.resources, this.playerFaction);
     buildSystem(this.world, dt, this.resources);
     productionSystem(this.world, dt, this.resources, this.map,
       (type, fac, x, y) => {
@@ -462,6 +512,8 @@ export class Game {
     if (!wasShown && this.gameOverRenderer.isShown && !this.gameEnded) {
       this.gameEnded = true;
       this.gameOverRenderer.setStats(this.stats.getSnapshot(this.gameTime));
+      this.recorder.stopRecording();
+      this.gameOverRenderer.setReplay(this.recorder.toJSON(), this.recorder.frameCount);
     }
 
     // AI attack warning — jump camera to base on attack

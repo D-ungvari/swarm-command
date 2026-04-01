@@ -13,6 +13,9 @@ import { soundManager } from '../audio/SoundManager';
 // Control groups: 10 groups (0-9), each stores a set of entity IDs
 const controlGroups: Set<number>[] = Array.from({ length: 10 }, () => new Set());
 
+// Subgroup cycling state
+let subgroupIndex = 0;
+
 /**
  * Handles click and drag-box unit selection.
  * Selects player (Terran) units/buildings. Single-click can also select neutral resources.
@@ -123,15 +126,52 @@ export function selectionSystem(
         soundManager.playSelect();
         break;
       }
+
+      case CommandType.CycleSubgroup:
+        cycleSubgroup(world);
+        break;
     }
   }
-
-  // TODO: Tab subgroup cycling — needs command queue integration
 }
 
 function clearSelection(world: World): void {
   for (let eid = 1; eid < world.nextEid; eid++) {
     selected[eid] = 0;
+  }
+}
+
+/**
+ * Cycle selection through subgroups of the current selection, grouped by unit type.
+ * Each Tab press selects only the entities of the next unit type in the current selection.
+ */
+function cycleSubgroup(world: World): void {
+  // Collect all currently selected Terran unit-type entities
+  const bits = SELECTABLE | UNIT_TYPE;
+  const typeToEids = new Map<number, number[]>();
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (selected[eid] !== 1) continue;
+    if (!hasComponents(world, eid, bits)) continue;
+    if (faction[eid] !== Faction.Terran) continue;
+    const ut = unitType[eid];
+    let group = typeToEids.get(ut);
+    if (!group) { group = []; typeToEids.set(ut, group); }
+    group.push(eid);
+  }
+
+  const types = Array.from(typeToEids.keys()).sort((a, b) => a - b);
+  if (types.length <= 1) return; // Nothing to cycle through
+
+  subgroupIndex = (subgroupIndex + 1) % types.length;
+  const activeType = types[subgroupIndex];
+
+  // Deselect all, then select only the active subgroup
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    selected[eid] = 0;
+  }
+  const activeEids = typeToEids.get(activeType)!;
+  for (const eid of activeEids) {
+    selected[eid] = 1;
   }
 }
 

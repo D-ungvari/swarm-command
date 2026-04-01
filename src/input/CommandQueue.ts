@@ -18,6 +18,7 @@ export const enum CommandType {
   DoubleClickSelect = 16,
   ControlGroupAssign = 17,
   ControlGroupRecall = 18,
+  CycleSubgroup = 19,
 }
 
 export interface GameCommand {

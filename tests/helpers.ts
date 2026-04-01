@@ -71,6 +71,7 @@ export const CommandType = {
   Stim: 6, SiegeToggle: 7, Gather: 8, SetRally: 9, BuildPlace: 10,
   Produce: 11, Cancel: 12, Select: 13, BoxSelect: 14, AddSelect: 15,
   DoubleClickSelect: 16, ControlGroupAssign: 17, ControlGroupRecall: 18,
+  CycleSubgroup: 19,
 } as const;
 export const DamageType = { Normal: 0, Concussive: 1, Explosive: 2 } as const;
 export const ArmorClass = { Light: 0, Armored: 1 } as const;

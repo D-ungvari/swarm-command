@@ -15,6 +15,7 @@ export class GameOverRenderer {
   private titleEl: HTMLDivElement;
   private subtitleEl: HTMLDivElement;
   private statsEl: HTMLDivElement;
+  private playAgainBtn: HTMLButtonElement;
   private shown = false;
 
   constructor(container: HTMLElement) {
@@ -64,9 +65,27 @@ export class GameOverRenderer {
       display: none;
     `;
 
+    this.playAgainBtn = document.createElement('button');
+    this.playAgainBtn.id = 'play-again-btn';
+    this.playAgainBtn.textContent = 'PLAY AGAIN';
+    this.playAgainBtn.style.cssText = `
+      margin-top: 16px;
+      padding: 10px 28px;
+      background: #1a3a5a;
+      color: #cce0ff;
+      border: 1px solid #3a6a9a;
+      font-size: 14px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      display: none;
+      pointer-events: auto;
+    `;
+    this.playAgainBtn.addEventListener('click', () => { window.location.reload(); });
+
     this.overlay.appendChild(this.titleEl);
     this.overlay.appendChild(this.subtitleEl);
     this.overlay.appendChild(this.statsEl);
+    this.overlay.appendChild(this.playAgainBtn);
     container.appendChild(this.overlay);
   }
 
@@ -137,5 +156,6 @@ export class GameOverRenderer {
     this.titleEl.style.color = color;
     this.subtitleEl.textContent = subtitle;
     this.overlay.style.display = 'flex';
+    this.playAgainBtn.style.display = 'block';
   }
 }

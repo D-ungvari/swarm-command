@@ -84,6 +84,9 @@ export class InputProcessor {
     if (keys.has('KeyW')) {
       this.simulationQueue.push({ type: CommandType.Produce, data: 1, units: this.snapshotSelection() });
     }
+    if (keys.has('Tab')) {
+      this.selectionQueue.push({ type: CommandType.CycleSubgroup });
+    }
   }
 
   private processMouseEvents(state: InputState): void {

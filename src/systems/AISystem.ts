@@ -617,15 +617,17 @@ const EARLY_GAME_UNITS = [
 ];
 const MID_GAME_UNITS = [
   { type: UnitType.Zergling, costM: 50, costG: 0, weight: 30 },
-  { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 30 },
+  { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 25 },
   { type: UnitType.Roach, costM: 75, costG: 25, weight: 25 },
   { type: UnitType.Baneling, costM: 50, costG: 25, weight: 15 },
+  { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 5 },
 ];
 const LATE_GAME_UNITS = [
-  { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 35 },
+  { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 30 },
   { type: UnitType.Roach, costM: 75, costG: 25, weight: 25 },
   { type: UnitType.Baneling, costM: 50, costG: 25, weight: 20 },
-  { type: UnitType.Zergling, costM: 50, costG: 0, weight: 20 },
+  { type: UnitType.Zergling, costM: 50, costG: 0, weight: 15 },
+  { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 10 },
 ];
 
 function findZergHatchery(world: World): number {

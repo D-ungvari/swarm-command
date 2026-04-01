@@ -8,7 +8,7 @@ import {
   patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
-import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE } from '../constants';
+import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, Faction } from '../constants';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
@@ -118,9 +118,20 @@ export function movementSystem(world: World, dt: number, map?: MapData): void {
     }
 
     // Apply slow debuff: reduce effective speed
-    const effectiveSpeed = slowFactor[eid] > 0
+    let effectiveSpeed = slowFactor[eid] > 0
       ? moveSpeed[eid] * (1 - slowFactor[eid])
       : moveSpeed[eid];
+
+    // Creep bonus: Zerg units on creep move 30% faster
+    if (map && faction[eid] === Faction.Zerg) {
+      const col = Math.floor(posX[eid] / TILE_SIZE);
+      const row = Math.floor(posY[eid] / TILE_SIZE);
+      if (col >= 0 && col < map.cols && row >= 0 && row < map.rows) {
+        if (map.creepMap[row * map.cols + col] === 1) {
+          effectiveSpeed *= 1.3;
+        }
+      }
+    }
 
     const speed = effectiveSpeed * dt;
     const nx = dx / dist;

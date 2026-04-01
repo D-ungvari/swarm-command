@@ -53,6 +53,16 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     costMinerals: 100, costGas: 100, buildTime: 30,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
+  [UnitType.Ghost]: {
+    type: UnitType.Ghost,
+    name: 'Ghost',
+    faction: Faction.Terran,
+    hp: 100, damage: 10, range: 7, speed: 2.5,
+    attackCooldown: 1500, splashRadius: 0,
+    width: 10, height: 10, color: 0x4488cc,
+    costMinerals: 200, costGas: 100, buildTime: 32,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+  },
 
   // ── Zerg ──
   [UnitType.Drone]: {
@@ -104,5 +114,15 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 16, height: 16, color: ZERG_COLOR,
     costMinerals: 75, costGas: 25, buildTime: 19,
     damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+  },
+  [UnitType.Mutalisk]: {
+    type: UnitType.Mutalisk,
+    name: 'Mutalisk',
+    faction: Faction.Zerg,
+    hp: 120, damage: 9, range: 3, speed: 4.5,
+    attackCooldown: 1300, splashRadius: 0,
+    width: 14, height: 14, color: 0xaa66dd,
+    costMinerals: 100, costGas: 100, buildTime: 33,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
 };

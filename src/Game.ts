@@ -66,6 +66,7 @@ import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
 import { aiSystem, initAI, getAIState } from './systems/AISystem';
+import { creepSystem, resetCreepSystem } from './systems/CreepSystem';
 import { upgradeSystem } from './systems/UpgradeSystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
@@ -234,6 +235,7 @@ export class Game {
     this.spawnDemoUnits();
     spawnRockEntities(this.world, this.map);
     initAI(this.difficulty);
+    resetCreepSystem();
 
     window.addEventListener('resize', () => {
       this.viewport.resize(window.innerWidth, window.innerHeight);
@@ -324,6 +326,7 @@ export class Game {
     aiSystem(this.world, dt, this.gameTime, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources);
     fogSystem(this.world);
+    creepSystem(this.world, this.map, dt);
 
     // Track waves defeated
     const aiState = getAIState();
@@ -336,6 +339,7 @@ export class Game {
 
   private render(): void {
     this.tilemapRenderer.updateWater(this.gameTime);
+    this.tilemapRenderer.updateCreep(this.map, this.gameTime);
     this.unitRenderer.render(this.world, this.gameTime);
     this.projRenderer.update(this.gameTime);
     this.projRenderer.render(this.gameTime);

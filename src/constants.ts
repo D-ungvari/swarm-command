@@ -44,12 +44,14 @@ export const enum UnitType {
   Marauder = 3,
   SiegeTank = 4,
   Medivac = 5,
+  Ghost = 6,
   // Zerg
   Drone = 10,
   Zergling = 11,
   Baneling = 12,
   Hydralisk = 13,
   Roach = 14,
+  Mutalisk = 15,
 }
 
 // ── Command modes ──

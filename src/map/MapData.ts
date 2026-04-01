@@ -21,6 +21,8 @@ export interface MapData {
   walkable: Uint8Array;
   /** HP for each destructible rock tile (0 = not a rock tile, > 0 = rock HP) */
   destructibleHP: Uint16Array;
+  /** Creep coverage: 1 = tile has creep, 0 = no creep */
+  creepMap: Uint8Array;
   cols: number;
   rows: number;
 }
@@ -30,6 +32,7 @@ export function generateMap(mapType: MapType = MapType.Plains): MapData {
   const tiles = new Uint8Array(MAP_COLS * MAP_ROWS);
   const walkable = new Uint8Array(MAP_COLS * MAP_ROWS);
   const destructibleHP = new Uint16Array(MAP_COLS * MAP_ROWS);
+  const creepMap = new Uint8Array(MAP_COLS * MAP_ROWS);
 
   // Fill with ground (all walkable)
   tiles.fill(TileType.Ground);
@@ -56,7 +59,7 @@ export function generateMap(mapType: MapType = MapType.Plains): MapData {
   // Place destructible rock clusters (shared by all layouts, symmetric placement)
   placeRockClusters(tiles, walkable, destructibleHP);
 
-  return { tiles, walkable, destructibleHP, cols: MAP_COLS, rows: MAP_ROWS };
+  return { tiles, walkable, destructibleHP, creepMap, cols: MAP_COLS, rows: MAP_ROWS };
 }
 
 /** Plains layout — original design, refined */

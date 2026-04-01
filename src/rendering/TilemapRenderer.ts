@@ -14,15 +14,19 @@ export class TilemapRenderer {
   container: Container;
   private staticGraphics: Graphics;
   private waterGraphics: Graphics;
+  private creepGraphics: Graphics;
   private waterTiles: Array<{ col: number; row: number }> = [];
   private mapRef: MapData | null = null;
+  private lastCreepUpdate = -1;
 
   constructor() {
     this.container = new Container();
     this.staticGraphics = new Graphics();
     this.waterGraphics = new Graphics();
+    this.creepGraphics = new Graphics();
     this.container.addChild(this.staticGraphics);
     this.container.addChild(this.waterGraphics);
+    this.container.addChild(this.creepGraphics);
   }
 
   render(map: MapData): void {
@@ -78,6 +82,30 @@ export class TilemapRenderer {
           g.rect(x + inset + 2, y + inset + 2, 5, 5);
           g.fill({ color: 0xaaa090, alpha: 0.5 });
         }
+      }
+    }
+  }
+
+  /**
+   * Call each frame to redraw the creep overlay when it changes.
+   * Only redraws if creepMap has been updated since last render (checked via gameTime bucket).
+   */
+  updateCreep(map: MapData, gameTime: number): void {
+    // Redraw every 5 seconds (aligned to creep spread interval)
+    const bucket = Math.floor(gameTime / 5);
+    if (bucket === this.lastCreepUpdate) return;
+    this.lastCreepUpdate = bucket;
+
+    const g = this.creepGraphics;
+    g.clear();
+
+    for (let row = 0; row < MAP_ROWS; row++) {
+      for (let col = 0; col < MAP_COLS; col++) {
+        if (map.creepMap[row * MAP_COLS + col] !== 1) continue;
+        const x = col * TILE_SIZE;
+        const y = row * TILE_SIZE;
+        g.rect(x, y, TILE_SIZE, TILE_SIZE);
+        g.fill({ color: 0x6600aa, alpha: 0.15 });
       }
     }
   }

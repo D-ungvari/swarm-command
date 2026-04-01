@@ -20,6 +20,7 @@ import {
 import type { PlayerResources } from '../types';
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
+type SpawnBuildingFn = (type: number, fac: number, col: number, row: number) => number;
 
 // ─────────────────────────────────────────
 // Tuning constants
@@ -124,6 +125,7 @@ let regroupY = 0;
 const armyEids = new Set<number>();
 const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
+let hasExpanded = false;
 
 export function initAI(difficulty: Difficulty = Difficulty.Normal): void {
   currentDifficulty = difficulty;
@@ -145,6 +147,7 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal): void {
   scoutEids.clear();
   lastAIUpgradeWave = 0;
   nextAIUpgradeType = 3;
+  hasExpanded = false;
   personality = randomPersonality();
   intel = resetIntel();
 }
@@ -168,6 +171,7 @@ export function aiSystem(
   map: MapData,
   spawnFn: SpawnFn,
   resources: Record<number, PlayerResources>,
+  spawnBuildingFn: SpawnBuildingFn,
 ): void {
   if (gameTime < INITIAL_DELAY + personality.timingOffset) return;
 
@@ -188,6 +192,17 @@ export function aiSystem(
   const incomeMultiplier = 1 + waveCount * INCOME_GROWTH_PER_WAVE;
   aiMinerals += BASE_INCOME * diffConfig.incomeMultiplier * incomeMultiplier * personality.aggressionMult * elapsed;
   aiGas += BASE_INCOME * GAS_INCOME_RATIO * diffConfig.incomeMultiplier * incomeMultiplier * elapsed;
+
+  // Expansion income bonus
+  if (hasExpanded) {
+    aiMinerals += BASE_INCOME * 0.5 * diffConfig.incomeMultiplier * elapsed;
+    aiGas += BASE_INCOME * GAS_INCOME_RATIO * 0.3 * diffConfig.incomeMultiplier * elapsed;
+  }
+
+  // Attempt expansion after wave 5
+  if (waveCount >= 5 && !hasExpanded) {
+    attemptExpansion(resources, spawnBuildingFn);
+  }
 
   // Spawn units
   const spawnsThisTick = Math.min(MAX_SPAWNS_PER_DECISION, 1 + Math.floor(waveCount / 2));
@@ -574,6 +589,28 @@ function pruneDeadUnits(world: World): void {
 // ─────────────────────────────────────────
 // AI auto-upgrade (Zerg, after wave 3)
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// Expansion logic
+// ─────────────────────────────────────────
+function attemptExpansion(
+  resources: Record<number, PlayerResources>,
+  spawnBuilding: SpawnBuildingFn,
+): void {
+  if (hasExpanded) return;
+
+  const res = resources[Faction.Zerg];
+  if (!res || aiMinerals < 300) return;
+
+  aiMinerals -= 300;
+  hasExpanded = true;
+
+  // Expansion at bottom-left area (col 15, row 100) — flanking base opposite player
+  const expansionCol = 15;
+  const expansionRow = 100;
+
+  spawnBuilding(BuildingType.Hatchery, Faction.Zerg, expansionCol, expansionRow);
+}
+
 function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount: number, upgradeStartWave: number): void {
   if (waveCount < upgradeStartWave) return;
   // Upgrade every 2 waves

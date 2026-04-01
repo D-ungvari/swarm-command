@@ -383,7 +383,8 @@ export class Game {
 
     deathSystem(this.world, this.gameTime, this.map, this.resources);
     aiSystem(this.world, dt, this.gameTime, this.map,
-      (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources);
+      (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources,
+      (type, fac, col, row) => this.spawnBuilding(type as BuildingType, fac as Faction, col, row));
     if (this.fogEnabled) fogSystem(this.world);
     creepSystem(this.world, this.map, dt);
 

@@ -62,6 +62,13 @@ export const enum UnitType {
   Cyclone = 21,
   Thor = 22,
   Battlecruiser = 23,
+  // Additional Zerg
+  Ravager   = 24,
+  Lurker    = 25,
+  Infestor  = 26,
+  Ultralisk = 27,
+  Corruptor = 28,
+  Viper     = 29,
 }
 
 // ── Command modes ──

@@ -785,6 +785,88 @@ export class UnitRenderer {
           g.lineTo(x + 2, y + h * 0.65);
           g.stroke({ color: tint, width: 1.2 });
 
+        } else if (uType === UnitType.Ravager) {
+          // ── Ravager: squat armored body with back-mounted cannon ──
+          // Shadow
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body (wider oval)
+          g.ellipse(x, y, w * 0.7, h / 2);
+          g.fill({ color: bodyColor, alpha: 0.9 });
+          // Cannon tube on top
+          g.rect(x - 2, y - h / 2 - 6, 4, 7);
+          g.fill({ color: 0xaa3311, alpha: 0.9 });
+
+        } else if (uType === UnitType.Lurker) {
+          // ── Lurker: flat body with spine protrusions ──
+          // Shadow
+          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Flat body
+          g.ellipse(x, y, w / 2, h * 0.35);
+          g.fill({ color: bodyColor, alpha: 0.9 });
+          // 4 spines
+          for (let i = -3; i <= 3; i += 2) {
+            g.moveTo(x + i * 4, y - h * 0.35);
+            g.lineTo(x + i * 4, y - h * 0.35 - 6);
+          }
+          g.stroke({ color: 0x886633, width: 1.5, alpha: 0.8 });
+
+        } else if (uType === UnitType.Infestor) {
+          // ── Infestor: blob with tentacle ──
+          // Shadow
+          g.circle(x, y, h / 2 + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Blob body
+          g.circle(x, y, h / 2);
+          g.fill({ color: bodyColor, alpha: 0.9 });
+          // Tentacle
+          g.moveTo(x + h / 2, y);
+          g.lineTo(x + h / 2 + 6, y - 4);
+          g.stroke({ color: 0x668833, width: 2, alpha: 0.8 });
+
+        } else if (uType === UnitType.Ultralisk) {
+          // ── Ultralisk: giant body with curved blade horns ──
+          // Shadow
+          g.ellipse(x, y, w / 2 + 4, h / 2 + 4);
+          g.fill({ color: 0x000000, alpha: 0.5 });
+          // Large elliptical body
+          g.ellipse(x, y, w / 2, h / 2);
+          g.fill({ color: bodyColor, alpha: 0.95 });
+          // Curved blade horn (left)
+          g.arc(x - w * 0.4, y - h / 2, 8, -Math.PI * 0.8, 0);
+          g.stroke({ color: 0x665533, width: 2.5, alpha: 0.9 });
+          // Curved blade horn (right)
+          g.arc(x + w * 0.4, y - h / 2, 8, -Math.PI, Math.PI * 0.8 - Math.PI);
+          g.stroke({ color: 0x665533, width: 2.5, alpha: 0.9 });
+
+        } else if (uType === UnitType.Corruptor) {
+          // ── Corruptor: floating crab-like air unit ──
+          // Faint ground shadow (elevated)
+          g.ellipse(x, y + 4, w * 0.35, h * 0.15);
+          g.fill({ color: 0x000000, alpha: 0.2 });
+          // Body
+          g.ellipse(x, y, w / 2, h * 0.4);
+          g.fill({ color: bodyColor, alpha: 0.9 });
+          // Two claws
+          g.moveTo(x - w / 2, y);
+          g.lineTo(x - w / 2 - 5, y - 5);
+          g.moveTo(x + w / 2, y);
+          g.lineTo(x + w / 2 + 5, y - 5);
+          g.stroke({ color: 0xaa55aa, width: 1.5, alpha: 0.8 });
+
+        } else if (uType === UnitType.Viper) {
+          // ── Viper: snake with a wide hood ──
+          // Faint ground shadow (elevated)
+          g.ellipse(x, y + 4, w * 0.35, h * 0.15);
+          g.fill({ color: 0x000000, alpha: 0.2 });
+          // Hood (triangle)
+          g.moveTo(x, y - h / 2 - 4);
+          g.lineTo(x - 7, y + 2);
+          g.lineTo(x + 7, y + 2);
+          g.closePath();
+          g.fill({ color: bodyColor, alpha: 0.8 });
+
         } else {
           // Fallback for any unknown Zerg unit
           g.ellipse(x, y, w / 2 + 2, h / 2 + 2);

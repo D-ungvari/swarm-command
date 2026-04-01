@@ -47,6 +47,7 @@ export const UnitType = {
   Drone: 10, Zergling: 11, Baneling: 12, Hydralisk: 13, Roach: 14, Mutalisk: 15,
   Queen: 16, Overlord: 17,
   Reaper: 18, Viking: 19, WidowMine: 20, Cyclone: 21, Thor: 22, Battlecruiser: 23,
+  Ravager: 24, Lurker: 25, Infestor: 26, Ultralisk: 27, Corruptor: 28, Viper: 29,
 } as const;
 export const CommandMode = {
   Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3, Gather: 4, Build: 5,

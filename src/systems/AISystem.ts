@@ -459,7 +459,11 @@ function getPhaseWeights() {
   switch (phase) {
     case AIPhase.EarlyGame: return [...EARLY_GAME_UNITS];
     case AIPhase.MidGame: return [...MID_GAME_UNITS];
-    case AIPhase.LateGame: return [...LATE_GAME_UNITS];
+    case AIPhase.LateGame:
+      // Ultralisk only available after wave 8
+      return waveCount >= 8
+        ? [...LATE_GAME_UNITS]
+        : LATE_GAME_UNITS.filter(u => u.type !== UnitType.Ultralisk);
   }
 }
 
@@ -770,6 +774,7 @@ const MID_GAME_UNITS = [
   { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 25 },
   { type: UnitType.Roach, costM: 75, costG: 25, weight: 25 },
   { type: UnitType.Baneling, costM: 50, costG: 25, weight: 15 },
+  { type: UnitType.Ravager, costM: 25, costG: 75, weight: 8 },
   { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 5 },
 ];
 const LATE_GAME_UNITS = [
@@ -778,6 +783,11 @@ const LATE_GAME_UNITS = [
   { type: UnitType.Baneling, costM: 50, costG: 25, weight: 20 },
   { type: UnitType.Zergling, costM: 50, costG: 0, weight: 15 },
   { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 10 },
+  { type: UnitType.Ravager, costM: 25, costG: 75, weight: 8 },
+  { type: UnitType.Corruptor, costM: 150, costG: 100, weight: 6 },
+  { type: UnitType.Ultralisk, costM: 300, costG: 200, weight: 5 },
+  { type: UnitType.Infestor, costM: 150, costG: 150, weight: 3 },
+  { type: UnitType.Viper, costM: 200, costG: 50, weight: 3 },
 ];
 
 function findZergHatchery(world: World): number {

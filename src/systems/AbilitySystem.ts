@@ -181,7 +181,7 @@ function processQueenEnergyRegen(world: World, dt: number): void {
 
 function processWidowMineBurrow(world: World): void {
   for (let eid = 1; eid < world.nextEid; eid++) {
-    if (unitType[eid] !== UnitType.WidowMine) continue;
+    if (unitType[eid] !== UnitType.WidowMine && unitType[eid] !== UnitType.Lurker) continue;
     if (hpCurrent[eid] <= 0) continue;
     if (commandMode[eid] === CommandMode.Idle && movePathIndex[eid] < 0) {
       cloaked[eid] = 1; // burrowed = effectively cloaked

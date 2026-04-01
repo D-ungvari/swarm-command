@@ -69,6 +69,7 @@ import { getLastTerranHit } from './systems/CombatSystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import { WaypointRenderer } from './rendering/WaypointRenderer';
+import { ProjectileRenderer } from './rendering/ProjectileRenderer';
 import type { PlayerResources } from './types';
 import { soundManager } from './audio/SoundManager';
 
@@ -101,6 +102,7 @@ export class Game {
   private minimapRenderer!: MinimapRenderer;
   private fogRenderer!: FogRenderer;
   private waypointRenderer!: WaypointRenderer;
+  private projRenderer!: ProjectileRenderer;
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
   private lastAIAttacking = false;
@@ -174,6 +176,10 @@ export class Game {
     // Ghost preview for building placement (world space)
     this.ghostGraphics = new Graphics();
     this.viewport.addChild(this.ghostGraphics);
+
+    // Projectile renderer (world space, above units, below fog)
+    this.projRenderer = new ProjectileRenderer();
+    this.viewport.addChild(this.projRenderer.container);
 
     // Fog of war overlay (world space, above units and ghost)
     this.fogRenderer = new FogRenderer(this.viewport);
@@ -266,6 +272,8 @@ export class Game {
   private render(): void {
     this.tilemapRenderer.updateWater(this.gameTime);
     this.unitRenderer.render(this.world, this.gameTime);
+    this.projRenderer.update(this.gameTime);
+    this.projRenderer.render(this.gameTime);
     this.waypointRenderer.render(this.world, this.input.state.shiftHeld);
     this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();

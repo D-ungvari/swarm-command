@@ -99,6 +99,10 @@ export const siegeTransitionEnd = new Float32Array(MAX_ENTITIES);
 /** gameTime of last attack-dealt or damage-received */
 export const lastCombatTime = new Float32Array(MAX_ENTITIES);
 
+// ── Death animation ──
+/** gameTime when unit died (0 = alive). Used for shrink/fade-out animation. */
+export const deathTime = new Float32Array(MAX_ENTITIES);
+
 // ── Resource node ──
 /** ResourceType enum: Mineral=1, Gas=2 */
 export const resourceType = new Uint8Array(MAX_ENTITIES);
@@ -238,6 +242,7 @@ export function resetComponents(eid: number): void {
   siegeMode[eid] = 0;
   siegeTransitionEnd[eid] = 0;
   lastCombatTime[eid] = 0;
+  deathTime[eid] = 0;
   resourceType[eid] = 0;
   resourceRemaining[eid] = 0;
   workerState[eid] = 0;

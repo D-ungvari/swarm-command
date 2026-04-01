@@ -45,7 +45,10 @@ describe('DeathSystem', () => {
       }));
       hpCurrent[eid] = 0;
 
+      // First tick: starts death animation
       deathSystem(world, 1.0);
+      // Second tick: after animation duration (0.3s), entity is removed
+      deathSystem(world, 1.4);
 
       expect(entityExists(world, eid)).toBe(false);
     });
@@ -56,7 +59,10 @@ describe('DeathSystem', () => {
       }));
       hpCurrent[eid] = -10;
 
+      // First tick: starts death animation
       deathSystem(world, 1.0);
+      // Second tick: after animation duration (0.3s), entity is removed
+      deathSystem(world, 1.4);
 
       expect(entityExists(world, eid)).toBe(false);
     });
@@ -78,7 +84,9 @@ describe('DeathSystem', () => {
       hpCurrent[a] = 0;
       hpCurrent[b] = -5;
 
+      // First tick: starts death animation; second tick: removes after animation
       deathSystem(world, 1.0);
+      deathSystem(world, 1.4);
 
       expect(entityExists(world, a)).toBe(false);
       expect(entityExists(world, b)).toBe(false);
@@ -147,7 +155,9 @@ describe('DeathSystem', () => {
       }));
       hpCurrent[eid] = 0;
 
+      // First tick: starts death animation; second tick: removes after animation
       deathSystem(world, 1.0);
+      deathSystem(world, 1.4);
 
       // After resetComponents, all values should be zeroed
       expect(posX[eid]).toBe(0);
@@ -166,7 +176,9 @@ describe('DeathSystem', () => {
       hpCurrent[dead] = 0;
 
       expect(world.entityCount).toBe(2);
+      // First tick: starts death animation; second tick: removes after animation
       deathSystem(world, 1.0);
+      deathSystem(world, 1.4);
       expect(world.entityCount).toBe(1);
     });
   });

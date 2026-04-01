@@ -5,6 +5,7 @@ import {
   resetComponents,
   buildingType, buildState, builderEid, supplyProvided,
   commandMode, workerState, workerTargetEid,
+  deathTime,
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
 import { clearBuildingTiles, worldToTile } from '../map/MapData';
@@ -25,6 +26,7 @@ const MAX_DEATH_EVENTS = 64;
 export const deathEvents: DeathEvent[] = [];
 
 const DEATH_EVENT_LIFETIME = 0.5; // seconds
+const DEATH_ANIM_DURATION = 0.3; // seconds — shrink/fade before removal
 
 /**
  * Removes entities with HP <= 0 and records death events.
@@ -47,16 +49,24 @@ export function deathSystem(
     if (!hasComponents(world, eid, bits)) continue;
     if (hpCurrent[eid] > 0) continue;
 
-    // Record death event
-    if (deathEvents.length < MAX_DEATH_EVENTS) {
-      deathEvents.push({
-        x: posX[eid],
-        y: posY[eid],
-        faction: faction[eid],
-        time: gameTime,
-      });
+    // --- Pass 1: Start death animation for newly-dead entities ---
+    if (deathTime[eid] === 0) {
+      deathTime[eid] = gameTime;
+
+      // Record death event for visual effects
+      if (deathEvents.length < MAX_DEATH_EVENTS) {
+        deathEvents.push({
+          x: posX[eid],
+          y: posY[eid],
+          faction: faction[eid],
+          time: gameTime,
+        });
+      }
+      soundManager.playDeath();
     }
-    soundManager.playDeath();
+
+    // --- Pass 2: Remove entities whose death animation has finished ---
+    if (gameTime - deathTime[eid] < DEATH_ANIM_DURATION) continue;
 
     // Building cleanup: clear tiles, release supply, release builder
     if (hasComponents(world, eid, BUILDING) && map) {

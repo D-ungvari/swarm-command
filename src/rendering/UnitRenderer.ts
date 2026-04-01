@@ -5,7 +5,7 @@ import {
   posX, posY, renderWidth, renderHeight, renderTint,
   selected, faction, hpCurrent, hpMax, unitType,
   atkFlashTimer, atkRange, atkDamage, targetEntity,
-  stimEndTime, slowEndTime, siegeMode, lastCombatTime,
+  stimEndTime, slowEndTime, siegeMode, lastCombatTime, deathTime,
   resourceType, resourceRemaining,
   buildState, buildProgress, buildingType, rallyX, rallyY,
   workerCarrying, workerState,
@@ -953,6 +953,37 @@ export class UnitRenderer {
       if (hasComponents(world, eid, WORKER) && workerCarrying[eid] > 0) {
         g.circle(x, y - h / 2 - 2, 4);
         g.fill({ color: 0x44bbff, alpha: 0.9 });
+      }
+    }
+
+    // Death animation pass — units with hpCurrent <= 0 but not yet removed
+    const DEATH_ANIM_DURATION = 0.3;
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, POSITION | RENDERABLE)) continue;
+      if (hpCurrent[eid] > 0) continue;          // alive — handled above
+      if (deathTime[eid] <= 0) continue;          // not yet tagged by DeathSystem
+      const fac = faction[eid] as Faction;
+      if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(posX[eid], posY[eid])) continue;
+
+      const elapsed = gameTime - deathTime[eid];
+      const progress = Math.min(1, Math.max(0, elapsed / DEATH_ANIM_DURATION));
+      const scale = 1 - progress;
+      const alpha = 1 - progress;
+      if (alpha <= 0 || scale <= 0) continue;
+
+      const x = posX[eid];
+      const y = posY[eid];
+      const w = renderWidth[eid] * scale;
+      const h = renderHeight[eid] * scale;
+      const tint = renderTint[eid];
+      const factionVal = faction[eid] as Faction;
+
+      if (factionVal === Faction.Zerg) {
+        g.ellipse(x, y, w / 2, h / 2);
+        g.fill({ color: tint, alpha });
+      } else {
+        g.rect(x - w / 2, y - h / 2, w, h);
+        g.fill({ color: tint, alpha });
       }
     }
 

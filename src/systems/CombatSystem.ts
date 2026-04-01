@@ -17,6 +17,19 @@ import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
 import { isTileVisible } from './FogSystem';
 import { soundManager } from '../audio/SoundManager';
 import { type PlayerResources } from '../types';
+import { emitProjectile } from '../rendering/ProjectileRenderer';
+
+const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
+  [UnitType.Marine]: 700,
+  [UnitType.Marauder]: 500,
+  [UnitType.SiegeTank]: 350,
+  [UnitType.SCV]: 600,
+  [UnitType.Zergling]: 0,    // melee — no projectile
+  [UnitType.Baneling]: 0,    // contact — no projectile
+  [UnitType.Hydralisk]: 550,
+  [UnitType.Roach]: 450,
+  [UnitType.Drone]: 400,
+};
 
 /** How far a target must move before we re-path to chase it */
 const CHASE_REPATH_THRESHOLD = TILE_SIZE;
@@ -179,6 +192,18 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     atkLastTime[eid] = gameTime;
     atkFlashTimer[eid] = FLASH_DURATION;
     soundManager.playAttack();
+
+    // Emit projectile visual (cosmetic only — damage already applied below)
+    const projSpeed = PROJECTILE_SPEEDS[unitType[eid] as UnitType] ?? 500;
+    if (projSpeed > 0) {
+      emitProjectile({
+        fromX: posX[eid], fromY: posY[eid],
+        toX: posX[tgt], toY: posY[tgt],
+        unitType: unitType[eid],
+        speed: projSpeed,
+        time: gameTime,
+      });
+    }
 
     // Stop moving while attacking
     movePathIndex[eid] = -1;

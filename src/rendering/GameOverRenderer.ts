@@ -5,6 +5,7 @@ import {
 } from '../ecs/components';
 import { Faction, BuildingType, BuildState } from '../constants';
 import { getAIState } from '../systems/AISystem';
+import type { GameStatsSnapshot } from '../stats/GameStats';
 
 /**
  * HTML overlay for victory/defeat screen.
@@ -13,6 +14,7 @@ export class GameOverRenderer {
   private overlay: HTMLDivElement;
   private titleEl: HTMLDivElement;
   private subtitleEl: HTMLDivElement;
+  private statsEl: HTMLDivElement;
   private shown = false;
 
   constructor(container: HTMLElement) {
@@ -48,9 +50,28 @@ export class GameOverRenderer {
       margin-top: 12px;
     `;
 
+    this.statsEl = document.createElement('div');
+    this.statsEl.style.cssText = `
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 13px;
+      color: #ccc;
+      margin-top: 24px;
+      text-align: left;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 12px 20px;
+      border-radius: 4px;
+      line-height: 1.8;
+      display: none;
+    `;
+
     this.overlay.appendChild(this.titleEl);
     this.overlay.appendChild(this.subtitleEl);
+    this.overlay.appendChild(this.statsEl);
     container.appendChild(this.overlay);
+  }
+
+  get isShown(): boolean {
+    return this.shown;
   }
 
   update(world: World, gameTime: number): void {
@@ -89,6 +110,25 @@ export class GameOverRenderer {
     if (zergBuildingCount === 0 && aiState.waveCount >= 1) {
       this.show('VICTORY', 'The Zerg base has been destroyed.', '#44ff44');
     }
+  }
+
+  setStats(stats: GameStatsSnapshot): void {
+    const totalSec = Math.floor(stats.duration);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    const duration = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+
+    this.statsEl.innerHTML = [
+      `Duration          ${duration}`,
+      `Units produced    ${stats.unitsProduced}`,
+      `Units lost        ${stats.unitsLost}`,
+      `Resources gathered  ${Math.floor(stats.resourcesGathered)}`,
+      `Damage dealt      ${Math.floor(stats.damageDealt)}`,
+      `Damage taken      ${Math.floor(stats.damageTaken)}`,
+      `APM               ${stats.apm}`,
+      `Waves defeated    ${stats.wavesDefeated}`,
+    ].map(line => `<div>${line}</div>`).join('');
+    this.statsEl.style.display = 'block';
   }
 
   private show(title: string, subtitle: string, color: string): void {

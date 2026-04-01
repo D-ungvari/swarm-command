@@ -60,19 +60,19 @@ import { GameCommandQueue } from './input/CommandQueue';
 import { InputProcessor } from './input/InputProcessor';
 import { buildSystem } from './systems/BuildSystem';
 import { productionSystem } from './systems/ProductionSystem';
-import { combatSystem } from './systems/CombatSystem';
+import { combatSystem, getLastTerranHit, damageEvents } from './systems/CombatSystem';
 import { abilitySystem } from './systems/AbilitySystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
 import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import { upgradeSystem } from './systems/UpgradeSystem';
-import { getLastTerranHit } from './systems/CombatSystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import { WaypointRenderer } from './rendering/WaypointRenderer';
 import { ProjectileRenderer } from './rendering/ProjectileRenderer';
 import type { PlayerResources } from './types';
 import { soundManager } from './audio/SoundManager';
+import { GameStats } from './stats/GameStats';
 
 export class Game {
   app!: Application;
@@ -118,6 +118,11 @@ export class Game {
   private accumulator = 0;
   private lastTime = 0;
   private gameTime = 0;
+
+  // Stats tracking
+  private stats = new GameStats();
+  private lastWaveCount = 0;
+  private gameEnded = false;
 
   constructor() {
     this.world = createWorld();
@@ -254,25 +259,64 @@ export class Game {
   private applySelectionCommands(): void {
     const cmds = this.selectionQueue.flush();
     if (cmds.length > 0) {
+      this.stats.recordAction();
       selectionSystem(this.world, cmds, this.viewport);
     }
   }
 
   private tick(dt: number): void {
     this.gameTime += dt;
+
+    // APM: count simulation commands issued this tick
+    if (this.simulationQueue.length > 0) {
+      this.stats.recordAction();
+    }
     commandSystem(this.world, this.simulationQueue.flush(), this.viewport, this.map, this.gameTime, this.resources);
     buildSystem(this.world, dt, this.resources);
     productionSystem(this.world, dt, this.resources, this.map,
-      (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y));
+      (type, fac, x, y) => {
+        const eid = this.spawnUnitAt(type, fac, x, y);
+        if (fac === Faction.Terran) this.stats.recordUnitProduced();
+        return eid;
+      });
     upgradeSystem(this.world, dt, this.resources);
     movementSystem(this.world, dt, this.map);
+
+    // Snapshot resources before gather to calculate income delta
+    const res = this.resources[Faction.Terran];
+    const resBefore = res.minerals + res.gas;
     combatSystem(this.world, dt, this.gameTime, this.map, this.resources);
     abilitySystem(this.world, dt, this.gameTime);
     gatherSystem(this.world, dt, this.map, this.resources);
+    const resAfter = res.minerals + res.gas;
+    const gathered = resAfter - resBefore;
+    if (gathered > 0) this.stats.recordResourceGathered(gathered);
+
+    // Tally damage dealt/taken from this tick's damage events
+    for (const evt of damageEvents) {
+      if (evt.time === this.gameTime) {
+        if (evt.color === 0xaaddff) {
+          // Zerg victim = damage dealt by Terran
+          this.stats.recordDamageDealt(evt.amount);
+        } else {
+          // Terran victim = damage taken
+          this.stats.recordDamageTaken(evt.amount);
+        }
+      }
+    }
+
     deathSystem(this.world, this.gameTime, this.map, this.resources);
     aiSystem(this.world, dt, this.gameTime, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources);
     fogSystem(this.world);
+
+    // Track waves defeated
+    const aiState = getAIState();
+    if (aiState.waveCount > this.lastWaveCount) {
+      const newWaves = aiState.waveCount - this.lastWaveCount;
+      for (let i = 0; i < newWaves; i++) this.stats.recordWaveDefeated();
+      this.lastWaveCount = aiState.waveCount;
+    }
   }
 
   private render(): void {
@@ -286,14 +330,19 @@ export class Game {
     this.fogRenderer.render();
     const res = this.resources[Faction.Terran];
     const workerCount = this.countWorkers();
-    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades);
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime));
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode);
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world);
 
+    const wasShown = this.gameOverRenderer.isShown;
     this.gameOverRenderer.update(this.world, this.gameTime);
+    if (!wasShown && this.gameOverRenderer.isShown && !this.gameEnded) {
+      this.gameEnded = true;
+      this.gameOverRenderer.setStats(this.stats.getSnapshot(this.gameTime));
+    }
 
     // AI attack warning — jump camera to base on attack
     const aiState = getAIState();

@@ -9,6 +9,7 @@ export class HudRenderer {
   private timerEl: HTMLSpanElement;
   private workerEl: HTMLSpanElement;
   private upgradeEl: HTMLDivElement;
+  private apmEl: HTMLSpanElement;
 
   constructor(container: HTMLElement) {
     const hud = document.createElement('div');
@@ -75,6 +76,17 @@ export class HudRenderer {
     this.timerEl.textContent = '0:00';
     timerDiv.appendChild(this.timerEl);
 
+    // APM
+    const apmDiv = this.makeDiv();
+    const apmLabel = document.createElement('span');
+    apmLabel.style.color = '#888';
+    apmLabel.textContent = 'APM:';
+    this.apmEl = document.createElement('span');
+    this.apmEl.style.color = '#ffaa44';
+    this.apmEl.textContent = '0';
+    apmDiv.appendChild(apmLabel);
+    apmDiv.appendChild(this.apmEl);
+
     this.upgradeEl = document.createElement('div');
     this.upgradeEl.style.cssText = 'color: #88aaff; font-size: 11px; margin-top: 2px;';
 
@@ -83,6 +95,7 @@ export class HudRenderer {
     hud.appendChild(supplyDiv);
     hud.appendChild(workerDiv);
     hud.appendChild(timerDiv);
+    hud.appendChild(apmDiv);
     hud.appendChild(this.upgradeEl);
     container.appendChild(hud);
   }
@@ -95,7 +108,7 @@ export class HudRenderer {
     return div;
   }
 
-  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array): void {
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
@@ -107,6 +120,10 @@ export class HudRenderer {
     const min = Math.floor(totalSec / 60);
     const sec = totalSec % 60;
     this.timerEl.textContent = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+
+    if (apm !== undefined) {
+      this.apmEl.textContent = String(apm);
+    }
 
     if (upgrades) {
       const w = upgrades[0]; // InfantryWeapons

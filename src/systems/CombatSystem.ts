@@ -7,9 +7,11 @@ import {
   movePathIndex, setPath,
   unitType,
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
+  atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
 } from '../ecs/components';
-import { findClosestEnemy } from '../ecs/queries';
-import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction } from '../constants';
+import { findBestTarget } from '../ecs/queries';
+import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, DamageType, ArmorClass } from '../constants';
+import { getDamageMultiplier } from '../combat/damageCalc';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
 import { isTileVisible } from './FogSystem';
@@ -97,7 +99,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       // Search with a generous aggro range: max of attack range and 6 tiles (192px)
       // This ensures melee units detect ranged attackers shooting them
       const aggroRange = Math.max(range, 6 * TILE_SIZE);
-      const enemy = findClosestEnemy(world, eid, aggroRange);
+      const enemy = findBestTarget(world, eid, aggroRange);
       if (enemy > 0) {
         // Terran units can't auto-acquire targets hidden in fog
         const myFac = faction[eid] as Faction;
@@ -130,6 +132,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         continue;
       }
       // Target out of range — chase (unless pure Move mode)
+      // AttackTarget: chase the explicit target regardless of distance until it dies.
+      // Auto-acquire (findBestTarget) will never override a live explicit target
+      // because targetEntity[eid] is only cleared on target death (above).
       if (commandMode[eid] !== CommandMode.Move) {
         chaseTarget(eid, tgt, map);
       }
@@ -149,8 +154,16 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // Stop moving while attacking
     movePathIndex[eid] = -1;
 
+    // Compute actual damage with type modifier and armor reduction
+    const mult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[tgt] as ArmorClass);
+    const rawDmg = Math.max(1, (atkDamage[eid] * mult) - baseArmor[tgt]);
+
+    // Commit damage to pending (overkill prevention tracks this)
+    pendingDamage[tgt] += rawDmg;
+
     // Apply damage
-    hpCurrent[tgt] -= atkDamage[eid];
+    hpCurrent[tgt] -= rawDmg;
+    pendingDamage[tgt] = Math.max(0, pendingDamage[tgt] - rawDmg);
 
     // Push damage event for floating indicator
     if (damageEvents.length < MAX_DAMAGE_EVENTS) {
@@ -160,10 +173,15 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       damageEvents.push({
         x: posX[tgt],
         y: posY[tgt],
-        amount: atkDamage[eid],
+        amount: rawDmg,
         time: gameTime,
         color: dmgColor,
       });
+    }
+
+    if (hpCurrent[tgt] <= 0) {
+      killCount[eid]++;
+      pendingDamage[tgt] = 0; // prevent stale pending on entity recycling
     }
 
     // Track Terran under-attack for player alerts
@@ -206,7 +224,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         const sdx = posX[other] - tx;
         const sdy = posY[other] - ty;
         if (sdx * sdx + sdy * sdy <= splashRangeSq) {
-          hpCurrent[other] -= atkDamage[eid];
+          const sMult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[other] as ArmorClass);
+          const sDmg = Math.max(1, (atkDamage[eid] * sMult) - baseArmor[other]);
+          hpCurrent[other] -= sDmg;
           lastCombatTime[other] = gameTime;
 
           // Splash damage event
@@ -216,10 +236,15 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
             damageEvents.push({
               x: posX[other],
               y: posY[other],
-              amount: atkDamage[eid],
+              amount: sDmg,
               time: gameTime,
               color: splashColor,
             });
+          }
+
+          if (hpCurrent[other] <= 0) {
+            killCount[eid]++;
+            pendingDamage[other] = 0;
           }
         }
       }

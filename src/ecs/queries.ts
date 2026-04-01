@@ -4,6 +4,7 @@ import {
   posX, posY, renderWidth, renderHeight, faction, hpCurrent, atkRange,
   resourceRemaining, resourceType,
   buildingType, buildState,
+  atkDamage, targetEntity, pendingDamage,
 } from './components';
 import { type Faction, ResourceType, BuildingType, BuildState } from '../constants';
 
@@ -229,4 +230,62 @@ export function findNearestCommandCenter(world: World, fac: Faction, wx: number,
   }
 
   return closestEid;
+}
+
+/**
+ * Find the best enemy target for auto-acquire, using SC2-style priority scoring.
+ *
+ * Priority (lower = higher priority):
+ *   0 — enemy is targeting ME (retaliation)
+ *   1 — armed non-building unit
+ *   2 — unarmed non-building unit (worker, Medivac)
+ *   3 — building
+ *
+ * Within each tier, prefer the closest entity.
+ * Overkill prevention: skip targets where pendingDamage >= hpCurrent.
+ */
+export function findBestTarget(world: World, eid: number, range: number): number {
+  const myFac = faction[eid];
+  const rangeSq = range * range;
+
+  // Track best candidate per priority tier [0..3]
+  const bestEid = [0, 0, 0, 0];
+  const bestDist = [Infinity, Infinity, Infinity, Infinity];
+
+  for (let other = 1; other < world.nextEid; other++) {
+    if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+    if (faction[other] === myFac || faction[other] === 0) continue;
+    if (hpCurrent[other] <= 0) continue;
+
+    // Overkill prevention: skip over-committed targets
+    if (pendingDamage[other] >= hpCurrent[other]) continue;
+
+    const dx = posX[other] - posX[eid];
+    const dy = posY[other] - posY[eid];
+    const distSq = dx * dx + dy * dy;
+    if (distSq > rangeSq) continue;
+
+    // Priority scoring
+    let score: number;
+    if (targetEntity[other] === eid) {
+      score = 0; // retaliating
+    } else if (!hasComponents(world, other, BUILDING) && atkDamage[other] > 0) {
+      score = 1; // armed unit
+    } else if (!hasComponents(world, other, BUILDING)) {
+      score = 2; // unarmed unit (worker/Medivac)
+    } else {
+      score = 3; // building
+    }
+
+    if (distSq < bestDist[score]) {
+      bestDist[score] = distSq;
+      bestEid[score] = other;
+    }
+  }
+
+  // Return highest-priority candidate
+  for (let s = 0; s <= 3; s++) {
+    if (bestEid[s] > 0) return bestEid[s];
+  }
+  return 0;
 }

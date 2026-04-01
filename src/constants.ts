@@ -102,6 +102,17 @@ export const enum SiegeMode {
   Unpacking = 3,
 }
 
+export const enum DamageType {
+  Normal = 0,
+  Concussive = 1,
+  Explosive = 2,
+}
+
+export const enum ArmorClass {
+  Light = 0,
+  Armored = 1,
+}
+
 // ── Ability constants ──
 // Stim Pack (Marine)
 export const STIM_DURATION = 7.0;

@@ -67,6 +67,18 @@ export const commandMode = new Uint8Array(MAX_ENTITIES);
 // ── Attack flash timer (seconds remaining) ──
 export const atkFlashTimer = new Float32Array(MAX_ENTITIES);
 
+// ── Damage type & armor ──
+/** DamageType enum: Normal=0, Concussive=1, Explosive=2 */
+export const atkDamageType = new Uint8Array(MAX_ENTITIES);
+/** ArmorClass enum: Light=0, Armored=1 */
+export const armorClass = new Uint8Array(MAX_ENTITIES);
+/** Flat damage reduction applied before final damage (upgraded by armor upgrades) */
+export const baseArmor = new Float32Array(MAX_ENTITIES);
+/** Sum of committed incoming damage from pending attacks — used for overkill prevention */
+export const pendingDamage = new Float32Array(MAX_ENTITIES);
+/** Lifetime kill count for this entity */
+export const killCount = new Uint16Array(MAX_ENTITIES);
+
 // ── Ability: Stim Pack ──
 /** gameTime when stim expires, 0 = not stimmed */
 export const stimEndTime = new Float32Array(MAX_ENTITIES);
@@ -204,6 +216,8 @@ export function resetComponents(eid: number): void {
   hpCurrent[eid] = 0; hpMax[eid] = 0;
   atkDamage[eid] = 0; atkRange[eid] = 0; atkCooldown[eid] = 0;
   atkLastTime[eid] = 0; atkSplash[eid] = 0;
+  atkDamageType[eid] = 0; armorClass[eid] = 0; baseArmor[eid] = 0;
+  pendingDamage[eid] = 0; killCount[eid] = 0;
   moveSpeed[eid] = 0; moveTargetX[eid] = -1; moveTargetY[eid] = -1;
   movePathIndex[eid] = -1;
   selected[eid] = 0; faction[eid] = 0;

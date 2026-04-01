@@ -4,7 +4,7 @@ import {
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   resourceRemaining, resourceType, unitType,
-  selected, hpCurrent, hpMax, faction, renderTint,
+  selected, hpCurrent, hpMax, faction, renderTint, killCount,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
@@ -319,7 +319,8 @@ export class InfoPanelRenderer {
 
       const fac = faction[eid] as Faction;
       const facName = fac === Faction.Terran ? 'Terran' : fac === Faction.Zerg ? 'Zerg' : '';
-      this.detailEl.textContent = facName;
+      const kills = killCount[eid];
+      this.detailEl.textContent = kills > 0 ? `${facName}  Kills: ${kills}` : facName;
 
       if (hasComponents(world, eid, HEALTH)) {
         const hp = hpCurrent[eid];

@@ -7,7 +7,7 @@ import {
   MS_PER_TICK, Faction, UnitType, ResourceType, BuildingType, BuildState,
   MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
-  TileType, CommandMode, WorkerState,
+  TileType, CommandMode, WorkerState, ArmorClass,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
@@ -17,6 +17,7 @@ import {
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
   atkDamage, atkRange, atkCooldown, atkLastTime, movePathIndex,
+  atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
   targetEntity, commandMode,
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd, lastCombatTime,
@@ -784,6 +785,11 @@ export class Game {
     atkRange[eid] = def.range * TILE_SIZE;
     atkCooldown[eid] = def.attackCooldown;
     atkLastTime[eid] = 0;
+    atkDamageType[eid] = def.damageType;
+    armorClass[eid] = def.armorClass;
+    baseArmor[eid] = def.armorClass === ArmorClass.Armored ? 1 : 0;
+    pendingDamage[eid] = 0;
+    killCount[eid] = 0;
     targetEntity[eid] = -1;
     commandMode[eid] = 0;
     stimEndTime[eid] = 0;

@@ -1,4 +1,4 @@
-import { Faction, UnitType, TERRAN_COLOR, ZERG_COLOR } from '../constants';
+import { Faction, UnitType, DamageType, ArmorClass, TERRAN_COLOR, ZERG_COLOR } from '../constants';
 import type { UnitDef } from '../types';
 
 export const UNIT_DEFS: Record<number, UnitDef> = {
@@ -11,6 +11,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1000, splashRadius: 0,
     width: 14, height: 14, color: TERRAN_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 12,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
   [UnitType.Marine]: {
     type: UnitType.Marine,
@@ -20,6 +21,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 600, splashRadius: 0,
     width: 12, height: 12, color: TERRAN_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 18,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
   [UnitType.Marauder]: {
     type: UnitType.Marauder,
@@ -29,6 +31,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1200, splashRadius: 0,
     width: 16, height: 16, color: TERRAN_COLOR,
     costMinerals: 100, costGas: 25, buildTime: 21,
+    damageType: DamageType.Concussive, armorClass: ArmorClass.Armored,
   },
   [UnitType.SiegeTank]: {
     type: UnitType.SiegeTank,
@@ -38,6 +41,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1500, splashRadius: 0,
     width: 20, height: 20, color: TERRAN_COLOR,
     costMinerals: 150, costGas: 125, buildTime: 30,
+    damageType: DamageType.Explosive, armorClass: ArmorClass.Armored,
   },
   [UnitType.Medivac]: {
     type: UnitType.Medivac,
@@ -47,6 +51,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 0, splashRadius: 0,
     width: 18, height: 18, color: TERRAN_COLOR,
     costMinerals: 100, costGas: 100, buildTime: 30,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
 
   // ── Zerg ──
@@ -58,6 +63,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1000, splashRadius: 0,
     width: 12, height: 12, color: ZERG_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 12,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
   [UnitType.Zergling]: {
     type: UnitType.Zergling,
@@ -67,6 +73,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 400, splashRadius: 0,
     width: 10, height: 10, color: ZERG_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 17,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
   [UnitType.Baneling]: {
     type: UnitType.Baneling,
@@ -76,6 +83,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 0, splashRadius: 2,
     width: 12, height: 12, color: 0x44cc44,
     costMinerals: 50, costGas: 25, buildTime: 14,
+    damageType: DamageType.Explosive, armorClass: ArmorClass.Light,
   },
   [UnitType.Hydralisk]: {
     type: UnitType.Hydralisk,
@@ -85,6 +93,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 700, splashRadius: 0,
     width: 14, height: 14, color: ZERG_COLOR,
     costMinerals: 100, costGas: 50, buildTime: 24,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
   [UnitType.Roach]: {
     type: UnitType.Roach,
@@ -94,5 +103,6 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1000, splashRadius: 0,
     width: 16, height: 16, color: ZERG_COLOR,
     costMinerals: 75, costGas: 25, buildTime: 19,
+    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
   },
 };

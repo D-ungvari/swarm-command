@@ -25,6 +25,7 @@ import {
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
   lastCombatTime,
+  atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
   resourceType, resourceRemaining,
   workerState, workerCarrying, workerTargetEid, workerMineTimer,
   workerBaseX, workerBaseY,
@@ -69,6 +70,8 @@ export const CommandType = {
   Produce: 11, Cancel: 12, Select: 13, BoxSelect: 14, AddSelect: 15,
   DoubleClickSelect: 16, ControlGroupAssign: 17, ControlGroupRecall: 18,
 } as const;
+export const DamageType = { Normal: 0, Concussive: 1, Explosive: 2 } as const;
+export const ArmorClass = { Light: 0, Armored: 1 } as const;
 
 export interface SpawnOpts {
   x?: number;
@@ -83,6 +86,8 @@ export interface SpawnOpts {
   unitTypeId?: number;
   width?: number;
   height?: number;
+  damageTypeId?: number;  // DamageType value
+  armorClassId?: number;  // ArmorClass value
 }
 
 /** Create a fresh world for a single test. */
@@ -125,6 +130,13 @@ export function spawnUnit(world: World, opts: SpawnOpts = {}): number {
   siegeMode[eid] = 0;
   siegeTransitionEnd[eid] = 0;
   lastCombatTime[eid] = 0;
+
+  // Damage type & armor
+  atkDamageType[eid] = opts.damageTypeId ?? 0;  // DamageType.Normal
+  armorClass[eid] = opts.armorClassId ?? 0;      // ArmorClass.Light
+  baseArmor[eid] = opts.armorClassId === 1 ? 1 : 0;
+  pendingDamage[eid] = 0;
+  killCount[eid] = 0;
 
   return eid;
 }

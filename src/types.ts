@@ -33,6 +33,8 @@ export interface UnitDef {
   costMinerals: number;
   costGas: number;
   buildTime: number;
+  damageType: number;
+  armorClass: number;
 }
 
 /** Building stat definition from data tables */

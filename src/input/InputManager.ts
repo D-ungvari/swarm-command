@@ -1,3 +1,5 @@
+import { isTouchDevice } from '../utils/DeviceDetect';
+
 /** Tracks mouse and keyboard state each frame */
 export interface MouseState {
   x: number;
@@ -34,6 +36,13 @@ export class InputManager {
   private rawKeysDown = new Set<string>();
   private rawKeysJustPressed = new Set<string>();
   private lastClickTime = 0;
+  private lastTouchX = 0;
+  private lastTouchY = 0;
+  private touchStarted2Fingers = false;
+  private touch1StartTime = 0;
+  private touch1StartX = 0;
+  private touch1StartY = 0;
+  private touch2StartTime = 0;
 
   // Buffered events — survive even if mousedown+mouseup happens between frames
   private pendingMouseEvents: Array<{
@@ -107,6 +116,88 @@ export class InputManager {
     window.addEventListener('keyup', (e) => {
       this.rawKeysDown.delete(e.code);
     });
+
+    // ── Touch event layer (translates touch → pendingMouseEvents) ──
+    if (isTouchDevice) {
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+          // Single touch: treat as left-click
+          const t = e.touches[0];
+          this.rawX = t.clientX;
+          this.rawY = t.clientY;
+          this.lastTouchX = t.clientX;
+          this.lastTouchY = t.clientY;
+          this.rawLeftDown = true;
+          this.touchStarted2Fingers = false;
+          this.touch1StartTime = performance.now();
+          this.touch1StartX = t.clientX;
+          this.touch1StartY = t.clientY;
+          const now = performance.now();
+          const isDouble = now - this.lastClickTime < 300;
+          this.lastClickTime = now;
+          this.pendingMouseEvents.push({
+            type: 'leftdown',
+            x: t.clientX, y: t.clientY,
+            time: now, isDouble: isDouble || undefined,
+          });
+        } else if (e.touches.length === 2) {
+          // Two-finger gesture: may be pinch-zoom or two-finger tap (= right-click)
+          if (!this.touchStarted2Fingers) {
+            this.touchStarted2Fingers = true;
+            this.touch2StartTime = performance.now();
+            // If 1-finger drag was in progress, cancel it gracefully
+            if (this.rawLeftDown) {
+              this.rawLeftDown = false;
+              this.pendingMouseEvents.push({
+                type: 'leftup',
+                x: this.lastTouchX, y: this.lastTouchY,
+                time: performance.now(),
+              });
+            }
+          }
+        }
+      }, { passive: false });
+
+      el.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && !this.touchStarted2Fingers) {
+          const t = e.touches[0];
+          this.rawX = t.clientX;
+          this.rawY = t.clientY;
+          this.lastTouchX = t.clientX;
+          this.lastTouchY = t.clientY;
+        }
+        // 2-finger move handled by pixi-viewport
+      }, { passive: false });
+
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 0) {
+          if (this.touchStarted2Fingers) {
+            // Check if this was a two-finger TAP (quick tap, no movement)
+            const elapsed = performance.now() - this.touch2StartTime;
+            if (elapsed < 300) {
+              // Two-finger tap = right-click (move/attack command)
+              this.pendingMouseEvents.push({
+                type: 'rightdown',
+                x: this.lastTouchX, y: this.lastTouchY,
+                time: performance.now(),
+              });
+            }
+            this.touchStarted2Fingers = false;
+          } else {
+            // Single-touch release
+            this.rawLeftDown = false;
+            this.pendingMouseEvents.push({
+              type: 'leftup',
+              x: this.lastTouchX, y: this.lastTouchY,
+              time: performance.now(),
+            });
+          }
+        }
+      }, { passive: false });
+    }
   }
 
   /** Call once per frame to snapshot input state */
@@ -138,7 +229,8 @@ export class InputManager {
     if (this.rawLeftDown && !m.isDragging) {
       const dx = m.x - m.dragStartX;
       const dy = m.y - m.dragStartY;
-      if (dx * dx + dy * dy > 100) { // 10px threshold — prevents tiny mouse movements during clicks from triggering drag
+      const threshold = isTouchDevice ? 400 : 100; // 20px touch, 10px mouse
+      if (dx * dx + dy * dy > threshold) {
         m.isDragging = true;
       }
     }

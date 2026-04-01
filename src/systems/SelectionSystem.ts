@@ -25,6 +25,7 @@ export function selectionSystem(
   commands: GameCommand[],
   viewport: Viewport,
   playerFaction: Faction = Faction.Terran,
+  extraTolerance = 0,
 ): void {
   for (const cmd of commands) {
     switch (cmd.type) {
@@ -59,7 +60,7 @@ export function selectionSystem(
         // Single click — sx/sy are screen coords
         if (!cmd.shiftHeld) clearSelection(world);
         const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
-        const closest = findUnitAt(world, worldPos.x, worldPos.y);
+        const closest = findUnitAt(world, worldPos.x, worldPos.y, extraTolerance);
         if (closest > 0) {
           const fac = faction[closest];
           if (fac === playerFaction || fac === Faction.None) {
@@ -83,7 +84,7 @@ export function selectionSystem(
         // Double-click: select all on-screen units of same type
         if (!cmd.shiftHeld) clearSelection(world);
         const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
-        const closest = findUnitAt(world, worldPos.x, worldPos.y);
+        const closest = findUnitAt(world, worldPos.x, worldPos.y, extraTolerance);
         if (closest > 0 && faction[closest] === playerFaction && hasComponents(world, closest, UNIT_TYPE)) {
           selected[closest] = 1;
           const uType = unitType[closest];
@@ -176,7 +177,7 @@ function cycleSubgroup(world: World, playerFaction: Faction): void {
   }
 }
 
-function findUnitAt(world: World, wx: number, wy: number): number {
+function findUnitAt(world: World, wx: number, wy: number, extraTolerance = 0): number {
   const bits = POSITION | SELECTABLE | RENDERABLE;
   const TOLERANCE = 12;
 
@@ -188,8 +189,8 @@ function findUnitAt(world: World, wx: number, wy: number): number {
     if (hasComponents(world, eid, BUILDING)) continue; // skip buildings in pass 1
     const dx = posX[eid] - wx;
     const dy = posY[eid] - wy;
-    const halfW = renderWidth[eid] / 2 + TOLERANCE;
-    const halfH = renderHeight[eid] / 2 + TOLERANCE;
+    const halfW = renderWidth[eid] / 2 + TOLERANCE + extraTolerance;
+    const halfH = renderHeight[eid] / 2 + TOLERANCE + extraTolerance;
     if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
       const dist = dx * dx + dy * dy;
       if (dist < closestDist) { closestDist = dist; closestEid = eid; }
@@ -203,8 +204,8 @@ function findUnitAt(world: World, wx: number, wy: number): number {
     if (!hasComponents(world, eid, BUILDING)) continue; // only buildings in pass 2
     const dx = posX[eid] - wx;
     const dy = posY[eid] - wy;
-    const halfW = renderWidth[eid] / 2 + TOLERANCE;
-    const halfH = renderHeight[eid] / 2 + TOLERANCE;
+    const halfW = renderWidth[eid] / 2 + TOLERANCE + extraTolerance;
+    const halfH = renderHeight[eid] / 2 + TOLERANCE + extraTolerance;
     if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
       const dist = dx * dx + dy * dy;
       if (dist < closestDist) { closestDist = dist; closestEid = eid; }

@@ -84,6 +84,8 @@ import { GameStats } from './stats/GameStats';
 import { consumeCameraShake } from './rendering/CameraShake';
 import { seedRng } from './utils/SeededRng';
 import { CommandRecorder, type ReplayFrame } from './replay/CommandRecorder';
+import { isTouchDevice } from './utils/DeviceDetect';
+import { TouchCommandBar } from './rendering/TouchCommandBar';
 
 export class Game {
   app!: Application;
@@ -137,6 +139,7 @@ export class Game {
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
   private debugOverlay!: DebugOverlay;
+  private touchCommandBar?: TouchCommandBar;
   private difficulty: Difficulty = Difficulty.Normal;
   private mapType: MapType = 0 as MapType; // MapType.Plains = 0
   private lastAIAttacking = false;
@@ -233,7 +236,7 @@ export class Game {
     this.app.stage.addChild(this.viewport);
 
     this.viewport
-      .drag({ mouseButtons: 'middle' })
+      .drag({ mouseButtons: 'middle' }) // 'middle' = button 2; touch events use button 0, so touch drag is already blocked
       .pinch()
       .wheel()
       .clampZoom({ minScale: MIN_ZOOM, maxScale: MAX_ZOOM })
@@ -262,6 +265,21 @@ export class Game {
       this.world,
       this.playerFaction,
     );
+
+    if (isTouchDevice) {
+      this.touchCommandBar = new TouchCommandBar(
+        container,
+        this.simulationQueue,
+        this.inputProcessor,
+        () => {
+          const out: number[] = [];
+          for (let eid = 1; eid < this.world.nextEid; eid++) {
+            if (selected[eid] === 1 && faction[eid] === this.playerFaction) out.push(eid);
+          }
+          return out;
+        },
+      );
+    }
 
     this.tilemapRenderer = new TilemapRenderer();
     this.viewport.addChild(this.tilemapRenderer.container);
@@ -415,7 +433,8 @@ export class Game {
     const cmds = this.selectionQueue.flushWithRecord(this.recorder, this.tickCount, this.gameTime);
     if (cmds.length > 0) {
       this.stats.recordAction();
-      selectionSystem(this.world, cmds, this.viewport, this.playerFaction);
+      const touchExtra = isTouchDevice ? 8 / this.viewport.scale.x : 0;
+      selectionSystem(this.world, cmds, this.viewport, this.playerFaction, touchExtra);
     }
   }
 
@@ -520,6 +539,18 @@ export class Game {
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated, this.mineralIncomeRate, this.gasIncomeRate);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
+    // Touch command bar update
+    if (this.touchCommandBar) {
+      const selectedTypes = new Set<number>();
+      let anySelected = false;
+      for (let eid = 1; eid < this.world.nextEid; eid++) {
+        if (selected[eid] === 1 && faction[eid] === this.playerFaction) {
+          selectedTypes.add(unitType[eid]);
+          anySelected = true;
+        }
+      }
+      this.touchCommandBar.update(selectedTypes, anySelected);
+    }
     this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode, this.inputProcessor.isPatrolPending);
     if (this.paused) {
       this.modeIndicatorRenderer.showPaused();
@@ -993,6 +1024,8 @@ export class Game {
   }
 
   private handleEdgeScroll(): void {
+    // Suppress edge-scroll on touch when finger-dragging (would jump camera unintentionally)
+    if (isTouchDevice && this.input.state.mouse.isDragging) return;
     const m = this.input.state.mouse;
     const sw = window.innerWidth;
     const sh = window.innerHeight;

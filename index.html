@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Swarm Command — Browser RTS</title>
   <meta name="description" content="StarCraft-inspired real-time strategy game built with TypeScript and PixiJS. Terran vs Zerg in your browser." />
   <meta property="og:title" content="Swarm Command — Browser RTS" />
@@ -135,10 +135,22 @@
   </div>
   <div id="game-container"></div>
   <script>
-    if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
-      document.querySelector('.subtitle')?.insertAdjacentHTML('afterend',
-        '<p style="color:#ffaa44;font-size:12px;margin:8px 0;">⚠️ Best played on desktop with keyboard + mouse</p>'
-      );
+    var isTouchDev = (('ontouchstart' in window) || navigator.maxTouchPoints > 0);
+    if (isTouchDev) {
+      // Show touch instructions instead of desktop warning
+      document.addEventListener('DOMContentLoaded', function() {
+        var sub = document.querySelector('.subtitle');
+        if (sub) {
+          var hint = document.createElement('p');
+          hint.style.cssText = 'color:#66aacc;font-size:12px;margin:6px 0 0;';
+          hint.textContent = 'Touch: tap to select · two-finger tap to move · pinch to zoom';
+          sub.insertAdjacentElement('afterend', hint);
+        }
+        // Increase tap target size for all selects and buttons on touch
+        document.querySelectorAll('select, button').forEach(function(el) {
+          el.style.minHeight = '44px';
+        });
+      });
     }
   </script>
   <script>
@@ -171,5 +183,29 @@
     });
   </script>
   <script type="module" src="/src/main.ts"></script>
+
+<!-- Portrait orientation overlay (CSS handles display) -->
+<div id="portrait-overlay" style="
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0a0a0a;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: #88bbff;
+  font-family: monospace;
+  text-align: center;
+  gap: 16px;
+">
+  <div style="font-size: 48px;">⟳</div>
+  <div style="font-size: 16px; letter-spacing: 2px;">ROTATE DEVICE</div>
+  <div style="font-size: 12px; color: #557799;">Swarm Command requires landscape orientation</div>
+</div>
+
+<style>
+@media (orientation: portrait) {
+  #portrait-overlay { display: flex !important; }
+}
+</style>
 </body>
 </html>

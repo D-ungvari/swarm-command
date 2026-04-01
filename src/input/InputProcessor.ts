@@ -38,6 +38,30 @@ export class InputProcessor {
     return this.fungalPending;
   }
 
+  /** Allow external UI (TouchCommandBar) to set attack-move mode */
+  setAttackMovePending(v: boolean): void {
+    this.attackMovePending = v;
+  }
+
+  /** Allow external UI (TouchCommandBar) to set patrol mode */
+  setPatrolPending(v: boolean): void {
+    this.patrolPending = v;
+  }
+
+  /** Allow external UI (TouchCommandBar) to set corrosive bile mode */
+  setCorrosiveBilePending(v: boolean): void {
+    this.corrosiveBilePending = v;
+  }
+
+  /** Allow external UI (TouchCommandBar) to set fungal growth mode */
+  setFungalPending(v: boolean): void {
+    this.fungalPending = v;
+  }
+
+  pushSimulation(cmd: GameCommand): void {
+    this.simulationQueue.push(cmd);
+  }
+
   /** Call once per frame, after InputManager.update(), before the tick loop. */
   processFrame(): void {
     const state = this.input.state;

@@ -151,6 +151,22 @@ export const larvaRegenTimer = new Float32Array(MAX_ENTITIES);
 /** GameTime when inject larva completes (0 = no inject active) */
 export const injectTimer = new Float32Array(MAX_ENTITIES);
 
+// ── Ability: Corrosive Bile (Ravager) ──
+/** gameTime when the bile impacts the target location, 0 = inactive */
+export const bileLandTime = new Float32Array(MAX_ENTITIES);
+/** World X position of the bile impact */
+export const bileLandX = new Float32Array(MAX_ENTITIES);
+/** World Y position of the bile impact */
+export const bileLandY = new Float32Array(MAX_ENTITIES);
+
+// ── Ability: Fungal Growth (Infestor) ──
+/** gameTime when the fungal growth impacts the target location, 0 = inactive */
+export const fungalLandTime = new Float32Array(MAX_ENTITIES);
+/** World X position of the fungal impact */
+export const fungalLandX = new Float32Array(MAX_ENTITIES);
+/** World Y position of the fungal impact */
+export const fungalLandY = new Float32Array(MAX_ENTITIES);
+
 // ── Addon (Tech Lab / Reactor) ──
 /** 0=none, 1=TechLab, 2=Reactor */
 export const addonType = new Uint8Array(MAX_ENTITIES);
@@ -295,6 +311,12 @@ export function resetComponents(eid: number): void {
   larvaCount[eid] = 0;
   larvaRegenTimer[eid] = 0;
   injectTimer[eid] = 0;
+  bileLandTime[eid] = 0;
+  bileLandX[eid] = 0;
+  bileLandY[eid] = 0;
+  fungalLandTime[eid] = 0;
+  fungalLandX[eid] = 0;
+  fungalLandY[eid] = 0;
   addonType[eid] = 0;
   buildingType[eid] = 0;
   buildState[eid] = 0;

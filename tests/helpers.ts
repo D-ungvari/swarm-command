@@ -77,6 +77,7 @@ export const CommandType = {
   Produce: 11, Cancel: 12, Select: 13, BoxSelect: 14, AddSelect: 15,
   DoubleClickSelect: 16, ControlGroupAssign: 17, ControlGroupRecall: 18,
   CycleSubgroup: 19, Cloak: 20, InjectLarva: 21,
+  Yamato: 22, CorrosiveBile: 23, FungalGrowth: 24, Abduct: 25,
 } as const;
 export const DamageType = { Normal: 0, Concussive: 1, Explosive: 2 } as const;
 export const ArmorClass = { Light: 0, Armored: 1 } as const;

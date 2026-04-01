@@ -1211,8 +1211,14 @@ export class Game {
     canTargetGround[eid] = def.canTargetGround;
     canTargetAir[eid] = def.canTargetAir;
 
-    // Ghost energy setup
+    // Energy setup for caster units
     if (type === UnitType.Ghost) {
+      energy[eid] = 200; // start with full energy
+    }
+    if (type === UnitType.Infestor) {
+      energy[eid] = 200; // start with full energy
+    }
+    if (type === UnitType.Viper) {
       energy[eid] = 200; // start with full energy
     }
 

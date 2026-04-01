@@ -13,6 +13,9 @@ import {
   cloaked,
   energy, injectTimer,
   isAir, canTargetGround, canTargetAir, atkRange, atkDamage,
+  atkLastTime,
+  bileLandTime, bileLandX, bileLandY,
+  fungalLandTime, fungalLandX, fungalLandY,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -30,6 +33,8 @@ import {
 import type { PlayerResources } from '../types';
 import type { Viewport } from 'pixi-viewport';
 import { addCommandPing } from '../rendering/UnitRenderer';
+import { emitProjectile } from '../rendering/ProjectileRenderer';
+import { damageEvents } from './CombatSystem';
 
 /**
  * Translates queued game commands into move/attack/attack-move commands for selected units.
@@ -108,6 +113,120 @@ export function commandSystem(
           if (best === 0) continue;
           energy[qEid] -= INJECT_LARVA_COST;
           injectTimer[best] = gameTime + INJECT_LARVA_TIME;
+        }
+        break;
+      }
+
+      case CommandType.Yamato: {
+        if (!cmd.units) break;
+        const YAMATO_RANGE = 10 * TILE_SIZE;
+        const YAMATO_COOLDOWN = 71; // seconds
+        const YAMATO_DAMAGE = 240;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Battlecruiser) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          // Use atkLastTime for cooldown tracking (reuse existing field)
+          if (atkLastTime[eid] + YAMATO_COOLDOWN > gameTime) continue;
+          // Find nearest enemy in range
+          const myFac = faction[eid];
+          let bestTgt = 0;
+          let bestDist = Infinity;
+          for (let other = 1; other < world.nextEid; other++) {
+            if (!hasComponents(world, other, POSITION | UNIT_TYPE)) continue;
+            if (faction[other] === myFac || faction[other] === 0) continue;
+            if (hpCurrent[other] <= 0) continue;
+            // Check targeting capability
+            if (isAir[other] === 1 && !canTargetAir[eid]) continue;
+            if (isAir[other] === 0 && !canTargetGround[eid]) continue;
+            const dx = posX[other] - posX[eid];
+            const dy = posY[other] - posY[eid];
+            const distSq = dx * dx + dy * dy;
+            if (distSq <= YAMATO_RANGE * YAMATO_RANGE && distSq < bestDist) {
+              bestDist = distSq;
+              bestTgt = other;
+            }
+          }
+          if (bestTgt === 0) continue;
+          atkLastTime[eid] = gameTime;
+          hpCurrent[bestTgt] = Math.max(0, hpCurrent[bestTgt] - YAMATO_DAMAGE);
+          // Emit a large orange-red projectile visual
+          emitProjectile({
+            fromX: posX[eid], fromY: posY[eid],
+            toX: posX[bestTgt], toY: posY[bestTgt],
+            unitType: UnitType.Battlecruiser,
+            speed: 200,
+            time: gameTime,
+          });
+          // Push a distinctive damage event so it's visible
+          damageEvents.push({
+            x: posX[bestTgt],
+            y: posY[bestTgt],
+            amount: YAMATO_DAMAGE,
+            time: gameTime,
+            color: 0xff6600,
+          });
+          addCommandPing(posX[bestTgt], posY[bestTgt], 0xff6600, gameTime);
+        }
+        break;
+      }
+
+      case CommandType.CorrosiveBile: {
+        if (!cmd.units) break;
+        const BILE_COOLDOWN = 5; // seconds per-unit
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Ravager) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          // Use atkLastTime for cooldown tracking
+          if (atkLastTime[eid] + BILE_COOLDOWN > gameTime) continue;
+          atkLastTime[eid] = gameTime;
+          bileLandTime[eid] = gameTime + 2; // 2s travel time
+          bileLandX[eid] = cmd.wx!;
+          bileLandY[eid] = cmd.wy!;
+        }
+        addCommandPing(cmd.wx!, cmd.wy!, 0x88ff00, gameTime);
+        break;
+      }
+
+      case CommandType.FungalGrowth: {
+        if (!cmd.units) break;
+        const FUNGAL_ENERGY_COST = 100;
+        const FUNGAL_COOLDOWN = 10; // seconds per-unit
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Infestor) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (energy[eid] < FUNGAL_ENERGY_COST) continue;
+          if (atkLastTime[eid] + FUNGAL_COOLDOWN > gameTime) continue;
+          energy[eid] -= FUNGAL_ENERGY_COST;
+          atkLastTime[eid] = gameTime;
+          fungalLandTime[eid] = gameTime + 1; // 1s travel time
+          fungalLandX[eid] = cmd.wx!;
+          fungalLandY[eid] = cmd.wy!;
+        }
+        addCommandPing(cmd.wx!, cmd.wy!, 0x00ff44, gameTime);
+        break;
+      }
+
+      case CommandType.Abduct: {
+        if (!cmd.units) break;
+        const ABDUCT_RANGE = 9 * TILE_SIZE;
+        const ABDUCT_ENERGY_COST = 75;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Viper) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (energy[eid] < ABDUCT_ENERGY_COST) continue;
+          const tgt = targetEntity[eid];
+          if (tgt < 1) continue;
+          if (hpCurrent[tgt] <= 0) continue;
+          // Check range
+          const adx = posX[tgt] - posX[eid];
+          const ady = posY[tgt] - posY[eid];
+          if (adx * adx + ady * ady > ABDUCT_RANGE * ABDUCT_RANGE) continue;
+          energy[eid] -= ABDUCT_ENERGY_COST;
+          // Teleport target next to the Viper
+          posX[tgt] = posX[eid] + 2 * TILE_SIZE;
+          posY[tgt] = posY[eid];
+          movePathIndex[tgt] = -1; // stop movement
+          addCommandPing(posX[eid], posY[eid], 0xcc44ff, gameTime);
         }
         break;
       }

@@ -8,6 +8,8 @@ import type { Viewport } from 'pixi-viewport';
 export class InputProcessor {
   private attackMovePending = false;
   private patrolPending = false;
+  private corrosiveBilePending = false;
+  private fungalPending = false;
 
   constructor(
     private input: InputManager,
@@ -26,6 +28,14 @@ export class InputProcessor {
 
   get isPatrolPending(): boolean {
     return this.patrolPending;
+  }
+
+  get isCorrosiveBilePending(): boolean {
+    return this.corrosiveBilePending;
+  }
+
+  get isFungalPending(): boolean {
+    return this.fungalPending;
   }
 
   /** Call once per frame, after InputManager.update(), before the tick loop. */
@@ -51,10 +61,12 @@ export class InputProcessor {
       }
     }
 
-    // Escape: cancel attack-move / patrol mode
+    // Escape: cancel attack-move / patrol / ability targeting modes
     if (keys.has('Escape')) {
       this.attackMovePending = false;
       this.patrolPending = false;
+      this.corrosiveBilePending = false;
+      this.fungalPending = false;
     }
 
     // A: enter attack-move mode
@@ -95,6 +107,24 @@ export class InputProcessor {
     }
     if (keys.has('KeyV')) {
       this.simulationQueue.push({ type: CommandType.InjectLarva, units: this.snapshotSelection() });
+    }
+    // Yamato Cannon (Battlecruiser) — fires at current attack target
+    if (keys.has('KeyY')) {
+      this.simulationQueue.push({ type: CommandType.Yamato, units: this.snapshotSelection() });
+    }
+    // Corrosive Bile (Ravager) — location ability, left-click to place
+    if (keys.has('KeyR')) {
+      this.corrosiveBilePending = true;
+      this.fungalPending = false;
+    }
+    // Fungal Growth (Infestor) — location ability, left-click to place
+    if (keys.has('KeyF')) {
+      this.fungalPending = true;
+      this.corrosiveBilePending = false;
+    }
+    // Abduct (Viper) — pulls current attack target to Viper
+    if (keys.has('KeyG')) {
+      this.simulationQueue.push({ type: CommandType.Abduct, units: this.snapshotSelection() });
     }
   }
 
@@ -137,6 +167,22 @@ export class InputProcessor {
             units: this.snapshotSelection(),
           });
           this.patrolPending = false;
+        } else if (this.corrosiveBilePending) {
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.CorrosiveBile,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.corrosiveBilePending = false;
+        } else if (this.fungalPending) {
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.FungalGrowth,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.fungalPending = false;
         } else {
           // Single click — select
           const type: CommandType = evt.isDouble
@@ -160,6 +206,8 @@ export class InputProcessor {
         });
         this.attackMovePending = false;
         this.patrolPending = false;
+        this.corrosiveBilePending = false;
+        this.fungalPending = false;
       }
     }
 

@@ -21,6 +21,10 @@ export const enum CommandType {
   CycleSubgroup = 19,
   Cloak = 20,
   InjectLarva = 21,
+  Yamato = 22,
+  CorrosiveBile = 23,
+  FungalGrowth = 24,
+  Abduct = 25,
 }
 
 export interface GameCommand {

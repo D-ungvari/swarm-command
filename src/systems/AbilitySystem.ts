@@ -8,6 +8,8 @@ import {
   lastCombatTime, movePathIndex,
   energy, cloaked, commandMode,
   injectTimer, buildingType, buildState,
+  bileLandTime, bileLandX, bileLandY,
+  fungalLandTime, fungalLandX, fungalLandY,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import {
@@ -34,6 +36,10 @@ export function abilitySystem(world: World, dt: number, gameTime: number): void 
   processGhostCloak(world, dt);
   processQueenEnergyRegen(world, dt);
   processWidowMineBurrow(world);
+  processInfestorEnergyRegen(world, dt);
+  processViperEnergyRegen(world, dt);
+  processCorrosiveBile(world, gameTime);
+  processFungalGrowth(world, gameTime);
 }
 
 function processGhostCloak(world: World, dt: number): void {
@@ -188,6 +194,100 @@ function processWidowMineBurrow(world: World): void {
     } else {
       cloaked[eid] = 0; // unburrow when moving
     }
+  }
+}
+
+function processInfestorEnergyRegen(world: World, dt: number): void {
+  const INFESTOR_ENERGY_MAX = 200;
+  const INFESTOR_ENERGY_REGEN = 0.5625; // per second
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, ABILITY)) continue;
+    if (unitType[eid] !== UnitType.Infestor) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (energy[eid] < INFESTOR_ENERGY_MAX) {
+      energy[eid] = Math.min(INFESTOR_ENERGY_MAX, energy[eid] + INFESTOR_ENERGY_REGEN * dt);
+    }
+  }
+}
+
+function processViperEnergyRegen(world: World, dt: number): void {
+  const VIPER_ENERGY_MAX = 200;
+  const VIPER_ENERGY_REGEN = 0.5625; // per second
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, ABILITY)) continue;
+    if (unitType[eid] !== UnitType.Viper) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (energy[eid] < VIPER_ENERGY_MAX) {
+      energy[eid] = Math.min(VIPER_ENERGY_MAX, energy[eid] + VIPER_ENERGY_REGEN * dt);
+    }
+  }
+}
+
+function processCorrosiveBile(world: World, gameTime: number): void {
+  const BILE_DAMAGE = 60;
+  const BILE_RADIUS = 2 * TILE_SIZE;
+  const BILE_RADIUS_SQ = BILE_RADIUS * BILE_RADIUS;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (unitType[eid] !== UnitType.Ravager) continue;
+    if (bileLandTime[eid] <= 0 || gameTime < bileLandTime[eid]) continue;
+
+    const bx = bileLandX[eid];
+    const by = bileLandY[eid];
+    const myFac = faction[eid];
+
+    // Apply splash to all enemies (can hit air and ground) in radius
+    for (let other = 1; other < world.nextEid; other++) {
+      if (faction[other] === myFac || faction[other] === 0) continue;
+      if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+      if (hpCurrent[other] <= 0) continue;
+      const dx = posX[other] - bx;
+      const dy = posY[other] - by;
+      if (dx * dx + dy * dy <= BILE_RADIUS_SQ) {
+        hpCurrent[other] = Math.max(0, hpCurrent[other] - BILE_DAMAGE);
+      }
+    }
+
+    // Reset bile state
+    bileLandTime[eid] = 0;
+    bileLandX[eid] = 0;
+    bileLandY[eid] = 0;
+  }
+}
+
+function processFungalGrowth(world: World, gameTime: number): void {
+  const FUNGAL_DAMAGE = 30;
+  const FUNGAL_RADIUS = 2.5 * TILE_SIZE;
+  const FUNGAL_RADIUS_SQ = FUNGAL_RADIUS * FUNGAL_RADIUS;
+  const FUNGAL_ROOT_DURATION = 4; // seconds
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (unitType[eid] !== UnitType.Infestor) continue;
+    if (fungalLandTime[eid] <= 0 || gameTime < fungalLandTime[eid]) continue;
+
+    const fx = fungalLandX[eid];
+    const fy = fungalLandY[eid];
+    const myFac = faction[eid];
+
+    // Apply damage and root all enemies in radius
+    for (let other = 1; other < world.nextEid; other++) {
+      if (faction[other] === myFac || faction[other] === 0) continue;
+      if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+      if (hpCurrent[other] <= 0) continue;
+      const dx = posX[other] - fx;
+      const dy = posY[other] - fy;
+      if (dx * dx + dy * dy <= FUNGAL_RADIUS_SQ) {
+        hpCurrent[other] = Math.max(0, hpCurrent[other] - FUNGAL_DAMAGE);
+        // Root: 100% slow for 4s
+        slowFactor[other] = 1.0;
+        slowEndTime[other] = gameTime + FUNGAL_ROOT_DURATION;
+      }
+    }
+
+    // Reset fungal state
+    fungalLandTime[eid] = 0;
+    fungalLandX[eid] = 0;
+    fungalLandY[eid] = 0;
   }
 }
 

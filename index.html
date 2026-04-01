@@ -77,6 +77,39 @@
         <option value="2">Islands</option>
       </select>
     </div>
+    <details style="margin: 12px 0; color: #88bbff; font-size: 12px;">
+      <summary style="cursor: pointer; color: #88bbff; user-select: none;">Advanced Settings</summary>
+      <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+        <label style="color: #88bbff; font-size: 12px;">Starting minerals:
+          <select id="starting-minerals" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+            <option value="50" selected>50 (Default)</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+          </select>
+        </label>
+        <label style="color: #88bbff; font-size: 12px;">Fog of war:
+          <select id="fog-enabled" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+            <option value="1" selected>On</option>
+            <option value="0">Off</option>
+          </select>
+        </label>
+        <label style="color: #88bbff; font-size: 12px;">Game speed:
+          <select id="game-speed" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+            <option value="0">0.5x (Slow)</option>
+            <option value="1" selected>1x (Normal)</option>
+            <option value="2">1.5x (Fast)</option>
+            <option value="3">2x (Very Fast)</option>
+          </select>
+        </label>
+        <label style="color: #88bbff; font-size: 12px;">Survival mode:
+          <select id="survival-mode" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+            <option value="0" selected>Off</option>
+            <option value="1">On (endless waves)</option>
+          </select>
+        </label>
+      </div>
+    </details>
     <button class="play-btn" id="play-btn">START GAME</button>
     <div class="footer">Built with TypeScript + PixiJS &mdash; <a href="https://github.com/D-ungvari/swarm-command" target="_blank">Source</a></div>
   </div>

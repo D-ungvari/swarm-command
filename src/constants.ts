@@ -175,6 +175,10 @@ export const STARTING_MINERALS = 50;
 export const STARTING_GAS = 0;
 export const WORKER_MINE_RANGE = 48; // px (~1.5 tiles)
 
+// ── Game speed ──
+export const GAME_SPEEDS = [0.5, 1.0, 1.5, 2.0] as const;
+export type GameSpeed = typeof GAME_SPEEDS[number];
+
 // ── Difficulty ──
 export enum Difficulty {
   Easy = 0,

@@ -7,6 +7,7 @@ export class HudRenderer {
   private gasEl: HTMLSpanElement;
   private supplyEl: HTMLSpanElement;
   private timerEl: HTMLSpanElement;
+  private speedEl: HTMLSpanElement;
   private workerEl: HTMLSpanElement;
   private upgradeEl: HTMLDivElement;
   private apmEl: HTMLSpanElement;
@@ -69,12 +70,15 @@ export class HudRenderer {
     workerDiv.appendChild(workerIcon);
     workerDiv.appendChild(this.workerEl);
 
-    // Timer
+    // Timer + speed indicator
     const timerDiv = this.makeDiv();
     this.timerEl = document.createElement('span');
     this.timerEl.style.color = '#888';
     this.timerEl.textContent = '0:00';
+    this.speedEl = document.createElement('span');
+    this.speedEl.style.cssText = 'color:#ffcc44;font-size:11px;margin-left:4px;display:none;';
     timerDiv.appendChild(this.timerEl);
+    timerDiv.appendChild(this.speedEl);
 
     // APM
     const apmDiv = this.makeDiv();
@@ -108,7 +112,7 @@ export class HudRenderer {
     return div;
   }
 
-  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number): void {
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number, speed?: number): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
@@ -120,6 +124,14 @@ export class HudRenderer {
     const min = Math.floor(totalSec / 60);
     const sec = totalSec % 60;
     this.timerEl.textContent = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+
+    // Speed indicator — only visible when not 1.0x
+    if (speed !== undefined && speed !== 1.0) {
+      this.speedEl.textContent = `${speed}x`;
+      this.speedEl.style.display = 'inline';
+    } else {
+      this.speedEl.style.display = 'none';
+    }
 
     if (apm !== undefined) {
       this.apmEl.textContent = String(apm);

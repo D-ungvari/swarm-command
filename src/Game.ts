@@ -9,6 +9,7 @@ import {
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState, ArmorClass,
   Difficulty,
+  GAME_SPEEDS,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
@@ -117,6 +118,14 @@ export class Game {
   private inputProcessor!: InputProcessor;
   private ghostGraphics!: Graphics;
 
+  // Game speed
+  private gameSpeedIndex = 1; // index into GAME_SPEEDS; 1 = 1.0x normal
+
+  // Custom settings
+  private startingMinerals = STARTING_MINERALS;
+  private fogEnabled = true;
+  private survivalMode = false;
+
   // Fixed timestep accumulator
   private accumulator = 0;
   private lastTime = 0;
@@ -139,6 +148,22 @@ export class Game {
 
   setMapType(m: MapType): void {
     this.mapType = m;
+  }
+
+  setStartingMinerals(n: number): void {
+    this.startingMinerals = n;
+  }
+
+  setFogEnabled(v: boolean): void {
+    this.fogEnabled = v;
+  }
+
+  setGameSpeedIndex(n: number): void {
+    this.gameSpeedIndex = Math.max(0, Math.min(3, n));
+  }
+
+  setSurvivalMode(v: boolean): void {
+    this.survivalMode = v;
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -229,6 +254,9 @@ export class Game {
 
     this.tilemapRenderer.render(this.map);
 
+    // Apply custom starting minerals (set via setStartingMinerals before init)
+    this.resources[Faction.Terran].minerals = this.startingMinerals;
+
     this.spawnResourceNodes();
     this.spawnStartingBase();
     this.spawnZergBase();
@@ -259,9 +287,10 @@ export class Game {
     this.inputProcessor.processFrame(); // processes remaining raw events into queues
     this.applySelectionCommands();     // frame-rate: drain selectionQueue immediately
 
-    while (this.accumulator >= MS_PER_TICK) {
-      this.tick(MS_PER_TICK / 1000);
-      this.accumulator -= MS_PER_TICK;
+    const currentMsPerTick = MS_PER_TICK / GAME_SPEEDS[this.gameSpeedIndex];
+    while (this.accumulator >= currentMsPerTick) {
+      this.tick(currentMsPerTick / 1000);
+      this.accumulator -= currentMsPerTick;
       // No manual flag clearing needed — InputProcessor already consumed raw events
     }
 
@@ -325,7 +354,7 @@ export class Game {
     deathSystem(this.world, this.gameTime, this.map, this.resources);
     aiSystem(this.world, dt, this.gameTime, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources);
-    fogSystem(this.world);
+    if (this.fogEnabled) fogSystem(this.world);
     creepSystem(this.world, this.map, dt);
 
     // Track waves defeated
@@ -346,10 +375,10 @@ export class Game {
     this.waypointRenderer.render(this.world, this.input.state.shiftHeld);
     this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();
-    this.fogRenderer.render();
+    if (this.fogEnabled) this.fogRenderer.render();
     const res = this.resources[Faction.Terran];
     const workerCount = this.countWorkers();
-    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime));
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex]);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode);
@@ -386,6 +415,14 @@ export class Game {
         this.alertRenderer.show('UNDER ATTACK', 3, this.gameTime);
         this.lastUnderAttackAlert = this.gameTime;
       }
+    }
+
+    // Game speed: + / -
+    if (this.input.state.keysJustPressed.has('Equal')) {
+      this.gameSpeedIndex = Math.min(3, this.gameSpeedIndex + 1);
+    }
+    if (this.input.state.keysJustPressed.has('Minus')) {
+      this.gameSpeedIndex = Math.max(0, this.gameSpeedIndex - 1);
     }
 
     // Spacebar = jump camera to base

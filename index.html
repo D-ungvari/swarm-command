@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Swarm Command — Browser RTS</title>
   <meta name="description" content="StarCraft-inspired real-time strategy game built with TypeScript and PixiJS. Terran vs Zerg in your browser." />
+  <meta property="og:title" content="Swarm Command — Browser RTS" />
+  <meta property="og:description" content="StarCraft-inspired real-time strategy built with TypeScript and PixiJS v8" />
+  <meta property="og:type" content="website" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; font-family: 'Consolas', 'Courier New', monospace; }
@@ -70,6 +73,13 @@
     <div class="footer">Built with TypeScript + PixiJS &mdash; <a href="https://github.com/D-ungvari/swarm-command" target="_blank">Source</a></div>
   </div>
   <div id="game-container"></div>
+  <script>
+    if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
+      document.querySelector('.subtitle')?.insertAdjacentHTML('afterend',
+        '<p style="color:#ffaa44;font-size:12px;margin:8px 0;">⚠️ Best played on desktop with keyboard + mouse</p>'
+      );
+    }
+  </script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

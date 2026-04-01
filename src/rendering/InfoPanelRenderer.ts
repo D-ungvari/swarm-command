@@ -1,4 +1,4 @@
-import { Faction, BuildState, BuildingType, ResourceType, UnitType } from '../constants';
+import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType } from '../constants';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
@@ -10,10 +10,30 @@ import {
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
+import { encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from '../systems/UpgradeSystem';
 import type { PlayerResources } from '../types';
 
 /** Callback type for production button clicks */
 export type ProductionCallback = (buildingEid: number, unitType: number) => void;
+
+/** Callback type for research button clicks */
+export type ResearchCallback = (buildingEid: number, upgradeType: number) => void;
+
+/** Labels for the 3 Engineering Bay upgrades */
+const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
+  { type: UpgradeType.InfantryWeapons, label: 'Inf Weapons' },
+  { type: UpgradeType.InfantryArmor,   label: 'Inf Armor'   },
+  { type: UpgradeType.VehicleWeapons,  label: 'Veh Weapons' },
+];
+
+const UPGRADE_NAMES: Record<number, string> = {
+  [UpgradeType.InfantryWeapons]: 'Inf Weapons',
+  [UpgradeType.InfantryArmor]:   'Inf Armor',
+  [UpgradeType.VehicleWeapons]:  'Veh Weapons',
+  [UpgradeType.ZergMelee]:       'Zerg Melee',
+  [UpgradeType.ZergRanged]:      'Zerg Ranged',
+  [UpgradeType.ZergCarapace]:    'Zerg Carapace',
+};
 
 /**
  * HTML-based info panel (bottom-left of screen).
@@ -32,8 +52,11 @@ export class InfoPanelRenderer {
   private prodButtonsRow: HTMLDivElement;
   private prodButtons: HTMLDivElement[] = [];
   private queueRow: HTMLDivElement;
+  private researchButtonsRow: HTMLDivElement;
+  private researchButtons: HTMLDivElement[] = [];
   private wasVisible = false;
   private productionCallback: ProductionCallback | null = null;
+  private researchCallback: ResearchCallback | null = null;
   private lastButtonConfig = '';
 
   constructor(container: HTMLElement) {
@@ -126,12 +149,22 @@ export class InfoPanelRenderer {
     this.queueRow.style.cssText = 'display: none; flex-direction: row; gap: 3px; margin-top: 4px; align-items: center;';
     this.panel.appendChild(this.queueRow);
 
+    // Research buttons row (Engineering Bay / Evolution Chamber)
+    this.researchButtonsRow = document.createElement('div');
+    this.researchButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto; flex-wrap: wrap;';
+    this.panel.appendChild(this.researchButtonsRow);
+
     container.appendChild(this.panel);
   }
 
   /** Wire up a callback for production button clicks */
   setProductionCallback(fn: ProductionCallback): void {
     this.productionCallback = fn;
+  }
+
+  /** Wire up a callback for research button clicks */
+  setResearchCallback(fn: ResearchCallback): void {
+    this.researchCallback = fn;
   }
 
   update(world: World, _gameTime: number, playerResources?: PlayerResources): void {
@@ -152,6 +185,7 @@ export class InfoPanelRenderer {
     }
     if (!visible) {
       this.prodButtonsRow.style.display = 'none';
+      this.researchButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       return;
     }
@@ -211,6 +245,7 @@ export class InfoPanelRenderer {
 
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      this.researchButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Border stays blue (player's faction)
       this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
@@ -235,6 +270,7 @@ export class InfoPanelRenderer {
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      this.researchButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Cyan border for resources
       this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)';
@@ -259,48 +295,78 @@ export class InfoPanelRenderer {
       this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
 
-      // Production info (currently producing)
-      const pType = prodUnitType[eid];
-      if (pType > 0 && prodTimeTotal[eid] > 0) {
-        const unitDef = UNIT_DEFS[pType];
-        const unitName = unitDef ? unitDef.name : 'Unit';
-        const progress = prodProgress[eid];
-        const total = prodTimeTotal[eid];
-        const pct = total > 0 ? Math.min(1, 1 - progress / total) : 0;
-        this.prodLabel.textContent = `Training: ${unitName}`;
-        this.prodBarFill.style.width = `${pct * 100}%`;
-        this.prodRow.style.display = 'flex';
+      // Engineering Bay: research buttons + research progress
+      if (bt === BuildingType.EngineeringBay) {
         this.detailEl.textContent = bs === BuildState.UnderConstruction
           ? `${facName} | Under Construction`
           : facName;
-
-        // Show production queue
-        this.updateQueueDisplay(eid);
-
-        this.prodButtonsRow.style.display = 'none';
-      } else {
-        this.prodRow.style.display = 'none';
         this.queueRow.style.display = 'none';
+        this.prodButtonsRow.style.display = 'none';
 
-        // Show available production hotkeys/buttons for completed buildings
-        if (bs === BuildState.Complete && def && def.produces.length > 0) {
-          const hotkeys = ['Q', 'W'];
-          const hotkeyParts: string[] = [];
-          for (let i = 0; i < def.produces.length; i++) {
-            const uDef = UNIT_DEFS[def.produces[i]];
-            if (uDef && i < hotkeys.length) {
-              hotkeyParts.push(`${hotkeys[i]}: ${uDef.name}`);
-            }
-          }
-          this.detailEl.textContent = `${facName} | ${hotkeyParts.join('  ')}`;
-
-          // Show clickable production buttons
-          this.updateProductionButtons(eid, def.produces, playerResources);
+        const pType = prodUnitType[eid];
+        if (pType >= UPGRADE_RESEARCH_OFFSET && prodTimeTotal[eid] > 0) {
+          // Research in progress — show progress bar
+          const upgradeType = pType - UPGRADE_RESEARCH_OFFSET;
+          const upgradeName = UPGRADE_NAMES[upgradeType] ?? 'Research';
+          const pct = prodTimeTotal[eid] > 0 ? Math.min(1, 1 - prodProgress[eid] / prodTimeTotal[eid]) : 0;
+          this.prodLabel.textContent = `Researching: ${upgradeName}`;
+          this.prodBarFill.style.width = `${pct * 100}%`;
+          this.prodRow.style.display = 'flex';
+          this.researchButtonsRow.style.display = 'none';
         } else {
+          this.prodRow.style.display = 'none';
+          if (bs === BuildState.Complete) {
+            this.updateResearchButtons(eid, playerResources);
+          } else {
+            this.researchButtonsRow.style.display = 'none';
+          }
+        }
+      // Standard production building
+      } else {
+        this.researchButtonsRow.style.display = 'none';
+
+        const pType = prodUnitType[eid];
+        if (pType > 0 && prodTimeTotal[eid] > 0) {
+          const unitDef = UNIT_DEFS[pType];
+          const unitName = unitDef ? unitDef.name : 'Unit';
+          const progress = prodProgress[eid];
+          const total = prodTimeTotal[eid];
+          const pct = total > 0 ? Math.min(1, 1 - progress / total) : 0;
+          this.prodLabel.textContent = `Training: ${unitName}`;
+          this.prodBarFill.style.width = `${pct * 100}%`;
+          this.prodRow.style.display = 'flex';
           this.detailEl.textContent = bs === BuildState.UnderConstruction
             ? `${facName} | Under Construction`
             : facName;
+
+          // Show production queue
+          this.updateQueueDisplay(eid);
+
           this.prodButtonsRow.style.display = 'none';
+        } else {
+          this.prodRow.style.display = 'none';
+          this.queueRow.style.display = 'none';
+
+          // Show available production hotkeys/buttons for completed buildings
+          if (bs === BuildState.Complete && def && def.produces.length > 0) {
+            const hotkeys = ['Q', 'W'];
+            const hotkeyParts: string[] = [];
+            for (let i = 0; i < def.produces.length; i++) {
+              const uDef = UNIT_DEFS[def.produces[i]];
+              if (uDef && i < hotkeys.length) {
+                hotkeyParts.push(`${hotkeys[i]}: ${uDef.name}`);
+              }
+            }
+            this.detailEl.textContent = `${facName} | ${hotkeyParts.join('  ')}`;
+
+            // Show clickable production buttons
+            this.updateProductionButtons(eid, def.produces, playerResources);
+          } else {
+            this.detailEl.textContent = bs === BuildState.UnderConstruction
+              ? `${facName} | Under Construction`
+              : facName;
+            this.prodButtonsRow.style.display = 'none';
+          }
         }
       }
       // Faction-colored border for buildings
@@ -353,6 +419,7 @@ export class InfoPanelRenderer {
 
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
+      this.researchButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Faction-colored border for units
       this.panel.style.borderColor = fac === Faction.Zerg
@@ -366,6 +433,7 @@ export class InfoPanelRenderer {
     this.detailEl.textContent = '';
     this.prodRow.style.display = 'none';
     this.prodButtonsRow.style.display = 'none';
+    this.researchButtonsRow.style.display = 'none';
     this.queueRow.style.display = 'none';
     this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
   }
@@ -479,5 +547,69 @@ export class InfoPanelRenderer {
       slot.textContent = name;
       this.queueRow.appendChild(slot);
     }
+  }
+
+  /** Render research buttons for Engineering Bay (and similar research buildings). */
+  private updateResearchButtons(buildingEid: number, playerResources?: PlayerResources): void {
+    const isResearching = prodUnitType[buildingEid] >= UPGRADE_RESEARCH_OFFSET;
+
+    // Rebuild buttons (always — the level label must stay current)
+    this.researchButtonsRow.innerHTML = '';
+    this.researchButtons = [];
+
+    for (const { type, label } of ENGBAY_UPGRADES) {
+      const currentLevel = playerResources ? playerResources.upgrades[type] : 0;
+      const cost = getUpgradeCost(type, currentLevel);
+      const maxed = cost === null;
+      const canAfford = !maxed && playerResources
+        ? playerResources.minerals >= cost.minerals && playerResources.gas >= cost.gas
+        : false;
+      const enabled = !maxed && canAfford && !isResearching;
+
+      const btn = document.createElement('div');
+      btn.style.cssText = `
+        padding: 3px 6px;
+        border: 1px solid rgba(100, 160, 255, 0.4);
+        border-radius: 3px;
+        font-size: 11px;
+        cursor: ${enabled ? 'pointer' : 'default'};
+        white-space: nowrap;
+        pointer-events: auto;
+        transition: background 0.1s;
+        color: ${enabled ? '#eee' : '#666'};
+        border-color: ${enabled ? 'rgba(100, 160, 255, 0.4)' : 'rgba(100, 100, 100, 0.2)'};
+      `;
+
+      const levelStr = maxed ? ' (max)' : ` +${currentLevel}`;
+      btn.title = maxed ? `${label} (maxed)` : `${label} — ${cost.minerals}m ${cost.gas}g`;
+
+      // Two-line inner layout: label + level on top, cost below
+      const topLine = document.createElement('div');
+      topLine.textContent = `${label}${levelStr}`;
+      const bottomLine = document.createElement('div');
+      bottomLine.style.cssText = 'font-size: 10px; color: #aaa;';
+      bottomLine.textContent = maxed ? 'maxed' : `${cost.minerals}m ${cost.gas}g`;
+      btn.appendChild(topLine);
+      btn.appendChild(bottomLine);
+
+      if (enabled) {
+        btn.addEventListener('mouseenter', () => {
+          btn.style.background = 'rgba(40, 80, 160, 0.5)';
+        });
+        btn.addEventListener('mouseleave', () => {
+          btn.style.background = 'transparent';
+        });
+        btn.addEventListener('click', () => {
+          if (this.researchCallback) {
+            this.researchCallback(buildingEid, type);
+          }
+        });
+      }
+
+      this.researchButtonsRow.appendChild(btn);
+      this.researchButtons.push(btn);
+    }
+
+    this.researchButtonsRow.style.display = 'flex';
   }
 }

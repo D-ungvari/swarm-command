@@ -8,7 +8,7 @@ import {
   MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState, ArmorClass,
-  Difficulty,
+  Difficulty, UpgradeType,
   GAME_SPEEDS,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
@@ -68,7 +68,7 @@ import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
 import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import { creepSystem, resetCreepSystem } from './systems/CreepSystem';
-import { upgradeSystem } from './systems/UpgradeSystem';
+import { upgradeSystem, encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from './systems/UpgradeSystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import { WaypointRenderer } from './rendering/WaypointRenderer';
@@ -244,6 +244,22 @@ export class Game {
     // Wire up production button callback
     this.infoPanelRenderer.setProductionCallback((buildingEid, uType) => {
       this.handleProductionButtonClick(buildingEid, uType);
+    });
+
+    // Wire up research button callback (Engineering Bay / Evolution Chamber)
+    this.infoPanelRenderer.setResearchCallback((buildingEid, upgradeType) => {
+      const res = this.resources[Faction.Terran];
+      const currentLevel = res.upgrades[upgradeType];
+      const cost = getUpgradeCost(upgradeType as UpgradeType, currentLevel);
+      if (!cost) return; // maxed or invalid
+      if (res.minerals < cost.minerals || res.gas < cost.gas) return;
+      if (prodUnitType[buildingEid] !== 0) return; // already researching
+      if (buildState[buildingEid] !== BuildState.Complete) return;
+      res.minerals -= cost.minerals;
+      res.gas -= cost.gas;
+      prodUnitType[buildingEid] = encodeResearch(upgradeType as UpgradeType);
+      prodProgress[buildingEid] = cost.time;
+      prodTimeTotal[buildingEid] = cost.time;
     });
 
     // Generate map with selected layout (setMapType is called before init)

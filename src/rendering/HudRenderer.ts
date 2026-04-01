@@ -13,6 +13,7 @@ export class HudRenderer {
   private workerEl: HTMLSpanElement;
   private upgradeEl: HTMLDivElement;
   private apmEl: HTMLSpanElement;
+  private incomeEl: HTMLDivElement;
 
   constructor(container: HTMLElement) {
     const hud = document.createElement('div');
@@ -96,6 +97,9 @@ export class HudRenderer {
     this.upgradeEl = document.createElement('div');
     this.upgradeEl.style.cssText = 'color: #88aaff; font-size: 11px; margin-top: 2px;';
 
+    this.incomeEl = document.createElement('div');
+    this.incomeEl.style.cssText = 'color: #888; font-size: 11px; margin-top: 2px; display: none;';
+
     hud.appendChild(mineralDiv);
     hud.appendChild(gasDiv);
     hud.appendChild(supplyDiv);
@@ -103,6 +107,7 @@ export class HudRenderer {
     hud.appendChild(timerDiv);
     hud.appendChild(apmDiv);
     hud.appendChild(this.upgradeEl);
+    hud.appendChild(this.incomeEl);
     container.appendChild(hud);
   }
 
@@ -123,7 +128,7 @@ export class HudRenderer {
     return div;
   }
 
-  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number, speed?: number, isSaturated?: boolean): void {
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number, speed?: number, isSaturated?: boolean, mineralIncome?: number, gasIncome?: number): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
@@ -147,6 +152,19 @@ export class HudRenderer {
 
     if (apm !== undefined) {
       this.apmEl.textContent = String(apm);
+    }
+
+    if (mineralIncome !== undefined || gasIncome !== undefined) {
+      const mRate = mineralIncome !== undefined ? Math.round(mineralIncome) : 0;
+      const gRate = gasIncome !== undefined ? Math.round(gasIncome) : 0;
+      if (mRate > 0 || gRate > 0) {
+        this.incomeEl.textContent = `⚡ ${mRate}m/min  ${gRate}g/min`;
+        this.incomeEl.style.display = 'block';
+      } else {
+        this.incomeEl.style.display = 'none';
+      }
+    } else {
+      this.incomeEl.style.display = 'none';
     }
 
     if (upgrades) {

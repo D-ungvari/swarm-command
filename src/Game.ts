@@ -160,6 +160,13 @@ export class Game {
   private gameTime = 0;
   private paused = false;
 
+  // Income rate tracking (minerals and gas per minute)
+  private mineralPrev = 0;
+  private gasPrev = 0;
+  private lastIncomeCheck = 0;
+  private mineralIncomeRate = 0;
+  private gasIncomeRate = 0;
+
   // Stats tracking
   private stats = new GameStats();
   private lastWaveCount = 0;
@@ -493,7 +500,7 @@ export class Game {
     this.waypointRenderer.render(this.world, this.input.state.shiftHeld);
     this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();
-    if (this.fogEnabled) this.fogRenderer.render();
+    if (this.fogEnabled) this.fogRenderer.render(this.gameTime);
     const res = this.resources[this.playerFaction];
     const workerCount = this.countWorkers();
     let isSaturated = false;
@@ -501,7 +508,16 @@ export class Game {
       if (!hasComponents(this.world, eid, RESOURCE)) continue;
       if (workerCountOnResource[eid] > 2) { isSaturated = true; break; }
     }
-    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated);
+    // Compute income rate every 5 seconds of game time
+    if (this.gameTime - this.lastIncomeCheck >= 5) {
+      const elapsed = this.gameTime - this.lastIncomeCheck;
+      this.mineralIncomeRate = (res.minerals - this.mineralPrev) / elapsed * 60;
+      this.gasIncomeRate = (res.gas - this.gasPrev) / elapsed * 60;
+      this.mineralPrev = res.minerals;
+      this.gasPrev = res.gas;
+      this.lastIncomeCheck = this.gameTime;
+    }
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated, this.mineralIncomeRate, this.gasIncomeRate);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode, this.inputProcessor.isPatrolPending);
@@ -509,7 +525,7 @@ export class Game {
       this.modeIndicatorRenderer.showPaused();
     }
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
-    this.minimapRenderer.render(this.world);
+    this.minimapRenderer.render(this.world, this.gameTime);
 
     if (this.input.state.keysJustPressed.has('F12')) this.debugOverlay.toggle();
     this.debugOverlay.update(this.world.nextEid - 1, 197, this.gameTime);
@@ -546,6 +562,8 @@ export class Game {
         this.alertRenderer.show('UNDER ATTACK', 3, this.gameTime);
         this.lastUnderAttackAlert = this.gameTime;
       }
+      // Always place a minimap ping regardless of camera distance
+      this.minimapRenderer.showAttackPing(hit.x, hit.y, this.gameTime);
     }
 
     // Game speed: + / -

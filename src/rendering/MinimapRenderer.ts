@@ -13,11 +13,11 @@ import {
 import { type World, hasComponents } from '../ecs/world';
 import { type MapData } from '../map/MapData';
 import { isTileVisible } from '../systems/FogSystem';
-import { getLastTerranHit } from '../systems/CombatSystem';
 
 const MINIMAP_SIZE = 160;
 const MINIMAP_PADDING = 12;
 const MINIMAP_SCALE = MINIMAP_SIZE / MAP_WIDTH; // tiles -> minimap pixels
+const ATTACK_PING_DURATION = 5; // seconds before ping expires
 
 /**
  * Renders a minimap in the bottom-right corner of the screen.
@@ -26,6 +26,12 @@ const MINIMAP_SCALE = MINIMAP_SIZE / MAP_WIDTH; // tiles -> minimap pixels
  *
  * Added to app.stage (screen space), not the viewport.
  */
+interface AttackPing {
+  worldX: number;
+  worldY: number;
+  time: number; // gameTime when the ping was created
+}
+
 export class MinimapRenderer {
   container: Container;
   private backgroundGraphics: Graphics;
@@ -34,6 +40,7 @@ export class MinimapRenderer {
   private mapData: MapData;
   private screenWidth: number;
   private screenHeight: number;
+  private attackPings: AttackPing[] = [];
 
   constructor(stage: Container, viewport: Viewport, mapData: MapData) {
     this.viewport = viewport;
@@ -113,8 +120,28 @@ export class MinimapRenderer {
     }
   }
 
+  /**
+   * Register a pulsing red attack ping at a world-space position.
+   * Expires after ATTACK_PING_DURATION seconds.
+   */
+  showAttackPing(worldX: number, worldY: number, time: number): void {
+    // Replace existing ping at same approximate location (within 3 tiles) to avoid stacking
+    const mx = worldX * MINIMAP_SCALE;
+    const my = worldY * MINIMAP_SCALE;
+    const existing = this.attackPings.findIndex(p => {
+      const pmx = p.worldX * MINIMAP_SCALE;
+      const pmy = p.worldY * MINIMAP_SCALE;
+      return Math.abs(pmx - mx) < 6 && Math.abs(pmy - my) < 6;
+    });
+    if (existing >= 0) {
+      this.attackPings[existing] = { worldX, worldY, time };
+    } else {
+      this.attackPings.push({ worldX, worldY, time });
+    }
+  }
+
   /** Called each frame: redraw units, buildings, resources, and camera rect */
-  render(world: World): void {
+  render(world: World, gameTime = 0): void {
     const g = this.dynamicGraphics;
     g.clear();
 
@@ -159,15 +186,26 @@ export class MinimapRenderer {
       g.fill({ color });
     }
 
-    // Attack flash indicator on minimap (fades after 5 seconds)
-    // hit.time is in gameTime (seconds), so we compare with performance-based estimate
-    const hit = getLastTerranHit();
-    if (hit.time > 0) {
-      const hitMx = hit.x * MINIMAP_SCALE;
-      const hitMy = hit.y * MINIMAP_SCALE;
-      const pulse = Math.sin(Date.now() * 0.01) * 0.3 + 0.4;
-      g.circle(hitMx, hitMy, 4);
-      g.fill({ color: 0xff4444, alpha: pulse * 0.7 });
+    // Expire old pings
+    if (this.attackPings.length > 0) {
+      this.attackPings = this.attackPings.filter(p => gameTime - p.time < ATTACK_PING_DURATION);
+    }
+
+    // Draw attack pings — pulsing red circles that persist for ATTACK_PING_DURATION seconds
+    for (const ping of this.attackPings) {
+      const pingMx = ping.worldX * MINIMAP_SCALE;
+      const pingMy = ping.worldY * MINIMAP_SCALE;
+      const age = gameTime - ping.time;
+      // Fade out in the last 2 seconds
+      const fadeAlpha = age > ATTACK_PING_DURATION - 2
+        ? 1 - (age - (ATTACK_PING_DURATION - 2)) / 2
+        : 1;
+      const pulse = Math.sin(gameTime * 6) * 0.3 + 0.7;
+      g.circle(pingMx, pingMy, 5);
+      g.fill({ color: 0xff2222, alpha: pulse * fadeAlpha * 0.85 });
+      // Outer ring
+      g.circle(pingMx, pingMy, 7);
+      g.stroke({ color: 0xff4444, width: 1, alpha: pulse * fadeAlpha * 0.5 });
     }
 
     // Camera viewport rectangle (white outline)

@@ -12,7 +12,7 @@ import {
   prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   velX, velY, commandMode,
-  cloaked,
+  cloaked, energy,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -873,6 +873,13 @@ export class UnitRenderer {
           g.lineTo(x + w * 0.85, y + h * 0.15);
           g.stroke({ color: 0x556677, width: 1.5 });
 
+          // Stim Pack ring — pulsing orange ring when stimmed
+          if (isStimmed) {
+            const stimPulse = 0.5 + Math.sin(gameTime * 8) * 0.3;
+            g.circle(x, y, Math.max(w, h) * 0.7 + 4);
+            g.stroke({ color: 0xffaa00, width: 2, alpha: stimPulse });
+          }
+
         } else if (uType === UnitType.Marauder) {
           // ── Marauder: heavy armored, bulky with concussion grenades ──
           // Shadow
@@ -934,9 +941,9 @@ export class UnitRenderer {
             g.moveTo(x + w * 0.65, y + h * 0.65);
             g.lineTo(x + w * 0.8, y + h * 0.65);
             g.stroke({ color: 0x666666, width: 2 });
-            // Main body — wide, flat
+            // Main body — wide, flat, darker/greener tint in siege mode
             g.rect(x - w * 0.5, y - h * 0.3, w, h * 0.6);
-            g.fill({ color: bodyColor });
+            g.fill({ color: 0x5577aa });
             g.rect(x - w * 0.5, y - h * 0.3, w, h * 0.6);
             g.stroke({ color: 0x5588aa, width: 1, alpha: 0.6 });
             // Turret — darker rect on top-center
@@ -1164,6 +1171,22 @@ export class UnitRenderer {
         const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
         g.rect(barX, barY, barW * hpRatio, barH);
         g.fill({ color: hpColor });
+      }
+
+      // Ghost energy bar — shown below the health bar
+      if (uType === UnitType.Ghost && (showHealthBar || isSelected)) {
+        const eBarW = w + 4;
+        const eBarH = 2;
+        const eBarX = x - eBarW / 2;
+        // Place it below the health bar (health bar is at y - h/2 - 6, 3px tall → bottom at y - h/2 - 3)
+        const eBarY = y - h / 2 - 2;
+        const eRatio = Math.max(0, Math.min(1, energy[eid] / 200));
+        g.rect(eBarX, eBarY, eBarW, eBarH);
+        g.fill({ color: 0x111133, alpha: 0.8 });
+        if (eRatio > 0) {
+          g.rect(eBarX, eBarY, eBarW * eRatio, eBarH);
+          g.fill({ color: 0x4488ff });
+        }
       }
 
       // Worker carrying indicator — bright blue dot when carrying minerals

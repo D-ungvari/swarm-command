@@ -1,4 +1,4 @@
-import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType } from '../constants';
+import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, STIM_DURATION } from '../constants';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
@@ -6,7 +6,7 @@ import {
   resourceRemaining, resourceType, unitType,
   selected, hpCurrent, hpMax, faction, renderTint, killCount,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
-  energy, cloaked,
+  energy, cloaked, stimEndTime,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -168,7 +168,7 @@ export class InfoPanelRenderer {
     this.researchCallback = fn;
   }
 
-  update(world: World, _gameTime: number, playerResources?: PlayerResources): void {
+  update(world: World, gameTime: number, playerResources?: PlayerResources): void {
     // Count selected entities and find first one
     let sel = -1;
     let selCount = 0;
@@ -394,6 +394,16 @@ export class InfoPanelRenderer {
         const energyVal = energy[eid];
         const cloakStatus = cloaked[eid] === 1 ? ' [CLOAKED]' : '';
         this.detailEl.textContent += `  E:${Math.floor(energyVal)}${cloakStatus}`;
+      }
+
+      // Marine: show stim pack status
+      if (ut === UnitType.Marine) {
+        const stimRemaining = stimEndTime[eid] - gameTime;
+        if (stimRemaining > 0) {
+          this.detailEl.textContent += `  STIM: ${stimRemaining.toFixed(1)}s`;
+        } else {
+          this.detailEl.textContent += `  T: Stim Pack`;
+        }
       }
 
       // Show upgrade bonuses

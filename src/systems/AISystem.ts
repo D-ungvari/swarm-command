@@ -18,6 +18,64 @@ import {
   worldToTile, tileToWorld, findNearestWalkableTile, type MapData,
 } from '../map/MapData';
 import type { PlayerResources } from '../types';
+import { UNIT_DEFS } from '../data/units';
+
+// ─────────────────────────────────────────
+// Build Order types
+// ─────────────────────────────────────────
+type BuildOrderAction =
+  | { kind: 'unit'; type: number; faction: 'ai' }
+  | { kind: 'attack' }
+  | { kind: 'expand' }
+  | { kind: 'upgrade'; upgradeType: number };
+
+interface BuildOrderStep {
+  trigger: 'supply' | 'time' | 'unit_count' | 'always';
+  triggerValue: number;
+  action: BuildOrderAction;
+  done: boolean;
+}
+
+// ─────────────────────────────────────────
+// Predefined Zerg Build Orders
+// ─────────────────────────────────────────
+const ZERG_12_POOL: BuildOrderStep[] = [
+  { trigger: 'supply', triggerValue: 12, action: { kind: 'unit', type: UnitType.Zergling, faction: 'ai' }, done: false },
+  { trigger: 'supply', triggerValue: 14, action: { kind: 'unit', type: UnitType.Zergling, faction: 'ai' }, done: false },
+  { trigger: 'supply', triggerValue: 16, action: { kind: 'attack' }, done: false },
+  { trigger: 'unit_count', triggerValue: 8, action: { kind: 'unit', type: UnitType.Zergling, faction: 'ai' }, done: false },
+];
+
+const ZERG_ROACH_PUSH: BuildOrderStep[] = [
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'unit', type: UnitType.Roach, faction: 'ai' }, done: false },
+  { trigger: 'supply', triggerValue: 22, action: { kind: 'unit', type: UnitType.Roach, faction: 'ai' }, done: false },
+  { trigger: 'supply', triggerValue: 26, action: { kind: 'unit', type: UnitType.Ravager, faction: 'ai' }, done: false },
+  { trigger: 'time', triggerValue: 300, action: { kind: 'attack' }, done: false },
+];
+
+const ZERG_LAIR_MACRO: BuildOrderStep[] = [
+  { trigger: 'time', triggerValue: 120, action: { kind: 'unit', type: UnitType.Hydralisk, faction: 'ai' }, done: false },
+  { trigger: 'time', triggerValue: 200, action: { kind: 'unit', type: UnitType.Mutalisk, faction: 'ai' }, done: false },
+  { trigger: 'unit_count', triggerValue: 12, action: { kind: 'attack' }, done: false },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Hydralisk, faction: 'ai' }, done: false },
+];
+
+// ─────────────────────────────────────────
+// Predefined Terran Build Orders
+// ─────────────────────────────────────────
+const TERRAN_BIO: BuildOrderStep[] = [
+  { trigger: 'supply', triggerValue: 10, action: { kind: 'unit', type: UnitType.Marine, faction: 'ai' }, done: false },
+  { trigger: 'supply', triggerValue: 14, action: { kind: 'unit', type: UnitType.Marine, faction: 'ai' }, done: false },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'unit', type: UnitType.Marauder, faction: 'ai' }, done: false },
+  { trigger: 'time', triggerValue: 240, action: { kind: 'attack' }, done: false },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Marine, faction: 'ai' }, done: false },
+];
+
+// ─────────────────────────────────────────
+// Build Order State
+// ─────────────────────────────────────────
+let activeBuildOrder: BuildOrderStep[] | null = null;
+let buildOrderIndex = 0;
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
 type SpawnBuildingFn = (type: number, fac: number, col: number, row: number) => number;
@@ -133,6 +191,7 @@ const armyEids = new Set<number>();
 const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
 let hasExpanded = false;
+let currentMap: MapData | null = null;
 
 export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Faction = Faction.Zerg): void {
   currentDifficulty = difficulty;
@@ -164,6 +223,28 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   terranAIGas = 0;
   personality = randomPersonality();
   intel = resetIntel();
+
+  // Select build order
+  activeBuildOrder = null;
+  buildOrderIndex = 0;
+  if (currentAIFaction === Faction.Zerg) {
+    const roll = Math.random();
+    if (currentDifficulty === Difficulty.Easy) {
+      activeBuildOrder = [...ZERG_LAIR_MACRO];
+    } else if (currentDifficulty === Difficulty.Hard || currentDifficulty === Difficulty.Brutal) {
+      activeBuildOrder = roll < 0.5 ? [...ZERG_12_POOL] : [...ZERG_ROACH_PUSH];
+    } else {
+      activeBuildOrder = roll < 0.33 ? [...ZERG_12_POOL]
+        : roll < 0.66 ? [...ZERG_ROACH_PUSH]
+        : [...ZERG_LAIR_MACRO];
+    }
+    activeBuildOrder = activeBuildOrder.map(s => ({ ...s, done: false }));
+    buildOrderIndex = 0;
+  }
+  if (currentAIFaction === Faction.Terran) {
+    activeBuildOrder = [...TERRAN_BIO].map(s => ({ ...s, done: false }));
+    buildOrderIndex = 0;
+  }
 }
 
 export function getAIState() {
@@ -173,6 +254,80 @@ export function getAIState() {
 export function setAIMinerals(m: number, g: number = 0): void {
   aiMinerals = m;
   aiGas = g;
+}
+
+// ─────────────────────────────────────────
+// Build Order Execution
+// ─────────────────────────────────────────
+function executeBuildOrder(
+  world: World,
+  resources: Record<number, PlayerResources>,
+  gameTime: number,
+  spawnUnit: SpawnFn,
+): void {
+  if (!activeBuildOrder || buildOrderIndex >= activeBuildOrder.length) return;
+
+  const res = resources[currentAIFaction];
+  if (!res) return;
+
+  const step = activeBuildOrder[buildOrderIndex];
+  if (!step || step.done) { buildOrderIndex++; return; }
+
+  // Check trigger
+  let triggered = false;
+  switch (step.trigger) {
+    case 'supply':
+      triggered = res.supplyUsed >= step.triggerValue;
+      break;
+    case 'time':
+      triggered = gameTime >= step.triggerValue;
+      break;
+    case 'unit_count':
+      triggered = armyEids.size >= step.triggerValue;
+      break;
+    case 'always':
+      triggered = true;
+      break;
+  }
+
+  if (!triggered) return;
+
+  // Execute action
+  switch (step.action.kind) {
+    case 'unit': {
+      const def = UNIT_DEFS[step.action.type];
+      if (!def) { step.done = true; buildOrderIndex++; return; }
+      if (aiMinerals < def.costMinerals || aiGas < def.costGas) return; // wait for resources
+      aiMinerals -= def.costMinerals;
+      aiGas -= def.costGas;
+      const hatch = findZergHatchery(world);
+      if (!hatch) return;
+      const eid = spawnUnit(step.action.type, currentAIFaction, posX[hatch] + (Math.random() - 0.5) * 48, posY[hatch] + (Math.random() - 0.5) * 48);
+      armyEids.add(eid);
+      step.done = true;
+      if (step.trigger !== 'always') buildOrderIndex++;
+      break;
+    }
+    case 'attack':
+      if (currentMap) {
+        const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
+        decideAttack(world, currentMap, gameTime, diffConfig);
+      }
+      step.done = true;
+      buildOrderIndex++;
+      break;
+    case 'upgrade':
+      if (res.upgrades[step.action.upgradeType] < 3) {
+        res.upgrades[step.action.upgradeType]++;
+      }
+      step.done = true;
+      buildOrderIndex++;
+      break;
+    case 'expand':
+      step.done = true;
+      buildOrderIndex++;
+      break;
+  }
 }
 
 // ─────────────────────────────────────────
@@ -192,7 +347,11 @@ function runTerranAI(
   resources: Record<number, PlayerResources>,
   _spawnBuilding: SpawnBuildingFn,
 ): void {
+  currentMap = map;
   const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
+
+  // Build order execution (runs first, takes priority)
+  executeBuildOrder(world, resources, gameTime, spawnUnit);
 
   // Income
   terranAIMinerals += 3 * diffConfig.incomeMultiplier;
@@ -281,6 +440,8 @@ export function aiSystem(
   resources: Record<number, PlayerResources>,
   spawnBuildingFn: SpawnBuildingFn,
 ): void {
+  currentMap = map;
+
   if (currentAIFaction === Faction.Terran) {
     runTerranAI(world, _dt, gameTime, map, spawnFn, resources, spawnBuildingFn);
     return;
@@ -316,6 +477,9 @@ export function aiSystem(
   if (waveCount >= 5 && !hasExpanded) {
     attemptExpansion(resources, spawnBuildingFn);
   }
+
+  // Build order execution (runs first, takes priority)
+  executeBuildOrder(world, resources, gameTime, spawnFn);
 
   // Spawn units
   const spawnsThisTick = Math.min(MAX_SPAWNS_PER_DECISION, 1 + Math.floor(waveCount / 2));

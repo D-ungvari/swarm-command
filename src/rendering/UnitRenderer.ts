@@ -736,6 +736,55 @@ export class UnitRenderer {
             g.fill({ color: 0x44ff44, alpha: pulse });
           }
 
+        } else if (uType === UnitType.Mutalisk) {
+          // ── Mutalisk: flying flyer with swept wings and glaive beak ──
+          // Faint ground shadow (elevated)
+          g.ellipse(x, y + 4, w * 0.35, h * 0.15);
+          g.fill({ color: 0x000000, alpha: 0.2 });
+          // Shadow behind body
+          g.ellipse(x, y, w * 0.3 + 2, h * 0.35 + 2);
+          g.fill({ color: 0x000000, alpha: 0.35 });
+          // Main body — narrow vertical ellipse (streamlined)
+          g.ellipse(x, y, w * 0.28, h * 0.42);
+          g.fill({ color: bodyColor });
+          g.ellipse(x, y, w * 0.28, h * 0.42);
+          g.stroke({ color: 0x9966cc, width: 1, alpha: 0.6 });
+          // Left wing — two-segment swept back diagonally
+          g.moveTo(x - w * 0.22, y - h * 0.05);
+          g.lineTo(x - w * 0.7, y - h * 0.38);
+          g.lineTo(x - w * 0.85, y - h * 0.25);
+          g.stroke({ color: 0xcc88ff, width: 1.8 });
+          // Right wing
+          g.moveTo(x + w * 0.22, y - h * 0.05);
+          g.lineTo(x + w * 0.7, y - h * 0.38);
+          g.lineTo(x + w * 0.85, y - h * 0.25);
+          g.stroke({ color: 0xcc88ff, width: 1.8 });
+          // Wing membrane fill (semi-transparent triangles)
+          g.moveTo(x - w * 0.2, y - h * 0.05);
+          g.lineTo(x - w * 0.7, y - h * 0.36);
+          g.lineTo(x - w * 0.3, y + h * 0.12);
+          g.closePath();
+          g.fill({ color: bodyColor, alpha: 0.35 });
+          g.moveTo(x + w * 0.2, y - h * 0.05);
+          g.lineTo(x + w * 0.7, y - h * 0.36);
+          g.lineTo(x + w * 0.3, y + h * 0.12);
+          g.closePath();
+          g.fill({ color: bodyColor, alpha: 0.35 });
+          // Glaive beak — sharp spike pointing upward from head
+          g.moveTo(x, y - h * 0.38);
+          g.lineTo(x - 3, y - h * 0.55);
+          g.lineTo(x + 3, y - h * 0.55);
+          g.closePath();
+          g.fill({ color: 0xddaaff, alpha: 0.9 });
+          // Eye — bright dot
+          g.circle(x, y - h * 0.15, 1.5);
+          g.fill({ color: 0xff44cc, alpha: 0.9 });
+          // Tail spine curving backward (downward)
+          g.moveTo(x, y + h * 0.38);
+          g.lineTo(x - 3, y + h * 0.58);
+          g.lineTo(x + 2, y + h * 0.65);
+          g.stroke({ color: tint, width: 1.2 });
+
         } else {
           // Fallback for any unknown Zerg unit
           g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
@@ -998,6 +1047,46 @@ export class UnitRenderer {
 
           // Draw heal beams to nearby wounded bio allies
           this.drawHealBeams(g, world, eid, x, y);
+
+        } else if (uType === UnitType.Ghost) {
+          // ── Ghost: stealth operative, slim with sniper rifle and scope ──
+          // Shadow
+          g.rect(x - w / 2 - 1, y - h / 2 - 1, w + 2, h + 2);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body — slim rect, slightly narrower than Marines (sniper profile)
+          g.rect(x - w * 0.32, y - h * 0.45, w * 0.64, h * 0.9);
+          g.fill({ color: bodyColor });
+          g.rect(x - w * 0.32, y - h * 0.45, w * 0.64, h * 0.9);
+          g.stroke({ color: 0x446688, width: 1, alpha: 0.6 });
+          // Helmet — small rect on top, narrower
+          g.rect(x - w * 0.22, y - h * 0.58, w * 0.44, h * 0.18);
+          g.fill({ color: bodyColor });
+          g.rect(x - w * 0.22, y - h * 0.58, w * 0.44, h * 0.18);
+          g.stroke({ color: 0x557799, width: 1, alpha: 0.6 });
+          // Visor slit — dim blue-grey (stealthy, not bright like Marine)
+          g.moveTo(x - w * 0.18, y - h * 0.5);
+          g.lineTo(x + w * 0.18, y - h * 0.5);
+          g.stroke({ color: 0x8899bb, width: 1.5 });
+          // Long sniper rifle — thin barrel extending from right shoulder, angled up-right
+          g.moveTo(x + w * 0.3, y - h * 0.35);
+          g.lineTo(x + w * 0.95, y - h * 0.6);
+          g.stroke({ color: 0x556677, width: 1.5 });
+          // Rifle scope — small rect mid-barrel
+          g.rect(x + w * 0.5, y - h * 0.52, w * 0.15, h * 0.08);
+          g.fill({ color: 0x334455 });
+          // Scope lens dot (faint green glow)
+          g.circle(x + w * 0.57, y - h * 0.48, 1.5);
+          g.fill({ color: 0x44ff88, alpha: 0.7 });
+          // X crosshair at unit center — sniper scope reticle
+          g.moveTo(x - 4, y - 4);
+          g.lineTo(x + 4, y + 4);
+          g.moveTo(x + 4, y - 4);
+          g.lineTo(x - 4, y + 4);
+          g.stroke({ color: 0xccddff, width: 1, alpha: 0.6 });
+          // Ghost suit seam — a single thin vertical line down the center
+          g.moveTo(x, y - h * 0.38);
+          g.lineTo(x, y + h * 0.38);
+          g.stroke({ color: 0x334466, width: 0.8, alpha: 0.5 });
 
         } else {
           // Fallback for any unknown Terran unit

@@ -1,3 +1,5 @@
+import { Faction } from '../constants';
+
 /**
  * HTML-based resource HUD overlay (top-right corner).
  * Shows minerals, gas, supply, and game timer.
@@ -102,6 +104,15 @@ export class HudRenderer {
     hud.appendChild(apmDiv);
     hud.appendChild(this.upgradeEl);
     container.appendChild(hud);
+  }
+
+  setFaction(f: Faction): void {
+    // Zerg: amber mineral color, red supply indicator
+    const isZerg = f === Faction.Zerg;
+    const mineralColor = isZerg ? '#ffaa22' : '#44bbff';
+    const supplyColor = isZerg ? '#ff6644' : '#ffaa44';
+    if (this.mineralEl) this.mineralEl.style.color = mineralColor;
+    if (this.supplyEl) this.supplyEl.style.color = supplyColor;
   }
 
   private makeDiv(): HTMLDivElement {

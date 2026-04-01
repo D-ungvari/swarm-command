@@ -33,6 +33,7 @@ import {
   selected, setPath,
   energy,
   isAir, canTargetGround, canTargetAir,
+  larvaCount, larvaRegenTimer,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
 import { BUILDING_DEFS } from './data/buildings';
@@ -96,6 +97,11 @@ export class Game {
   // Building placement state
   placementMode = false;
   placementBuildingType: number = 0;
+  playerFaction: Faction = Faction.Terran;
+
+  setPlayerFaction(f: Faction): void {
+    this.playerFaction = f;
+  }
 
   // Renderers
   private tilemapRenderer!: TilemapRenderer;
@@ -200,6 +206,14 @@ export class Game {
     const startPos = tileToWorld(15, 15);
     this.viewport.moveCenter(startPos.x, startPos.y);
 
+    // Re-initialize resources based on player faction
+    if (this.playerFaction === Faction.Zerg) {
+      this.resources = {
+        [Faction.Terran]: { minerals: 0, gas: 0, supplyUsed: 0, supplyProvided: 200, upgrades: new Uint8Array(6) },
+        [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(6) },
+      };
+    }
+
     this.input = new InputManager(this.app.canvas as HTMLCanvasElement);
 
     this.selectionQueue = new GameCommandQueue();
@@ -210,6 +224,7 @@ export class Game {
       this.simulationQueue,
       this.viewport,
       this.world,
+      this.playerFaction,
     );
 
     this.tilemapRenderer = new TilemapRenderer();
@@ -237,7 +252,9 @@ export class Game {
     this.app.stage.addChild(this.selectionRenderer.container);
 
     this.hudRenderer = new HudRenderer(container);
+    this.hudRenderer.setFaction(this.playerFaction);
     this.buildMenuRenderer = new BuildMenuRenderer(container);
+    this.buildMenuRenderer.setFaction(this.playerFaction);
     this.infoPanelRenderer = new InfoPanelRenderer(container);
     this.modeIndicatorRenderer = new ModeIndicatorRenderer(container);
     this.hotkeyPanelRenderer = new HotkeyPanelRenderer(container);
@@ -252,7 +269,7 @@ export class Game {
 
     // Wire up research button callback (Engineering Bay / Evolution Chamber)
     this.infoPanelRenderer.setResearchCallback((buildingEid, upgradeType) => {
-      const res = this.resources[Faction.Terran];
+      const res = this.resources[this.playerFaction];
       const currentLevel = res.upgrades[upgradeType];
       const cost = getUpgradeCost(upgradeType as UpgradeType, currentLevel);
       if (!cost) return; // maxed or invalid
@@ -275,14 +292,18 @@ export class Game {
     this.tilemapRenderer.render(this.map);
 
     // Apply custom starting minerals (set via setStartingMinerals before init)
-    this.resources[Faction.Terran].minerals = this.startingMinerals;
+    this.resources[this.playerFaction].minerals = this.startingMinerals;
 
     this.spawnResourceNodes();
-    this.spawnStartingBase();
-    this.spawnZergBase();
-    this.spawnDemoUnits();
+    if (this.playerFaction === Faction.Zerg) {
+      this.spawnZergBase();        // player's Zerg base at (15, 15)
+      this.spawnTerranAIBase();    // AI's Terran base at (112, 112)
+    } else {
+      this.spawnStartingBase();    // player's Terran base at (15, 15)
+      this.spawnZergBase();        // AI's Zerg base at (117, 117)
+    }
     spawnRockEntities(this.world, this.map);
-    initAI(this.difficulty);
+    initAI(this.difficulty, this.playerFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg);
     resetCreepSystem();
 
     window.addEventListener('resize', () => {
@@ -334,7 +355,7 @@ export class Game {
     const cmds = this.selectionQueue.flush();
     if (cmds.length > 0) {
       this.stats.recordAction();
-      selectionSystem(this.world, cmds, this.viewport);
+      selectionSystem(this.world, cmds, this.viewport, this.playerFaction);
     }
   }
 
@@ -348,19 +369,19 @@ export class Game {
     if (this.simulationQueue.length > 0) {
       this.stats.recordAction();
     }
-    commandSystem(this.world, this.simulationQueue.flush(), this.viewport, this.map, this.gameTime, this.resources);
+    commandSystem(this.world, this.simulationQueue.flush(), this.viewport, this.map, this.gameTime, this.resources, this.playerFaction);
     buildSystem(this.world, dt, this.resources);
     productionSystem(this.world, dt, this.resources, this.map,
       (type, fac, x, y) => {
         const eid = this.spawnUnitAt(type, fac, x, y);
-        if (fac === Faction.Terran) this.stats.recordUnitProduced();
+        if (fac === this.playerFaction) this.stats.recordUnitProduced();
         return eid;
-      });
+      }, this.gameTime);
     upgradeSystem(this.world, dt, this.resources);
     movementSystem(this.world, dt, this.map);
 
     // Snapshot resources before gather to calculate income delta
-    const res = this.resources[Faction.Terran];
+    const res = this.resources[this.playerFaction];
     const resBefore = res.minerals + res.gas;
     combatSystem(this.world, dt, this.gameTime, this.map, this.resources);
     abilitySystem(this.world, dt, this.gameTime);
@@ -408,7 +429,7 @@ export class Game {
     this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();
     if (this.fogEnabled) this.fogRenderer.render();
-    const res = this.resources[Faction.Terran];
+    const res = this.resources[this.playerFaction];
     const workerCount = this.countWorkers();
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex]);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
@@ -499,11 +520,20 @@ export class Game {
   private isTechAvailable(bType: BuildingType): boolean {
     const def = BUILDING_DEFS[bType];
     if (!def || def.requires === null) return true;
-    return hasCompletedBuilding(this.world, Faction.Terran, def.requires);
+    return hasCompletedBuilding(this.world, this.playerFaction, def.requires);
   }
 
   /** Get tech availability for all 7 build menu entries */
   private getTechAvailability(): boolean[] {
+    if (this.playerFaction === Faction.Zerg) {
+      return [
+        true, // Hatchery (always available)
+        true, // SpawningPool (always available)
+        true, // EvolutionChamber (always available)
+        false, false, false, false, // no Terran buildings
+      ];
+    }
+    // Existing Terran logic
     return [
       this.isTechAvailable(BuildingType.CommandCenter),
       this.isTechAvailable(BuildingType.SupplyDepot),
@@ -526,6 +556,51 @@ export class Game {
     }
 
     if (this.placementMode) {
+      if (this.playerFaction === Faction.Zerg) {
+        // Zerg building select: 1=Hatchery, 2=SpawningPool, 3=EvolutionChamber
+        if (input.keysJustPressed.has('Digit1')) {
+          this.placementBuildingType = BuildingType.Hatchery;
+        } else if (input.keysJustPressed.has('Digit2')) {
+          this.placementBuildingType = BuildingType.SpawningPool;
+        } else if (input.keysJustPressed.has('Digit3')) {
+          this.placementBuildingType = BuildingType.EvolutionChamber;
+        }
+        if (input.keysJustPressed.has('Escape')) {
+          this.placementMode = false;
+          this.placementBuildingType = 0;
+          return;
+        }
+        if (this.placementBuildingType > 0 && input.mouse.leftJustReleased && !input.mouse.isDragging) {
+          const def = BUILDING_DEFS[this.placementBuildingType];
+          if (!def) return;
+          const worldPos = this.viewport.toWorld(input.mouse.x, input.mouse.y);
+          const tile = worldToTile(worldPos.x, worldPos.y);
+          if (isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)) {
+            const res = this.resources[Faction.Zerg];
+            if (res.minerals >= def.costMinerals && res.gas >= def.costGas) {
+              res.minerals -= def.costMinerals;
+              res.gas -= def.costGas;
+              this.spawnBuilding(this.placementBuildingType as BuildingType, Faction.Zerg, tile.col, tile.row);
+              soundManager.playBuild();
+              // Find and consume a Drone (Drone morphs into building)
+              for (let eid = 1; eid < this.world.nextEid; eid++) {
+                if (unitType[eid] !== UnitType.Drone) continue;
+                if (faction[eid] !== Faction.Zerg) continue;
+                if (hpCurrent[eid] <= 0) continue;
+                if (selected[eid] !== 1) continue;
+                hpCurrent[eid] = 0; // Drone consumed — DeathSystem cleans up
+                break; // only consume 1 Drone
+              }
+              this.placementMode = false;
+              this.placementBuildingType = 0;
+              input.mouse.leftJustReleased = false;
+              this.input.consumeLastEvent('leftup');
+            }
+          }
+        }
+        return; // Zerg handled — don't fall through to Terran logic
+      }
+
       // Select building type (with tech tree check)
       if (input.keysJustPressed.has('Digit1') && this.isTechAvailable(BuildingType.CommandCenter)) {
         this.placementBuildingType = BuildingType.CommandCenter;
@@ -565,12 +640,12 @@ export class Game {
           : isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
 
         if (valid) {
-          const res = this.resources[Faction.Terran];
+          const res = this.resources[this.playerFaction];
           if (res.minerals >= def.costMinerals && res.gas >= def.costGas) {
             res.minerals -= def.costMinerals;
             res.gas -= def.costGas;
 
-            const bEid = this.spawnBuilding(this.placementBuildingType as BuildingType, Faction.Terran, tile.col, tile.row);
+            const bEid = this.spawnBuilding(this.placementBuildingType as BuildingType, this.playerFaction, tile.col, tile.row);
             soundManager.playBuild();
 
             // For Refinery, store gas resource data on the building entity
@@ -602,7 +677,7 @@ export class Game {
 
     for (let eid = 1; eid < this.world.nextEid; eid++) {
       if (unitType[eid] !== UnitType.SCV) continue;
-      if (faction[eid] !== Faction.Terran) continue;
+      if (faction[eid] !== this.playerFaction) continue;
       if (hpCurrent[eid] <= 0) continue;
 
       const dx = posX[eid] - bx;
@@ -715,7 +790,7 @@ export class Game {
     const units: number[] = [];
     for (let eid = 1; eid < this.world.nextEid; eid++) {
       if (selected[eid] !== 1) continue;
-      if (faction[eid] !== Faction.Terran) continue;
+      if (faction[eid] !== this.playerFaction) continue;
       if (!hasComponents(this.world, eid, POSITION | MOVEMENT)) continue;
       if (hasComponents(this.world, eid, BUILDING)) continue; // Buildings can't move
       if (hpCurrent[eid] <= 0) continue;
@@ -759,7 +834,7 @@ export class Game {
     let count = 0;
     for (let eid = 1; eid < this.world.nextEid; eid++) {
       if (!hasComponents(this.world, eid, WORKER | POSITION)) continue;
-      if (faction[eid] !== Faction.Terran) continue;
+      if (faction[eid] !== this.playerFaction) continue;
       if (hpCurrent[eid] <= 0) continue;
       count++;
     }
@@ -774,7 +849,7 @@ export class Game {
     for (let eid = 1; eid < this.world.nextEid; eid++) {
       if (!hasComponents(this.world, eid, UNIT_TYPE | POSITION | SELECTABLE)) continue;
       if (hasComponents(this.world, eid, BUILDING)) continue;
-      if (faction[eid] !== Faction.Terran) continue;
+      if (faction[eid] !== this.playerFaction) continue;
       if (hpCurrent[eid] <= 0) continue;
       const ut = unitType[eid] as UnitType;
       if (ut === UnitType.SCV || ut === UnitType.Drone) continue; // exclude workers
@@ -793,7 +868,7 @@ export class Game {
     let found = false;
     for (let eid = 1; eid < this.world.nextEid; eid++) {
       if (!hasComponents(this.world, eid, WORKER | POSITION | SELECTABLE)) continue;
-      if (faction[eid] !== Faction.Terran) continue;
+      if (faction[eid] !== this.playerFaction) continue;
       if (hpCurrent[eid] <= 0) continue;
       selected[eid] = 1;
       if (!found) {
@@ -804,14 +879,14 @@ export class Game {
   }
 
   private selectIdleWorkers(): void {
-    // Clear selection, then select all idle Terran workers
+    // Clear selection, then select all idle player workers
     for (let eid = 1; eid < this.world.nextEid; eid++) {
       selected[eid] = 0;
     }
     let found = false;
     for (let eid = 1; eid < this.world.nextEid; eid++) {
       if (!hasComponents(this.world, eid, WORKER | POSITION)) continue;
-      if (faction[eid] !== Faction.Terran) continue;
+      if (faction[eid] !== this.playerFaction) continue;
       if (hpCurrent[eid] <= 0) continue;
       if (workerState[eid] !== 0) continue; // Only idle workers (WorkerState.Idle = 0)
       if (commandMode[eid] !== 0) continue; // CommandMode.Idle = 0
@@ -873,6 +948,36 @@ export class Game {
     buildState[poolEid] = BuildState.Complete;
     buildProgress[poolEid] = 1.0;
     hpCurrent[poolEid] = hpMax[poolEid];
+  }
+
+  private spawnTerranAIBase(): void {
+    // Mirror of spawnStartingBase but for Terran AI at bottom-right
+    const ccPos = tileToWorld(112, 112);
+    const ccEid = this.spawnBuilding(BuildingType.CommandCenter, Faction.Terran, 112, 112);
+    buildState[ccEid] = BuildState.Complete;
+    buildProgress[ccEid] = 1.0;
+    hpCurrent[ccEid] = hpMax[ccEid];
+    supplyProvided[ccEid] = BUILDING_DEFS[BuildingType.CommandCenter].supplyProvided;
+    // Supply depot
+    const sdEid = this.spawnBuilding(BuildingType.SupplyDepot, Faction.Terran, 117, 112);
+    buildState[sdEid] = BuildState.Complete;
+    buildProgress[sdEid] = 1.0;
+    hpCurrent[sdEid] = hpMax[sdEid];
+    // Barracks
+    const bEid = this.spawnBuilding(BuildingType.Barracks, Faction.Terran, 112, 117);
+    buildState[bEid] = BuildState.Complete;
+    buildProgress[bEid] = 1.0;
+    hpCurrent[bEid] = hpMax[bEid];
+    // Spawn 4 Marines near the Barracks
+    for (let i = 0; i < 4; i++) {
+      this.spawnUnitAt(UnitType.Marine, Faction.Terran, ccPos.x + (i - 2) * TILE_SIZE, ccPos.y + TILE_SIZE * 3);
+    }
+    // Spawn 4 SCVs near the CC
+    for (let i = 0; i < 4; i++) {
+      const sEid = this.spawnUnitAt(UnitType.SCV, Faction.Terran, ccPos.x + (i - 2) * TILE_SIZE, ccPos.y - TILE_SIZE * 2);
+      workerBaseX[sEid] = ccPos.x;
+      workerBaseY[sEid] = ccPos.y;
+    }
   }
 
   private spawnResourceNodes(): void {
@@ -969,6 +1074,12 @@ export class Game {
 
     faction[eid] = fac;
 
+    // Zerg Hatcheries start with full larva
+    if (type === BuildingType.Hatchery) {
+      larvaCount[eid] = 3;
+      larvaRegenTimer[eid] = 0;
+    }
+
     // Mark tiles as occupied
     markBuildingTiles(this.map, col, row, def.tileWidth, def.tileHeight);
 
@@ -1028,6 +1139,12 @@ export class Game {
     // Ghost energy setup
     if (type === UnitType.Ghost) {
       energy[eid] = 200; // start with full energy
+    }
+
+    // Overlord provides 8 supply when spawned
+    if (type === UnitType.Overlord) {
+      const res = this.resources[fac];
+      if (res) res.supplyProvided += 8;
     }
 
     // Worker setup

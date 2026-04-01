@@ -40,6 +40,11 @@ function startGame(): void {
     game.setSurvivalMode(survivalSelect.value === '1');
   }
 
+  // Read faction selection
+  const factionZergBtn = document.getElementById('faction-zerg') as HTMLButtonElement | null;
+  const isZerg = factionZergBtn?.dataset.selected === 'true';
+  game.setPlayerFaction(isZerg ? 2 : 1); // 1=Terran, 2=Zerg (Faction enum values)
+
   game.init(container!).catch((err) => {
     console.error('Failed to initialize game:', err);
   });

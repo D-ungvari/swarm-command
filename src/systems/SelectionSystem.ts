@@ -24,6 +24,7 @@ export function selectionSystem(
   world: World,
   commands: GameCommand[],
   viewport: Viewport,
+  playerFaction: Faction = Faction.Terran,
 ): void {
   for (const cmd of commands) {
     switch (cmd.type) {
@@ -31,7 +32,7 @@ export function selectionSystem(
         if (cmd.data !== undefined) {
           controlGroups[cmd.data].clear();
           for (let eid = 1; eid < world.nextEid; eid++) {
-            if (selected[eid] === 1 && faction[eid] === Faction.Terran) {
+            if (selected[eid] === 1 && faction[eid] === playerFaction) {
               controlGroups[cmd.data].add(eid);
             }
           }
@@ -61,7 +62,7 @@ export function selectionSystem(
         const closest = findUnitAt(world, worldPos.x, worldPos.y);
         if (closest > 0) {
           const fac = faction[closest];
-          if (fac === Faction.Terran || fac === Faction.None) {
+          if (fac === playerFaction || fac === Faction.None) {
             selected[closest] = selected[closest] === 1 && cmd.shiftHeld ? 0 : 1;
           }
         }
@@ -83,14 +84,14 @@ export function selectionSystem(
         if (!cmd.shiftHeld) clearSelection(world);
         const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
         const closest = findUnitAt(world, worldPos.x, worldPos.y);
-        if (closest > 0 && faction[closest] === Faction.Terran && hasComponents(world, closest, UNIT_TYPE)) {
+        if (closest > 0 && faction[closest] === playerFaction && hasComponents(world, closest, UNIT_TYPE)) {
           selected[closest] = 1;
           const uType = unitType[closest];
           const screenW = viewport.screenWidth;
           const screenH = viewport.screenHeight;
           for (let eid2 = 1; eid2 < world.nextEid; eid2++) {
             if (!hasComponents(world, eid2, POSITION | SELECTABLE | UNIT_TYPE)) continue;
-            if (faction[eid2] !== Faction.Terran) continue;
+            if (faction[eid2] !== playerFaction) continue;
             if (unitType[eid2] !== uType) continue;
             const screen = viewport.toScreen(posX[eid2], posY[eid2]);
             if (screen.x >= 0 && screen.x <= screenW && screen.y >= 0 && screen.y <= screenH) {
@@ -116,7 +117,7 @@ export function selectionSystem(
         const bits = POSITION | SELECTABLE;
         for (let eid = 1; eid < world.nextEid; eid++) {
           if (!hasComponents(world, eid, bits)) continue;
-          if (faction[eid] !== Faction.Terran) continue;
+          if (faction[eid] !== playerFaction) continue;
           const x = posX[eid];
           const y = posY[eid];
           if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
@@ -128,7 +129,7 @@ export function selectionSystem(
       }
 
       case CommandType.CycleSubgroup:
-        cycleSubgroup(world);
+        cycleSubgroup(world, playerFaction);
         break;
     }
   }
@@ -144,15 +145,15 @@ function clearSelection(world: World): void {
  * Cycle selection through subgroups of the current selection, grouped by unit type.
  * Each Tab press selects only the entities of the next unit type in the current selection.
  */
-function cycleSubgroup(world: World): void {
-  // Collect all currently selected Terran unit-type entities
+function cycleSubgroup(world: World, playerFaction: Faction): void {
+  // Collect all currently selected player-faction unit-type entities
   const bits = SELECTABLE | UNIT_TYPE;
   const typeToEids = new Map<number, number[]>();
 
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (selected[eid] !== 1) continue;
     if (!hasComponents(world, eid, bits)) continue;
-    if (faction[eid] !== Faction.Terran) continue;
+    if (faction[eid] !== playerFaction) continue;
     const ut = unitType[eid];
     let group = typeToEids.get(ut);
     if (!group) { group = []; typeToEids.set(ut, group); }

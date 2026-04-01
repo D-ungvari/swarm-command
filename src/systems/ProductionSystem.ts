@@ -8,8 +8,9 @@ import {
   commandMode, setPath, movePathIndex,
   workerState, workerTargetEid, workerBaseX, workerBaseY,
   unitType as unitTypeArr, WORKER,
+  larvaCount, larvaRegenTimer, injectTimer,
 } from '../ecs/components';
-import { BuildState, BuildingType, CommandMode, UnitType, WorkerState } from '../constants';
+import { BuildState, BuildingType, CommandMode, UnitType, WorkerState, LARVA_MAX, LARVA_REGEN_TIME, INJECT_LARVA_BONUS } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
@@ -31,8 +32,31 @@ export function productionSystem(
   resources: Record<number, PlayerResources>,
   map: MapData,
   spawnFn: SpawnFn,
+  gameTime: number,
 ): void {
   const bits = BUILDING | POSITION;
+
+  // ── Larva regeneration (Zerg Hatcheries) ──
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, BUILDING)) continue;
+    if (buildingType[eid] !== BuildingType.Hatchery) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+
+    // Inject larva completion
+    if (injectTimer[eid] > 0 && gameTime >= injectTimer[eid]) {
+      larvaCount[eid] = Math.min(larvaCount[eid] + INJECT_LARVA_BONUS, larvaCount[eid] + INJECT_LARVA_BONUS);
+      injectTimer[eid] = 0;
+    }
+
+    // Regular larva regeneration
+    if (larvaCount[eid] < LARVA_MAX) {
+      larvaRegenTimer[eid] -= dt;
+      if (larvaRegenTimer[eid] <= 0) {
+        larvaCount[eid]++;
+        larvaRegenTimer[eid] = larvaCount[eid] < LARVA_MAX ? LARVA_REGEN_TIME : 0;
+      }
+    }
+  }
 
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
@@ -127,6 +151,17 @@ export function productionSystem(
         const nextType = prodQueue[qBase];
         const nextDef = UNIT_DEFS[nextType];
         if (nextDef) {
+          // Zerg: consume larva when starting a new unit
+          if (buildingType[eid] === BuildingType.Hatchery && larvaCount[eid] === 0) {
+            // No larva available — skip (don't start production)
+            continue;
+          }
+          if (buildingType[eid] === BuildingType.Hatchery && larvaCount[eid] > 0) {
+            larvaCount[eid]--;
+            if (larvaRegenTimer[eid] <= 0 && larvaCount[eid] < LARVA_MAX) {
+              larvaRegenTimer[eid] = LARVA_REGEN_TIME; // restart regen timer
+            }
+          }
           prodUnitType[eid] = nextType;
           prodProgress[eid] = nextDef.buildTime;
           prodTimeTotal[eid] = nextDef.buildTime;

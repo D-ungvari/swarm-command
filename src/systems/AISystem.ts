@@ -42,8 +42,12 @@ const RETREAT_HP_RATIO = 0.35;    // retreat if army HP drops below 35% of max
 const RETREAT_MIN_REGROUP_TIME = 15; // seconds before re-attacking after retreat
 const RETREAT_REBUILT_RATIO = 0.5;   // army must be >= 50% rebuilt to re-attack
 
-// Alternate attack entry point for Hard/Brutal harass squad (far side of map from Zerg base)
-const HARASS_TARGET = { col: 112, row: 15 };
+// Alternate attack entry point for Hard/Brutal harass squad (far side of map from player base)
+function getHarassTarget() {
+  return currentAIFaction === Faction.Terran
+    ? { col: 15, row: 112 }
+    : { col: 112, row: 15 };
+}
 
 // ─────────────────────────────────────────
 // Per-game personality (randomized at init)
@@ -107,6 +111,9 @@ const SCOUT_WAYPOINTS = [
 // AI State
 // ─────────────────────────────────────────
 let currentDifficulty: Difficulty = Difficulty.Normal;
+let currentAIFaction: Faction = Faction.Zerg;
+let playerBaseTile = { col: 15, row: 15 }; // where the player base is
+let enemyFaction: Faction = Faction.Terran; // who the AI is fighting
 let aiMinerals = 0;
 let aiGas = 0;
 let waveCount = 0;
@@ -127,8 +134,11 @@ const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
 let hasExpanded = false;
 
-export function initAI(difficulty: Difficulty = Difficulty.Normal): void {
+export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Faction = Faction.Zerg): void {
   currentDifficulty = difficulty;
+  currentAIFaction = aiFaction;
+  enemyFaction = aiFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg;
+  playerBaseTile = aiFaction === Faction.Zerg ? { col: 15, row: 15 } : { col: 117, row: 117 };
   aiMinerals = 0;
   aiGas = 0;
   waveCount = 0;
@@ -148,6 +158,10 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal): void {
   lastAIUpgradeWave = 0;
   nextAIUpgradeType = 3;
   hasExpanded = false;
+  terranArmyEids = new Set();
+  terranLastSpawnTime = 0;
+  terranAIMinerals = 0;
+  terranAIGas = 0;
   personality = randomPersonality();
   intel = resetIntel();
 }
@@ -162,6 +176,100 @@ export function setAIMinerals(m: number, g: number = 0): void {
 }
 
 // ─────────────────────────────────────────
+// Terran AI Module
+// ─────────────────────────────────────────
+let terranArmyEids: Set<number> = new Set();
+let terranLastSpawnTime = 0;
+let terranAIMinerals = 0;
+let terranAIGas = 0;
+
+function runTerranAI(
+  world: World,
+  _dt: number,
+  gameTime: number,
+  map: MapData,
+  spawnUnit: SpawnFn,
+  resources: Record<number, PlayerResources>,
+  _spawnBuilding: SpawnBuildingFn,
+): void {
+  const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
+
+  // Income
+  terranAIMinerals += 3 * diffConfig.incomeMultiplier;
+  terranAIGas += 0.5 * diffConfig.incomeMultiplier;
+
+  // Clean up dead army units
+  for (const eid of [...terranArmyEids]) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) terranArmyEids.delete(eid);
+  }
+
+  // Spawn Marines and Marauders
+  if (gameTime - terranLastSpawnTime > 15 && terranAIMinerals >= 50) {
+    // Find a Terran Barracks
+    let barracksEid = 0;
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, BUILDING)) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (buildingType[eid] !== BuildingType.Barracks) continue;
+      if (buildState[eid] !== BuildState.Complete) continue;
+      barracksEid = eid;
+      break;
+    }
+    if (barracksEid > 0) {
+      const bx = posX[barracksEid];
+      const by = posY[barracksEid];
+      // Alternate Marines and Marauders
+      const useMarauder = terranArmyEids.size % 3 === 2 && terranAIMinerals >= 100;
+      const uType = useMarauder ? UnitType.Marauder : UnitType.Marine;
+      const cost = useMarauder ? 100 : 50;
+      if (terranAIMinerals >= cost) {
+        terranAIMinerals -= cost;
+        if (useMarauder) terranAIGas -= 25;
+        const eid = spawnUnit(uType, Faction.Terran, bx + (Math.random() - 0.5) * 64, by + 48);
+        terranArmyEids.add(eid);
+        terranLastSpawnTime = gameTime;
+      }
+    }
+  }
+
+  // Suppress unused warning for resources param (used by interface contract)
+  void resources;
+
+  // Attack when army is large enough
+  const targetSize = Math.min(6 + waveCount * 3, Math.floor(25 * diffConfig.armySizeCapMultiplier));
+  if (terranArmyEids.size >= targetSize) {
+    const target = tileToWorld(playerBaseTile.col, playerBaseTile.row);
+    for (const eid of terranArmyEids) {
+      if (!entityExists(world, eid)) continue;
+      commandMode[eid] = CommandMode.AttackMove;
+      const tilePath = findNearestWalkablePath(world, eid, target, map);
+      if (tilePath) setPath(eid, tilePath);
+    }
+    waveCount++;
+    isAttacking = true;
+  } else {
+    isAttacking = false;
+  }
+}
+
+function findNearestWalkablePath(
+  world: World,
+  eid: number,
+  target: { x: number; y: number },
+  map: MapData,
+): Array<[number, number]> | null {
+  void world;
+  const startTile = worldToTile(posX[eid], posY[eid]);
+  const endTile = worldToTile(target.x, target.y);
+  const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+  if (tilePath.length === 0) return null;
+  return tilePath.map(([c, r]) => {
+    const wp = tileToWorld(c, r);
+    return [wp.x, wp.y] as [number, number];
+  });
+}
+
+// ─────────────────────────────────────────
 // Main system entry
 // ─────────────────────────────────────────
 export function aiSystem(
@@ -173,6 +281,11 @@ export function aiSystem(
   resources: Record<number, PlayerResources>,
   spawnBuildingFn: SpawnBuildingFn,
 ): void {
+  if (currentAIFaction === Faction.Terran) {
+    runTerranAI(world, _dt, gameTime, map, spawnFn, resources, spawnBuildingFn);
+    return;
+  }
+
   if (gameTime < INITIAL_DELAY + personality.timingOffset) return;
 
   tickCounter++;
@@ -245,7 +358,7 @@ function gatherIntelFromUnits(world: World): void {
   intel.medivacSeen = 0;
   intel.buildingsSeen = 0;
 
-  // Collect all Zerg unit positions for sight checks
+  // Collect all AI unit positions for sight checks
   const zergPositions: Array<{ x: number; y: number }> = [];
   for (const eid of armyEids) {
     if (entityExists(world, eid) && hpCurrent[eid] > 0) {
@@ -265,7 +378,7 @@ function gatherIntelFromUnits(world: World): void {
 
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, POSITION | HEALTH)) continue;
-    if (faction[eid] !== Faction.Terran) continue;
+    if (faction[eid] !== enemyFaction) continue;
     if (hpCurrent[eid] <= 0) continue;
 
     const ex = posX[eid];
@@ -466,7 +579,7 @@ function assignFocusTargets(world: World): void {
 
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, POSITION | HEALTH | UNIT_TYPE)) continue;
-    if (faction[eid] !== Faction.Terran) continue;
+    if (faction[eid] !== enemyFaction) continue;
     if (hpCurrent[eid] <= 0) continue;
 
     const dx = posX[eid] - armyCenter.x;
@@ -524,13 +637,13 @@ function findAttackTarget(world: World): { x: number; y: number } {
     return { x: intel.lastKnownEnemyX, y: intel.lastKnownEnemyY };
   }
 
-  // Priority 2: Check if any Zerg unit can currently SEE a Terran building
+  // Priority 2: Check if any AI unit can currently SEE an enemy building
   for (const eid of armyEids) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
-    // Look for visible Terran buildings near this unit
+    // Look for visible enemy buildings near this unit
     for (let other = 1; other < world.nextEid; other++) {
       if (!hasComponents(world, other, POSITION | BUILDING)) continue;
-      if (faction[other] !== Faction.Terran) continue;
+      if (faction[other] !== enemyFaction) continue;
       if (hpCurrent[other] <= 0) continue;
       const dx = posX[other] - posX[eid];
       const dy = posY[other] - posY[eid];
@@ -542,7 +655,7 @@ function findAttackTarget(world: World): { x: number; y: number } {
   }
 
   // Priority 3: Attack the most likely player base location (starting area)
-  const fallback = tileToWorld(15, 15);
+  const fallback = tileToWorld(playerBaseTile.col, playerBaseTile.row);
   return { x: fallback.x, y: fallback.y };
 }
 
@@ -598,7 +711,7 @@ function attemptExpansion(
 ): void {
   if (hasExpanded) return;
 
-  const res = resources[Faction.Zerg];
+  const res = resources[currentAIFaction];
   if (!res || aiMinerals < 300) return;
 
   aiMinerals -= 300;
@@ -608,7 +721,7 @@ function attemptExpansion(
   const expansionCol = 15;
   const expansionRow = 100;
 
-  spawnBuilding(BuildingType.Hatchery, Faction.Zerg, expansionCol, expansionRow);
+  spawnBuilding(BuildingType.Hatchery, currentAIFaction, expansionCol, expansionRow);
 }
 
 function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount: number, upgradeStartWave: number): void {
@@ -616,7 +729,7 @@ function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount:
   // Upgrade every 2 waves
   if (waveCount - lastAIUpgradeWave < 2) return;
 
-  const res = resources[Faction.Zerg];
+  const res = resources[currentAIFaction];
   if (!res) return;
 
   const upgradeType = nextAIUpgradeType as UpgradeType;
@@ -720,7 +833,7 @@ function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
   const wp = tileToWorld(walkable.col, walkable.row);
   aiMinerals -= chosen.costM;
   aiGas -= chosen.costG;
-  const eid = spawnFn(chosen.type, Faction.Zerg, wp.x, wp.y);
+  const eid = spawnFn(chosen.type, currentAIFaction, wp.x, wp.y);
   armyEids.add(eid);
 }
 
@@ -804,7 +917,8 @@ function sendDifficultyMultiProngAttack(world: World, map: MapData, targetX: num
   sendUnitsToAttack(world, map, mainForce, targetX, targetY, mainAngle);
 
   // Harass squad attacks the alternate entry point (far side of map)
-  const harassWorld = tileToWorld(HARASS_TARGET.col, HARASS_TARGET.row);
+  const harassTile = getHarassTarget();
+  const harassWorld = tileToWorld(harassTile.col, harassTile.row);
   sendUnitsToAttack(world, map, harassSquad, harassWorld.x, harassWorld.y);
 }
 

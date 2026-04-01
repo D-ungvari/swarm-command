@@ -1,4 +1,4 @@
-import { BuildingType } from '../constants';
+import { BuildingType, Faction } from '../constants';
 import { BUILDING_DEFS } from '../data/buildings';
 
 /**
@@ -9,6 +9,7 @@ export class BuildMenuRenderer {
   private panel: HTMLDivElement;
   private options: HTMLDivElement[] = [];
   private wasVisible = false;
+  private playerFaction: Faction = Faction.Terran;
 
   constructor(container: HTMLElement) {
     this.panel = document.createElement('div');
@@ -72,7 +73,7 @@ export class BuildMenuRenderer {
     container.appendChild(this.panel);
   }
 
-  private static readonly BUILDING_TYPES: BuildingType[] = [
+  private static readonly TERRAN_BUILDING_TYPES: BuildingType[] = [
     BuildingType.CommandCenter,
     BuildingType.SupplyDepot,
     BuildingType.Barracks,
@@ -81,6 +82,39 @@ export class BuildMenuRenderer {
     BuildingType.Starport,
     BuildingType.EngineeringBay,
   ];
+
+  private static readonly ZERG_BUILDING_TYPES: Array<BuildingType | 0> = [
+    BuildingType.Hatchery,
+    BuildingType.SpawningPool,
+    BuildingType.EvolutionChamber,
+    0, 0, 0, 0,
+  ];
+
+  private get buildingTypes(): Array<BuildingType | 0> {
+    return this.playerFaction === Faction.Zerg
+      ? BuildMenuRenderer.ZERG_BUILDING_TYPES
+      : BuildMenuRenderer.TERRAN_BUILDING_TYPES;
+  }
+
+  setFaction(f: Faction): void {
+    this.playerFaction = f;
+    const types = this.buildingTypes;
+    const keys = ['1', '2', '3', '4', '5', '6', '7'];
+    for (let i = 0; i < this.options.length; i++) {
+      const bType = types[i];
+      if (bType === 0) {
+        this.options[i].textContent = '';
+        this.options[i].style.display = 'none';
+      } else {
+        const def = BUILDING_DEFS[bType];
+        const costText = def.costGas > 0
+          ? `${def.costMinerals}m ${def.costGas}g`
+          : `${def.costMinerals}m`;
+        this.options[i].textContent = `${keys[i]}: ${def.name} (${costText})`;
+        this.options[i].style.display = '';
+      }
+    }
+  }
 
   update(
     visible: boolean,
@@ -96,7 +130,8 @@ export class BuildMenuRenderer {
     if (!visible) return;
 
     for (let i = 0; i < this.options.length; i++) {
-      const bType = BuildMenuRenderer.BUILDING_TYPES[i];
+      const bType = this.buildingTypes[i];
+      if (bType === 0) continue; // blank slot
       const def = BUILDING_DEFS[bType];
       const canAfford = minerals >= def.costMinerals && gas >= def.costGas;
       const techOk = techAvailable ? techAvailable[i] : true;

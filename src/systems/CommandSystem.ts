@@ -11,6 +11,7 @@ import {
   rallyX, rallyY, buildState, buildingType, prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   cloaked,
+  energy, injectTimer,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -23,6 +24,7 @@ import {
   Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, TILE_SIZE,
   STIM_DURATION, STIM_HP_COST, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
+  INJECT_LARVA_COST, INJECT_LARVA_TIME,
 } from '../constants';
 import type { PlayerResources } from '../types';
 import type { Viewport } from 'pixi-viewport';
@@ -39,6 +41,7 @@ export function commandSystem(
   map: MapData,
   gameTime: number,
   resources?: Record<number, PlayerResources>,
+  playerFaction: Faction = Faction.Terran,
 ): void {
   for (const cmd of commands) {
     switch (cmd.type) {
@@ -80,6 +83,31 @@ export function commandSystem(
         }
         break;
 
+      case CommandType.InjectLarva: {
+        if (!cmd.units) break;
+        for (const qEid of cmd.units) {
+          if (unitType[qEid] !== UnitType.Queen) continue;
+          if (hpCurrent[qEid] <= 0) continue;
+          if (energy[qEid] < INJECT_LARVA_COST) continue;
+          // Find nearest friendly Hatchery with no active inject
+          let best = 0, bestDist = Infinity;
+          const myFac = faction[qEid];
+          for (let eid = 1; eid < world.nextEid; eid++) {
+            if (!hasComponents(world, eid, BUILDING)) continue;
+            if (faction[eid] !== myFac) continue;
+            if (buildingType[eid] !== BuildingType.Hatchery) continue;
+            if (buildState[eid] !== BuildState.Complete) continue;
+            if (injectTimer[eid] > 0) continue;
+            const d = (posX[eid] - posX[qEid]) ** 2 + (posY[eid] - posY[qEid]) ** 2;
+            if (d < bestDist) { bestDist = d; best = eid; }
+          }
+          if (best === 0) continue;
+          energy[qEid] -= INJECT_LARVA_COST;
+          injectTimer[best] = gameTime + INJECT_LARVA_TIME;
+        }
+        break;
+      }
+
       case CommandType.Cancel:
         if (resources) cancelSelectedBuildings(world, resources);
         break;
@@ -92,7 +120,7 @@ export function commandSystem(
         const units = cmd.units ?? [];
         if (units.length === 0) break;
         // Check if clicking on an enemy
-        const enemy = findEnemyAt(world, cmd.wx!, cmd.wy!, Faction.Terran);
+        const enemy = findEnemyAt(world, cmd.wx!, cmd.wy!, playerFaction);
         if (enemy > 0) {
           for (const eid of units) {
             targetEntity[eid] = enemy;
@@ -179,7 +207,7 @@ export function commandSystem(
         }
 
         // Check if right-clicking on a friendly unit (Medivac heal-follow)
-        const friendly = findFriendlyAt(world, wx, wy, Faction.Terran);
+        const friendly = findFriendlyAt(world, wx, wy, playerFaction);
         if (friendly > 0) {
           const medivacs: number[] = [];
           const others: number[] = [];
@@ -198,7 +226,7 @@ export function commandSystem(
         }
 
         // Check enemy
-        const enemy = findEnemyAt(world, wx, wy, Faction.Terran);
+        const enemy = findEnemyAt(world, wx, wy, playerFaction);
         if (enemy > 0) {
           for (const eid of units) {
             targetEntity[eid] = enemy;

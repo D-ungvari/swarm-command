@@ -103,7 +103,7 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     tileWidth: 3,
     tileHeight: 3,
     supplyProvided: 10,
-    produces: [UnitType.Drone, UnitType.Zergling],
+    produces: [UnitType.Drone, UnitType.Zergling, UnitType.Queen, UnitType.Overlord],
     color: ZERG_COLOR,
     requires: null,
   },

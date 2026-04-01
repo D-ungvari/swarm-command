@@ -7,6 +7,7 @@ import {
   selected, hpCurrent, hpMax, faction, renderTint, killCount,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
   energy, cloaked, stimEndTime,
+  larvaCount,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -370,6 +371,13 @@ export class InfoPanelRenderer {
           }
         }
       }
+      // Hatchery: show larva count
+      if (bt === BuildingType.Hatchery) {
+        const larva = larvaCount[eid];
+        const larvaText = larva > 0 ? `  Larva: ${larva}/3` : '  Larva: 0/3 (regenerating)';
+        this.detailEl.textContent += larvaText;
+      }
+
       // Faction-colored border for buildings
       this.panel.style.borderColor = fac === Faction.Zerg
         ? 'rgba(255, 80, 80, 0.3)'

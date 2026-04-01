@@ -61,6 +61,18 @@
       <span class="key">F1</span><span>Toggle help</span>
     </div>
     <div style="margin: 12px 0;">
+      <label style="color: #88bbff; font-size: 13px;">Faction: </label>
+      <button id="faction-terran" style="
+        background: #1a3a5a; color: #88ccff; border: 1px solid #3a6a9a;
+        padding: 5px 14px; font-size: 12px; cursor: pointer; letter-spacing: 1px;
+        margin-right: 4px; opacity: 1;
+      ">TERRAN</button>
+      <button id="faction-zerg" style="
+        background: #0a0a0a; color: #884466; border: 1px solid #3a1a2a;
+        padding: 5px 14px; font-size: 12px; cursor: pointer; letter-spacing: 1px;
+      ">ZERG</button>
+    </div>
+    <div style="margin: 12px 0;">
       <label style="color: #88bbff; font-size: 13px;">Difficulty: </label>
       <select id="difficulty-select" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 13px; cursor: pointer;">
         <option value="0">Easy</option>
@@ -120,6 +132,35 @@
         '<p style="color:#ffaa44;font-size:12px;margin:8px 0;">⚠️ Best played on desktop with keyboard + mouse</p>'
       );
     }
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var terranBtn = document.getElementById('faction-terran');
+      var zergBtn = document.getElementById('faction-zerg');
+      if (terranBtn && zergBtn) {
+        terranBtn.addEventListener('click', function() {
+          terranBtn.style.background = '#1a3a5a';
+          terranBtn.style.color = '#88ccff';
+          terranBtn.style.borderColor = '#3a6a9a';
+          zergBtn.style.background = '#0a0a0a';
+          zergBtn.style.color = '#884466';
+          zergBtn.style.borderColor = '#3a1a2a';
+          terranBtn.dataset.selected = 'true';
+          zergBtn.dataset.selected = '';
+        });
+        zergBtn.addEventListener('click', function() {
+          zergBtn.style.background = '#3a1a2a';
+          zergBtn.style.color = '#ff88cc';
+          zergBtn.style.borderColor = '#aa4466';
+          terranBtn.style.background = '#0a0a0a';
+          terranBtn.style.color = '#446688';
+          terranBtn.style.borderColor = '#1a2a3a';
+          zergBtn.dataset.selected = 'true';
+          terranBtn.dataset.selected = '';
+        });
+        terranBtn.dataset.selected = 'true'; // default
+      }
+    });
   </script>
   <script type="module" src="/src/main.ts"></script>
 </body>

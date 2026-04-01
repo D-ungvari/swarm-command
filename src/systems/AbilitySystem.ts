@@ -1,12 +1,13 @@
 import { type World, hasComponents } from '../ecs/world';
 import {
-  POSITION, HEALTH, ABILITY, UNIT_TYPE,
+  POSITION, HEALTH, ABILITY, UNIT_TYPE, BUILDING,
   posX, posY, hpCurrent, hpMax, faction, unitType,
   moveSpeed, atkCooldown, atkDamage, atkRange, atkSplash,
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
   lastCombatTime, movePathIndex,
   energy, cloaked,
+  injectTimer, buildingType, buildState,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import {
@@ -15,6 +16,9 @@ import {
   SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH,
   MEDIVAC_HEAL_RATE, MEDIVAC_HEAL_RANGE,
   ROACH_REGEN_COMBAT, ROACH_REGEN_IDLE, ROACH_COMBAT_TIMEOUT,
+  QUEEN_ENERGY_MAX, QUEEN_ENERGY_REGEN,
+  INJECT_LARVA_COST, INJECT_LARVA_TIME,
+  BuildingType, BuildState,
 } from '../constants';
 
 /**
@@ -28,6 +32,7 @@ export function abilitySystem(world: World, dt: number, gameTime: number): void 
   processMedivacHeal(world, dt);
   processRoachRegen(world, dt, gameTime);
   processGhostCloak(world, dt);
+  processQueenEnergyRegen(world, dt);
 }
 
 function processGhostCloak(world: World, dt: number): void {
@@ -159,5 +164,43 @@ function processRoachRegen(world: World, dt: number, gameTime: number): void {
     const isInCombat = gameTime - lastCombatTime[eid] < ROACH_COMBAT_TIMEOUT;
     const rate = isInCombat ? ROACH_REGEN_COMBAT : ROACH_REGEN_IDLE;
     hpCurrent[eid] = Math.min(hpMax[eid], hpCurrent[eid] + rate * dt);
+  }
+}
+
+function processQueenEnergyRegen(world: World, dt: number): void {
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, ABILITY)) continue;
+    if (unitType[eid] !== UnitType.Queen) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (energy[eid] < QUEEN_ENERGY_MAX) {
+      energy[eid] = Math.min(QUEEN_ENERGY_MAX, energy[eid] + QUEEN_ENERGY_REGEN * dt);
+    }
+  }
+}
+
+export function applyInjectLarva(world: World, queenEids: number[], gameTime: number): void {
+  for (const qEid of queenEids) {
+    if (unitType[qEid] !== UnitType.Queen) continue;
+    if (hpCurrent[qEid] <= 0) continue;
+    if (energy[qEid] < INJECT_LARVA_COST) continue;
+
+    // Find nearest friendly Hatchery with no active inject
+    let nearestHatch = 0;
+    let nearestDist = Infinity;
+    const myFac = faction[qEid];
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, BUILDING)) continue;
+      if (faction[eid] !== myFac) continue;
+      if (buildingType[eid] !== BuildingType.Hatchery) continue;
+      if (buildState[eid] !== BuildState.Complete) continue;
+      if (injectTimer[eid] > 0) continue; // already injecting
+      const dx = posX[eid] - posX[qEid];
+      const dy = posY[eid] - posY[qEid];
+      const dist = dx * dx + dy * dy;
+      if (dist < nearestDist) { nearestDist = dist; nearestHatch = eid; }
+    }
+    if (nearestHatch === 0) continue;
+    energy[qEid] -= INJECT_LARVA_COST;
+    injectTimer[nearestHatch] = gameTime + INJECT_LARVA_TIME;
   }
 }

@@ -15,7 +15,10 @@ export class InputProcessor {
     public readonly simulationQueue: GameCommandQueue,
     private viewport: Viewport,
     private world: World,
+    private playerFaction: Faction = Faction.Terran,
   ) {}
+
+  setPlayerFaction(f: Faction): void { this.playerFaction = f; }
 
   get isAttackMovePending(): boolean {
     return this.attackMovePending;
@@ -89,6 +92,9 @@ export class InputProcessor {
     }
     if (keys.has('KeyC')) {
       this.simulationQueue.push({ type: CommandType.Cloak, units: this.snapshotSelection() });
+    }
+    if (keys.has('KeyV')) {
+      this.simulationQueue.push({ type: CommandType.InjectLarva, units: this.snapshotSelection() });
     }
   }
 
@@ -164,7 +170,7 @@ export class InputProcessor {
   private snapshotSelection(): number[] {
     const out: number[] = [];
     for (let eid = 1; eid < this.world.nextEid; eid++) {
-      if (selected[eid] === 1 && faction[eid] === Faction.Terran) {
+      if (selected[eid] === 1 && faction[eid] === this.playerFaction) {
         out.push(eid);
       }
     }

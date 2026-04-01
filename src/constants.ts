@@ -53,6 +53,8 @@ export const enum UnitType {
   Hydralisk = 13,
   Roach = 14,
   Mutalisk = 15,
+  Queen    = 16,
+  Overlord = 17,
 }
 
 // ── Command modes ──
@@ -159,6 +161,15 @@ export const MEDIVAC_HEAL_RANGE = 4;
 export const ROACH_REGEN_COMBAT = 0.5;
 export const ROACH_REGEN_IDLE = 2.0;
 export const ROACH_COMBAT_TIMEOUT = 3.0;
+
+// Larva / Queen (Hatchery mechanics)
+export const LARVA_MAX = 3;
+export const LARVA_REGEN_TIME = 11;       // seconds per larva
+export const QUEEN_ENERGY_MAX = 200;
+export const QUEEN_ENERGY_REGEN = 0.5625; // per second
+export const INJECT_LARVA_COST = 25;      // energy cost
+export const INJECT_LARVA_BONUS = 4;      // extra larva added after 40s
+export const INJECT_LARVA_TIME = 40;      // seconds for inject to complete
 
 // ── Building constants ──
 export const STARTING_SUPPLY = 10;

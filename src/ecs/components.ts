@@ -137,6 +137,14 @@ export const workerBaseY = new Float32Array(MAX_ENTITIES);
 export const patrolOriginX = new Float32Array(MAX_ENTITIES);
 export const patrolOriginY = new Float32Array(MAX_ENTITIES);
 
+// ── Larva (Zerg Hatchery production) ──
+/** Current larva count on this Hatchery (0-LARVA_MAX) */
+export const larvaCount = new Uint8Array(MAX_ENTITIES);
+/** Countdown to next larva spawn, in seconds */
+export const larvaRegenTimer = new Float32Array(MAX_ENTITIES);
+/** GameTime when inject larva completes (0 = no inject active) */
+export const injectTimer = new Float32Array(MAX_ENTITIES);
+
 // ── Building ──
 /** BuildingType enum value */
 export const buildingType = new Uint8Array(MAX_ENTITIES);
@@ -272,6 +280,9 @@ export function resetComponents(eid: number): void {
   workerBaseY[eid] = 0;
   patrolOriginX[eid] = 0;
   patrolOriginY[eid] = 0;
+  larvaCount[eid] = 0;
+  larvaRegenTimer[eid] = 0;
+  injectTimer[eid] = 0;
   buildingType[eid] = 0;
   buildState[eid] = 0;
   buildProgress[eid] = 0;

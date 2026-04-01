@@ -33,6 +33,7 @@ const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
   [UnitType.Drone]: 400,
   [UnitType.Mutalisk]: 600,
   [UnitType.Ghost]: 650,
+  [UnitType.Hellion]: 550,
 };
 
 /** How far a target must move before we re-path to chase it */
@@ -74,7 +75,7 @@ function getWeaponBonus(resources: Record<number, PlayerResources>, attackerFact
   const upgrades = resources[attackerFaction]?.upgrades;
   if (!upgrades) return 0;
   if (attackerFaction === Faction.Terran) {
-    if (uType === UnitType.SiegeTank) return upgrades[UpgradeType.VehicleWeapons];
+    if (uType === UnitType.SiegeTank || uType === UnitType.Hellion) return upgrades[UpgradeType.VehicleWeapons];
     return upgrades[UpgradeType.InfantryWeapons]; // Marine, Marauder, Medivac, SCV
   }
   // Zerg

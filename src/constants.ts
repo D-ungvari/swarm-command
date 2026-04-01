@@ -45,6 +45,7 @@ export const enum UnitType {
   SiegeTank = 4,
   Medivac = 5,
   Ghost = 6,
+  Hellion = 7,
   // Zerg
   Drone = 10,
   Zergling = 11,

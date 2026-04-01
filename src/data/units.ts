@@ -63,6 +63,16 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     costMinerals: 200, costGas: 100, buildTime: 32,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
   },
+  [UnitType.Hellion]: {
+    type: UnitType.Hellion,
+    name: 'Hellion',
+    faction: Faction.Terran,
+    hp: 90, damage: 8, range: 5, speed: 4.5,
+    attackCooldown: 1200, splashRadius: 1.5,
+    width: 14, height: 10, color: 0xff6600,
+    costMinerals: 100, costGas: 0, buildTime: 21,
+    damageType: DamageType.Explosive, armorClass: ArmorClass.Light,
+  },
 
   // ── Zerg ──
   [UnitType.Drone]: {

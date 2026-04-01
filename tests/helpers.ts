@@ -42,6 +42,7 @@ import type { PlayerResources } from '../src/types';
 export const Faction = { None: 0, Terran: 1, Zerg: 2 } as const;
 export const UnitType = {
   SCV: 1, Marine: 2, Marauder: 3, SiegeTank: 4, Medivac: 5,
+  Ghost: 6, Hellion: 7,
   Drone: 10, Zergling: 11, Baneling: 12, Hydralisk: 13, Roach: 14,
 } as const;
 export const CommandMode = {

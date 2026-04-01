@@ -1088,6 +1088,31 @@ export class UnitRenderer {
           g.lineTo(x, y + h * 0.38);
           g.stroke({ color: 0x334466, width: 0.8, alpha: 0.5 });
 
+        } else if (uType === UnitType.Hellion) {
+          // ── Hellion: fast fire vehicle with flame nozzles and wheels ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Shadow
+          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body rect (wider than tall — vehicle profile)
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: bodyColor });
+          g.rect(x - hw, y - hh, w, h);
+          g.stroke({ color: 0xcc4400, width: 1, alpha: 0.7 });
+          // Flame nozzles (right side = front)
+          g.moveTo(posX[eid] + hw, posY[eid] - 3);
+          g.lineTo(posX[eid] + hw + 6, posY[eid] - 5);
+          g.moveTo(posX[eid] + hw, posY[eid] + 3);
+          g.lineTo(posX[eid] + hw + 6, posY[eid] + 5);
+          g.stroke({ color: 0xffcc44, width: 2, alpha: 0.9 });
+          // Wheel circles at corners
+          const wheelPositions = [[-hw + 3, hh + 2], [hw - 3, hh + 2], [-hw + 3, -hh - 2], [hw - 3, -hh - 2]] as const;
+          for (const [wx, wy] of wheelPositions) {
+            g.circle(posX[eid] + wx, posY[eid] + wy, 2.5);
+            g.fill({ color: 0x444444, alpha: 0.9 });
+          }
+
         } else {
           // Fallback for any unknown Terran unit
           g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);

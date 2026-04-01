@@ -73,7 +73,7 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     tileWidth: 3,
     tileHeight: 3,
     supplyProvided: 0,
-    produces: [UnitType.SiegeTank, UnitType.Ghost],
+    produces: [UnitType.Hellion, UnitType.SiegeTank, UnitType.Ghost],
     color: BUILDING_COLOR,
     requires: BuildingType.Barracks,
   },

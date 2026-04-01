@@ -1,17 +1,27 @@
 # Backlog
 
 Ordered by priority. Top item = next to implement.
+See ITERATION_PLAN.md for full sprint specifications.
 
 ## Up Next
 
-| # | Title | Type | Phase |
-|---|-------|------|-------|
-| 6 | Minimap + unit info panel | feat | Phase 7 |
-| 7 | Fog of war | feat | Phase 7 |
-| 8 | UI polish — menus, victory/defeat, hotkeys | feat | Phase 7 |
-| 9 | Portfolio integration + deploy | chore | Phase 8 |
+| # | Title | Type | Sprint |
+|---|-------|------|--------|
+| 6 | Sprint 1: Input Architecture Overhaul | feat | 1 |
+| 7 | Sprint 2: Core Combat Improvements | feat | 2 |
+| 8 | Sprint 3: Control QoL | feat | 3 |
+| 9 | Sprint 4: Upgrades & Tech Tree | feat | 4 |
+| 10 | Sprint 5: Visual Combat Polish | feat | 5 |
+| 11 | Sprint 6: Advanced AI | feat | 6 |
+| 12 | Sprint 7: Map & Terrain | feat | 7 |
+| 13 | Sprint 8: Audio & UX Polish | feat | 8 |
+| 14 | Sprint 9: Replay & Stats | feat | 9 |
+| 15 | Sprint 13: Portfolio Integration & Deploy | chore | 13 |
 
 ## In Progress
+(nothing)
+
+## Blocked
 (nothing)
 
 ## Completed

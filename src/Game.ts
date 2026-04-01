@@ -53,7 +53,9 @@ import { GameOverRenderer } from './rendering/GameOverRenderer';
 import { AlertRenderer } from './rendering/AlertRenderer';
 import { movementSystem } from './systems/MovementSystem';
 import { selectionSystem } from './systems/SelectionSystem';
-import { commandSystem, attackMoveMode } from './systems/CommandSystem';
+import { commandSystem } from './systems/CommandSystem';
+import { GameCommandQueue } from './input/CommandQueue';
+import { InputProcessor } from './input/InputProcessor';
 import { buildSystem } from './systems/BuildSystem';
 import { productionSystem } from './systems/ProductionSystem';
 import { combatSystem } from './systems/CombatSystem';
@@ -99,6 +101,9 @@ export class Game {
   private alertRenderer!: AlertRenderer;
   private lastAIAttacking = false;
   private lastUnderAttackAlert = 0;
+  private selectionQueue!: GameCommandQueue;
+  private simulationQueue!: GameCommandQueue;
+  private inputProcessor!: InputProcessor;
   private ghostGraphics!: Graphics;
 
   // Fixed timestep accumulator
@@ -142,6 +147,16 @@ export class Game {
     this.viewport.moveCenter(startPos.x, startPos.y);
 
     this.input = new InputManager(this.app.canvas as HTMLCanvasElement);
+
+    this.selectionQueue = new GameCommandQueue();
+    this.simulationQueue = new GameCommandQueue();
+    this.inputProcessor = new InputProcessor(
+      this.input,
+      this.selectionQueue,
+      this.simulationQueue,
+      this.viewport,
+      this.world,
+    );
 
     this.tilemapRenderer = new TilemapRenderer();
     this.viewport.addChild(this.tilemapRenderer.container);
@@ -200,30 +215,33 @@ export class Game {
     this.accumulator += frameTime;
 
     this.input.update();
-    this.handleMinimapClick();
+    this.handleMinimapClick();         // runs first — consumes minimap clicks
     this.handleEdgeScroll();
-    this.handleBuildPlacement();
+    this.handleBuildPlacement();       // runs second — consumes build placement clicks
+    this.inputProcessor.processFrame(); // processes remaining raw events into queues
+    this.applySelectionCommands();     // frame-rate: drain selectionQueue immediately
 
     while (this.accumulator >= MS_PER_TICK) {
       this.tick(MS_PER_TICK / 1000);
       this.accumulator -= MS_PER_TICK;
-      // Clear one-shot input flags after first tick to prevent double-processing
-      const m = this.input.state.mouse;
-      m.leftJustPressed = false;
-      m.leftJustReleased = false;
-      m.rightJustPressed = false;
-      m.leftDoubleClick = false;
-      this.input.state.keysJustPressed.clear();
+      // No manual flag clearing needed — InputProcessor already consumed raw events
     }
 
     this.render();
     this.input.lateUpdate();
   }
 
+  /** Drain selectionQueue and apply selection changes immediately (frame-rate). */
+  private applySelectionCommands(): void {
+    const cmds = this.selectionQueue.flush();
+    if (cmds.length > 0) {
+      selectionSystem(this.world, cmds, this.viewport);
+    }
+  }
+
   private tick(dt: number): void {
     this.gameTime += dt;
-    selectionSystem(this.world, this.input.state, this.viewport);
-    commandSystem(this.world, this.input.state, this.viewport, this.map, this.gameTime, this.resources);
+    commandSystem(this.world, this.simulationQueue.flush(), this.viewport, this.map, this.gameTime, this.resources);
     buildSystem(this.world, dt, this.resources);
     productionSystem(this.world, dt, this.resources, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y));
@@ -248,7 +266,7 @@ export class Game {
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
-    this.modeIndicatorRenderer.update(attackMoveMode, this.placementMode);
+    this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode);
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world);
 
@@ -294,7 +312,7 @@ export class Game {
     // Cursor change based on current mode
     if (this.placementMode) {
       document.body.style.cursor = 'cell';
-    } else if (attackMoveMode) {
+    } else if (this.inputProcessor.isAttackMovePending) {
       document.body.style.cursor = 'crosshair';
     } else {
       document.body.style.cursor = 'default';
@@ -389,6 +407,7 @@ export class Game {
             this.placementBuildingType = 0;
             // Consume click so selection system doesn't also process it
             input.mouse.leftJustReleased = false;
+            this.input.consumeLastEvent('leftup');
           }
         }
       }
@@ -482,6 +501,7 @@ export class Game {
     if (m.leftJustReleased && !m.isDragging) {
       if (this.minimapRenderer.handleClick(m.x, m.y)) {
         m.leftJustReleased = false;
+        this.input.consumeLastEvent('leftup');
       }
     }
     // Also consume leftJustPressed on minimap to prevent drag-select
@@ -491,6 +511,8 @@ export class Game {
       if (localX >= 0 && localX <= 160 && localY >= 0 && localY <= 160) {
         m.leftJustPressed = false;
         m.leftJustReleased = false;
+        this.input.consumeLastEvent('leftdown');
+        this.input.consumeLastEvent('leftup');
       }
     }
 
@@ -505,6 +527,7 @@ export class Game {
         // Simpler: directly set paths for selected units here.
         this.moveSelectedUnitsTo(dest.x, dest.y);
         m.rightJustPressed = false; // Consume so CommandSystem doesn't also process
+        this.input.consumeLastEvent('rightdown');
       }
     }
   }

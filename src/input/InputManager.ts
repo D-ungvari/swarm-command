@@ -36,10 +36,13 @@ export class InputManager {
   private lastClickTime = 0;
 
   // Buffered events — survive even if mousedown+mouseup happens between frames
-  private bufferedRightClick = false;
-  private bufferedLeftClick = false;
-  private bufferedLeftRelease = false;
-  private bufferedDoubleClick = false;
+  private pendingMouseEvents: Array<{
+    type: 'leftdown' | 'leftup' | 'rightdown';
+    x: number;
+    y: number;
+    time: number;
+    isDouble?: boolean;
+  }> = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -71,23 +74,21 @@ export class InputManager {
     el.addEventListener('mousedown', (e) => {
       if (e.button === 0) {
         this.rawLeftDown = true;
-        this.bufferedLeftClick = true;
         const now = performance.now();
-        if (now - this.lastClickTime < 300) {
-          this.bufferedDoubleClick = true;
-        }
+        const isDouble = now - this.lastClickTime < 300;
         this.lastClickTime = now;
+        this.pendingMouseEvents.push({ type: 'leftdown', x: e.clientX, y: e.clientY, time: now, isDouble: isDouble || undefined });
       }
       if (e.button === 2) {
         this.rawRightDown = true;
-        this.bufferedRightClick = true;
+        this.pendingMouseEvents.push({ type: 'rightdown', x: e.clientX, y: e.clientY, time: performance.now() });
       }
     });
 
     el.addEventListener('mouseup', (e) => {
       if (e.button === 0) {
         this.rawLeftDown = false;
-        this.bufferedLeftRelease = true;
+        this.pendingMouseEvents.push({ type: 'leftup', x: e.clientX, y: e.clientY, time: performance.now() });
       }
       if (e.button === 2) this.rawRightDown = false;
     });
@@ -114,20 +115,26 @@ export class InputManager {
     m.x = this.rawX;
     m.y = this.rawY;
 
-    // Buffered events: only SET flags from buffer, never clear them here.
-    // Flags persist until consumed by a tick (cleared in Game.ts tick loop).
-    // This prevents clicks from being lost on frames where 0 ticks run.
-    if (this.bufferedLeftClick) { m.leftJustPressed = true; this.bufferedLeftClick = false; }
-    if (this.bufferedRightClick) { m.rightJustPressed = true; this.bufferedRightClick = false; }
-    if (this.bufferedLeftRelease) { m.leftJustReleased = true; this.bufferedLeftRelease = false; }
-    if (this.bufferedDoubleClick) { m.leftDoubleClick = true; this.bufferedDoubleClick = false; }
-
-    // Track drag
-    if (m.leftJustPressed) {
-      m.dragStartX = m.x;
-      m.dragStartY = m.y;
-      m.isDragging = false;
+    // Promote first event of each type to InputState flags (backward compat)
+    // InputProcessor will handle the full array separately.
+    for (const evt of this.pendingMouseEvents) {
+      if (evt.type === 'leftdown' && !m.leftJustPressed) {
+        m.leftJustPressed = true;
+        m.dragStartX = evt.x;
+        m.dragStartY = evt.y;
+        m.isDragging = false;
+      }
+      if (evt.type === 'leftup' && !m.leftJustReleased) {
+        m.leftJustReleased = true;
+      }
+      if (evt.type === 'rightdown' && !m.rightJustPressed) {
+        m.rightJustPressed = true;
+      }
+      if (evt.isDouble && !m.leftDoubleClick) {
+        m.leftDoubleClick = true;
+      }
     }
+
     if (this.rawLeftDown && !m.isDragging) {
       const dx = m.x - m.dragStartX;
       const dy = m.y - m.dragStartY;
@@ -155,6 +162,36 @@ export class InputManager {
     const m = this.state.mouse;
     if (m.leftJustReleased) {
       m.isDragging = false;
+    }
+  }
+
+  /** Read pending mouse events without draining. InputProcessor calls this. */
+  get rawMouseEvents(): ReadonlyArray<{
+    type: 'leftdown' | 'leftup' | 'rightdown';
+    x: number;
+    y: number;
+    time: number;
+    isDouble?: boolean;
+  }> {
+    return this.pendingMouseEvents;
+  }
+
+  /** Drain all pending events. Called by InputProcessor after it has consumed them. */
+  clearPendingEvents(): void {
+    this.pendingMouseEvents.length = 0;
+  }
+
+  /**
+   * Mark the most recent event of the given type as consumed.
+   * Called by handleMinimapClick() / handleBuildPlacement() after they consume a click,
+   * so InputProcessor doesn't emit a duplicate command for the same click.
+   */
+  consumeLastEvent(type: 'leftdown' | 'leftup' | 'rightdown'): void {
+    for (let i = this.pendingMouseEvents.length - 1; i >= 0; i--) {
+      if (this.pendingMouseEvents[i].type === type) {
+        this.pendingMouseEvents.splice(i, 1);
+        break;
+      }
     }
   }
 }

@@ -13,7 +13,7 @@ import {
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
 import { findEnemyAt, findResourceAt, findBuildingAt } from '../ecs/queries';
-import type { InputState } from '../input/InputManager';
+import { CommandType, type GameCommand } from '../input/CommandQueue';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
@@ -26,209 +26,154 @@ import type { PlayerResources } from '../types';
 import type { Viewport } from 'pixi-viewport';
 import { addCommandPing } from '../rendering/UnitRenderer';
 
-/** Attack-move mode: set by pressing A, consumed by next left-click */
-export let attackMoveMode = false;
-
 /**
- * Translates player input into move/attack/attack-move commands for selected units.
- * Also handles ability hotkeys (T = stim, E = siege mode).
- * Handles rally points for buildings and production hotkeys.
+ * Translates queued game commands into move/attack/attack-move commands for selected units.
+ * Also handles ability commands (Stim, Siege), rally points, and production.
  */
 export function commandSystem(
   world: World,
-  input: InputState,
+  commands: GameCommand[],
   viewport: Viewport,
   map: MapData,
   gameTime: number,
   resources?: Record<number, PlayerResources>,
 ): void {
-  const m = input.mouse;
+  for (const cmd of commands) {
+    switch (cmd.type) {
+      case CommandType.Stop:
+        if (cmd.units) stopUnits(world, cmd.units);
+        break;
 
-  // Production hotkeys (Q = produce first unit, W = produce second)
-  if (resources && (input.keysJustPressed.has('KeyQ') || input.keysJustPressed.has('KeyW'))) {
-    handleProductionHotkey(world, input, resources);
-  }
+      case CommandType.Stim:
+        if (cmd.units) applyStim(world, cmd.units, gameTime);
+        break;
 
-  // A key toggles attack-move mode
-  if (input.keysJustPressed.has('KeyA')) {
-    attackMoveMode = true;
-  }
+      case CommandType.SiegeToggle:
+        if (cmd.units) toggleSiegeMode(world, cmd.units, gameTime);
+        break;
 
-  // Escape cancels attack-move mode
-  if (input.keysJustPressed.has('Escape')) {
-    attackMoveMode = false;
-  }
+      case CommandType.Cancel:
+        if (resources) cancelSelectedBuildings(world, resources);
+        break;
 
-  // S key = stop command
-  if (input.keysJustPressed.has('KeyS')) {
-    stopSelectedUnits(world);
-    return;
-  }
+      case CommandType.Produce:
+        if (resources) handleProductionCommand(world, cmd, resources);
+        break;
 
-  // H key = hold position
-  if (input.keysJustPressed.has('KeyH')) {
-    stopSelectedUnits(world);
-    return;
-  }
-
-  // T key = Stim Pack (Marines only)
-  if (input.keysJustPressed.has('KeyT')) {
-    applyStim(world, gameTime);
-  }
-
-  // E key = Siege Mode toggle (Siege Tanks only)
-  if (input.keysJustPressed.has('KeyE')) {
-    toggleSiegeMode(world, gameTime);
-  }
-
-  // Delete key = cancel building under construction (partial refund)
-  if (input.keysJustPressed.has('Delete') && resources) {
-    cancelSelectedBuildings(world, resources);
-  }
-
-  // Attack-move: A + left-click on ground
-  if (attackMoveMode && m.leftJustReleased && !m.isDragging) {
-    attackMoveMode = false;
-    const worldPos = viewport.toWorld(m.x, m.y);
-    const selectedUnits = getSelectedUnits(world);
-    if (selectedUnits.length === 0) return;
-
-    const enemy = findEnemyAt(world, worldPos.x, worldPos.y, Faction.Terran);
-    if (enemy > 0) {
-      for (const eid of selectedUnits) {
-        targetEntity[eid] = enemy;
-        commandMode[eid] = CommandMode.AttackTarget;
-      }
-      return;
-    }
-
-    issuePathCommand(world, selectedUnits, worldPos.x, worldPos.y, map, CommandMode.AttackMove);
-    return;
-  }
-
-  // Right-click = move or attack or rally
-  if (!m.rightJustPressed) return;
-  attackMoveMode = false;
-
-  const worldPos = viewport.toWorld(m.x, m.y);
-
-  // Set rally point for selected buildings
-  const selectedBuildings = getSelectedBuildings(world);
-  for (const eid of selectedBuildings) {
-    rallyX[eid] = worldPos.x;
-    rallyY[eid] = worldPos.y;
-  }
-
-  const selectedUnits = getSelectedUnits(world);
-  if (selectedUnits.length === 0) return;
-
-  // Check if right-clicking on a mineral patch (gather command for workers)
-  const resource = findResourceAt(world, worldPos.x, worldPos.y);
-  if (resource > 0 && resourceType[resource] === ResourceType.Mineral) {
-    const workers: number[] = [];
-    const nonWorkers: number[] = [];
-    for (const eid of selectedUnits) {
-      const ut = unitType[eid] as UnitType;
-      if (ut === UnitType.SCV || ut === UnitType.Drone) {
-        workers.push(eid);
-      } else {
-        nonWorkers.push(eid);
-      }
-    }
-    // Workers get gather command
-    for (const eid of workers) {
-      workerTargetEid[eid] = resource;
-      workerState[eid] = WorkerState.MovingToResource;
-      commandMode[eid] = CommandMode.Gather;
-      targetEntity[eid] = -1;
-      // Path to nearest walkable tile adjacent to resource
-      const resTile = worldToTile(posX[resource], posY[resource]);
-      const walkable = findNearestWalkableTile(map, resTile.col, resTile.row);
-      if (walkable) {
-        const startTile = worldToTile(posX[eid], posY[eid]);
-        const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
-        if (tilePath.length > 0) {
-          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
-            const wp = tileToWorld(c, r);
-            return [wp.x, wp.y] as [number, number];
-          });
-          setPath(eid, worldPath);
+      case CommandType.AttackMove: {
+        const units = cmd.units ?? [];
+        if (units.length === 0) break;
+        // Check if clicking on an enemy
+        const enemy = findEnemyAt(world, cmd.wx!, cmd.wy!, Faction.Terran);
+        if (enemy > 0) {
+          for (const eid of units) {
+            targetEntity[eid] = enemy;
+            commandMode[eid] = CommandMode.AttackTarget;
+          }
+        } else {
+          issuePathCommand(world, units, cmd.wx!, cmd.wy!, map, CommandMode.AttackMove);
         }
+        addCommandPing(cmd.wx!, cmd.wy!, 0xff8844, gameTime);
+        break;
       }
-    }
-    // Non-workers get a move command to the area
-    if (nonWorkers.length > 0) {
-      issuePathCommand(world, nonWorkers, worldPos.x, worldPos.y, map, CommandMode.Move);
-    }
-    if (workers.length > 0) {
-      addCommandPing(worldPos.x, worldPos.y, 0x44bbff, gameTime);
-    }
-    return;
-  }
 
-  // Check if right-clicking on a completed Refinery (gas gather command for workers)
-  const refinery = findBuildingAt(world, worldPos.x, worldPos.y, BuildingType.Refinery);
-  if (refinery > 0 && resourceRemaining[refinery] > 0) {
-    const workers: number[] = [];
-    const nonWorkers: number[] = [];
-    for (const eid of selectedUnits) {
-      const ut = unitType[eid] as UnitType;
-      if (ut === UnitType.SCV || ut === UnitType.Drone) {
-        workers.push(eid);
-      } else {
-        nonWorkers.push(eid);
-      }
-    }
-    // Workers get gas gather command
-    for (const eid of workers) {
-      workerTargetEid[eid] = refinery;
-      workerState[eid] = WorkerState.MovingToResource;
-      commandMode[eid] = CommandMode.Gather;
-      targetEntity[eid] = -1;
-      // Path to nearest walkable tile adjacent to refinery
-      const refTile = worldToTile(posX[refinery], posY[refinery]);
-      const walkable = findNearestWalkableTile(map, refTile.col, refTile.row);
-      if (walkable) {
-        const startTile = worldToTile(posX[eid], posY[eid]);
-        const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
-        if (tilePath.length > 0) {
-          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
-            const wp = tileToWorld(c, r);
-            return [wp.x, wp.y] as [number, number];
-          });
-          setPath(eid, worldPath);
+      case CommandType.Move: {
+        // Right-click — CommandSystem reclassifies based on world state
+        const units = cmd.units ?? [];
+        const wx = cmd.wx!;
+        const wy = cmd.wy!;
+
+        // Set rally point for selected buildings
+        const selectedBuildings = getSelectedBuildings(world);
+        for (const eid of selectedBuildings) {
+          rallyX[eid] = wx;
+          rallyY[eid] = wy;
         }
+
+        if (units.length === 0) break;
+
+        // Check if right-clicking on a mineral patch
+        const resource = findResourceAt(world, wx, wy);
+        if (resource > 0 && resourceType[resource] === ResourceType.Mineral) {
+          const workers: number[] = [];
+          const nonWorkers: number[] = [];
+          for (const eid of units) {
+            const ut = unitType[eid] as UnitType;
+            (ut === UnitType.SCV || ut === UnitType.Drone ? workers : nonWorkers).push(eid);
+          }
+          for (const eid of workers) {
+            workerTargetEid[eid] = resource;
+            workerState[eid] = WorkerState.MovingToResource;
+            commandMode[eid] = CommandMode.Gather;
+            targetEntity[eid] = -1;
+            const resTile = worldToTile(posX[resource], posY[resource]);
+            const walkable = findNearestWalkableTile(map, resTile.col, resTile.row);
+            if (walkable) {
+              const startTile = worldToTile(posX[eid], posY[eid]);
+              const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
+              if (tilePath.length > 0) {
+                setPath(eid, tilePath.map(([c, r]) => { const wp = tileToWorld(c, r); return [wp.x, wp.y] as [number, number]; }));
+              }
+            }
+          }
+          if (nonWorkers.length > 0) issuePathCommand(world, nonWorkers, wx, wy, map, CommandMode.Move);
+          if (workers.length > 0) addCommandPing(wx, wy, 0x44bbff, gameTime);
+          break;
+        }
+
+        // Check refinery
+        const refinery = findBuildingAt(world, wx, wy, BuildingType.Refinery);
+        if (refinery > 0 && resourceRemaining[refinery] > 0) {
+          const workers: number[] = [];
+          const nonWorkers: number[] = [];
+          for (const eid of units) {
+            const ut = unitType[eid] as UnitType;
+            (ut === UnitType.SCV || ut === UnitType.Drone ? workers : nonWorkers).push(eid);
+          }
+          for (const eid of workers) {
+            workerTargetEid[eid] = refinery;
+            workerState[eid] = WorkerState.MovingToResource;
+            commandMode[eid] = CommandMode.Gather;
+            targetEntity[eid] = -1;
+            const refTile = worldToTile(posX[refinery], posY[refinery]);
+            const walkable = findNearestWalkableTile(map, refTile.col, refTile.row);
+            if (walkable) {
+              const startTile = worldToTile(posX[eid], posY[eid]);
+              const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
+              if (tilePath.length > 0) {
+                setPath(eid, tilePath.map(([c, r]) => { const wp = tileToWorld(c, r); return [wp.x, wp.y] as [number, number]; }));
+              }
+            }
+          }
+          if (nonWorkers.length > 0) issuePathCommand(world, nonWorkers, wx, wy, map, CommandMode.Move);
+          if (workers.length > 0) addCommandPing(wx, wy, 0x44ff66, gameTime);
+          break;
+        }
+
+        // Check enemy
+        const enemy = findEnemyAt(world, wx, wy, Faction.Terran);
+        if (enemy > 0) {
+          for (const eid of units) {
+            targetEntity[eid] = enemy;
+            commandMode[eid] = CommandMode.AttackTarget;
+            movePathIndex[eid] = -1;
+            velX[eid] = 0;
+            velY[eid] = 0;
+          }
+          addCommandPing(wx, wy, 0xff4444, gameTime);
+          break;
+        }
+
+        // Plain move
+        issuePathCommand(world, units, wx, wy, map, CommandMode.Move, cmd.shiftHeld ?? false);
+        addCommandPing(wx, wy, cmd.shiftHeld ? 0xffff44 : 0x44ff44, gameTime);
+        break;
       }
     }
-    // Non-workers get a move command to the area
-    if (nonWorkers.length > 0) {
-      issuePathCommand(world, nonWorkers, worldPos.x, worldPos.y, map, CommandMode.Move);
-    }
-    if (workers.length > 0) {
-      addCommandPing(worldPos.x, worldPos.y, 0x44ff66, gameTime);
-    }
-    return;
   }
-
-  const enemy = findEnemyAt(world, worldPos.x, worldPos.y, Faction.Terran);
-  if (enemy > 0) {
-    for (const eid of selectedUnits) {
-      targetEntity[eid] = enemy;
-      commandMode[eid] = CommandMode.AttackTarget;
-      movePathIndex[eid] = -1;
-      velX[eid] = 0;
-      velY[eid] = 0;
-    }
-    addCommandPing(worldPos.x, worldPos.y, 0xff4444, gameTime);
-    return;
-  }
-
-  issuePathCommand(world, selectedUnits, worldPos.x, worldPos.y, map, CommandMode.Move, input.shiftHeld);
-  addCommandPing(worldPos.x, worldPos.y, input.shiftHeld ? 0xffff44 : 0x44ff44, gameTime);
 }
 
-function applyStim(world: World, gameTime: number): void {
-  const units = getSelectedUnits(world);
+function applyStim(world: World, units: number[], gameTime: number): void {
   for (const eid of units) {
     if (unitType[eid] !== UnitType.Marine) continue;
 
@@ -253,8 +198,7 @@ function applyStim(world: World, gameTime: number): void {
   }
 }
 
-function toggleSiegeMode(world: World, gameTime: number): void {
-  const units = getSelectedUnits(world);
+function toggleSiegeMode(world: World, units: number[], gameTime: number): void {
   for (const eid of units) {
     if (unitType[eid] !== UnitType.SiegeTank) continue;
 
@@ -276,19 +220,106 @@ function toggleSiegeMode(world: World, gameTime: number): void {
   }
 }
 
-function getSelectedUnits(world: World): number[] {
-  const units: number[] = [];
-  const bits = SELECTABLE | POSITION | MOVEMENT;
+function stopUnits(world: World, units: number[]): void {
+  for (const eid of units) {
+    targetEntity[eid] = -1;
+    commandMode[eid] = CommandMode.Idle;
+    moveTargetX[eid] = -1;
+    moveTargetY[eid] = -1;
+    movePathIndex[eid] = -1;
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
+  }
+}
+
+function getSelectedBuildings(world: World): number[] {
+  const buildings: number[] = [];
+  const bits = SELECTABLE | POSITION | BUILDING;
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (selected[eid] !== 1) continue;
-    if (faction[eid] !== Faction.Terran) continue;
-    units.push(eid);
+    if (buildState[eid] !== BuildState.Complete) continue;
+    buildings.push(eid);
   }
-  return units;
+  return buildings;
 }
 
-function issuePathCommand(
+function handleProductionCommand(
+  world: World,
+  cmd: GameCommand,
+  resources: Record<number, PlayerResources>,
+): void {
+  const buildings = getSelectedBuildings(world);
+  if (buildings.length === 0) return;
+
+  const slotIndex = cmd.data ?? 0;
+
+  for (const eid of buildings) {
+    // Check if queue is full (current production + queue items)
+    const qLen = prodQueueLen[eid];
+    const totalQueued = (prodUnitType[eid] !== 0 ? 1 : 0) + qLen;
+    if (totalQueued >= PROD_QUEUE_MAX) continue; // Queue full
+
+    const bDef = BUILDING_DEFS[buildingType[eid]];
+    if (!bDef || slotIndex >= bDef.produces.length) continue;
+
+    const uType = bDef.produces[slotIndex];
+    const uDef = UNIT_DEFS[uType];
+    if (!uDef) continue;
+
+    const fac = faction[eid];
+    const res = resources[fac];
+    if (!res) continue;
+
+    // Check resources
+    if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) continue;
+
+    // Check supply
+    if (res.supplyUsed >= res.supplyProvided) continue;
+
+    // Deduct cost
+    res.minerals -= uDef.costMinerals;
+    res.gas -= uDef.costGas;
+
+    // If nothing is currently producing, start immediately
+    if (prodUnitType[eid] === 0) {
+      prodUnitType[eid] = uType;
+      prodProgress[eid] = uDef.buildTime;
+      prodTimeTotal[eid] = uDef.buildTime;
+    } else {
+      // Add to queue
+      const qBase = eid * PROD_QUEUE_MAX;
+      prodQueue[qBase + qLen] = uType;
+      prodQueueLen[eid] = qLen + 1;
+    }
+    break; // Only queue on the first available building
+  }
+}
+
+/** Cancel selected buildings under construction — refund 75% of cost, destroy the building */
+function cancelSelectedBuildings(world: World, resources: Record<number, PlayerResources>): void {
+  const bits = SELECTABLE | POSITION | BUILDING;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (selected[eid] !== 1) continue;
+    if (buildState[eid] !== BuildState.UnderConstruction) continue;
+
+    const fac = faction[eid];
+    const res = resources[fac];
+    const bDef = BUILDING_DEFS[buildingType[eid]];
+
+    // Refund 75% of mineral/gas cost
+    if (res && bDef) {
+      res.minerals += Math.floor(bDef.costMinerals * 0.75);
+      res.gas += Math.floor(bDef.costGas * 0.75);
+    }
+
+    // Kill the building (DeathSystem will clean up tiles, release builder)
+    hpCurrent[eid] = 0;
+  }
+}
+
+export function issuePathCommand(
   world: World,
   units: number[],
   tx: number,
@@ -365,106 +396,5 @@ function issuePathCommand(
       workerState[eid] = WorkerState.Idle;
       workerTargetEid[eid] = -1;
     }
-  }
-}
-
-function stopSelectedUnits(world: World): void {
-  const units = getSelectedUnits(world);
-  for (const eid of units) {
-    targetEntity[eid] = -1;
-    commandMode[eid] = CommandMode.Idle;
-    moveTargetX[eid] = -1;
-    moveTargetY[eid] = -1;
-    movePathIndex[eid] = -1;
-    workerState[eid] = WorkerState.Idle;
-    workerTargetEid[eid] = -1;
-  }
-}
-
-function getSelectedBuildings(world: World): number[] {
-  const buildings: number[] = [];
-  const bits = SELECTABLE | POSITION | BUILDING;
-  for (let eid = 1; eid < world.nextEid; eid++) {
-    if (!hasComponents(world, eid, bits)) continue;
-    if (selected[eid] !== 1) continue;
-    if (buildState[eid] !== BuildState.Complete) continue;
-    buildings.push(eid);
-  }
-  return buildings;
-}
-
-function handleProductionHotkey(
-  world: World,
-  input: InputState,
-  resources: Record<number, PlayerResources>,
-): void {
-  const buildings = getSelectedBuildings(world);
-  if (buildings.length === 0) return;
-
-  const isQ = input.keysJustPressed.has('KeyQ');
-  const slotIndex = isQ ? 0 : 1;
-
-  for (const eid of buildings) {
-    // Check if queue is full (current production + queue items)
-    const qLen = prodQueueLen[eid];
-    const totalQueued = (prodUnitType[eid] !== 0 ? 1 : 0) + qLen;
-    if (totalQueued >= PROD_QUEUE_MAX) continue; // Queue full
-
-    const bDef = BUILDING_DEFS[buildingType[eid]];
-    if (!bDef || slotIndex >= bDef.produces.length) continue;
-
-    const uType = bDef.produces[slotIndex];
-    const uDef = UNIT_DEFS[uType];
-    if (!uDef) continue;
-
-    const fac = faction[eid];
-    const res = resources[fac];
-    if (!res) continue;
-
-    // Check resources
-    if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) continue;
-
-    // Check supply
-    if (res.supplyUsed >= res.supplyProvided) continue;
-
-    // Deduct cost
-    res.minerals -= uDef.costMinerals;
-    res.gas -= uDef.costGas;
-
-    // If nothing is currently producing, start immediately
-    if (prodUnitType[eid] === 0) {
-      prodUnitType[eid] = uType;
-      prodProgress[eid] = uDef.buildTime;
-      prodTimeTotal[eid] = uDef.buildTime;
-    } else {
-      // Add to queue
-      const qBase = eid * PROD_QUEUE_MAX;
-      prodQueue[qBase + qLen] = uType;
-      prodQueueLen[eid] = qLen + 1;
-    }
-    break; // Only queue on the first available building
-  }
-}
-
-/** Cancel selected buildings under construction — refund 75% of cost, destroy the building */
-function cancelSelectedBuildings(world: World, resources: Record<number, PlayerResources>): void {
-  const bits = SELECTABLE | POSITION | BUILDING;
-  for (let eid = 1; eid < world.nextEid; eid++) {
-    if (!hasComponents(world, eid, bits)) continue;
-    if (selected[eid] !== 1) continue;
-    if (buildState[eid] !== BuildState.UnderConstruction) continue;
-
-    const fac = faction[eid];
-    const res = resources[fac];
-    const bDef = BUILDING_DEFS[buildingType[eid]];
-
-    // Refund 75% of mineral/gas cost
-    if (res && bDef) {
-      res.minerals += Math.floor(bDef.costMinerals * 0.75);
-      res.gas += Math.floor(bDef.costGas * 0.75);
-    }
-
-    // Kill the building (DeathSystem will clean up tiles, release builder)
-    hpCurrent[eid] = 0;
   }
 }

@@ -63,6 +63,12 @@ export const BuildingType = {
 export const BuildState = {
   UnderConstruction: 1, Complete: 2,
 } as const;
+export const CommandType = {
+  Move: 0, AttackMove: 1, AttackTarget: 2, Stop: 3, HoldPosition: 4, Patrol: 5,
+  Stim: 6, SiegeToggle: 7, Gather: 8, SetRally: 9, BuildPlace: 10,
+  Produce: 11, Cancel: 12, Select: 13, BoxSelect: 14, AddSelect: 15,
+  DoubleClickSelect: 16, ControlGroupAssign: 17, ControlGroupRecall: 18,
+} as const;
 
 export interface SpawnOpts {
   x?: number;

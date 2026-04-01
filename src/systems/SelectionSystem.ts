@@ -1,14 +1,12 @@
-import { type World, hasComponents } from '../ecs/world';
+import { type World, hasComponents, entityExists } from '../ecs/world';
 import {
   POSITION, SELECTABLE,
   posX, posY, renderWidth, renderHeight,
   selected, faction, RENDERABLE, UNIT_TYPE,
   unitType,
 } from '../ecs/components';
-import type { InputState } from '../input/InputManager';
+import { CommandType, type GameCommand } from '../input/CommandQueue';
 import { Faction } from '../constants';
-import { entityExists } from '../ecs/world';
-import { attackMoveMode } from './CommandSystem';
 import type { Viewport } from 'pixi-viewport';
 import { soundManager } from '../audio/SoundManager';
 
@@ -21,117 +19,114 @@ const controlGroups: Set<number>[] = Array.from({ length: 10 }, () => new Set())
  */
 export function selectionSystem(
   world: World,
-  input: InputState,
+  commands: GameCommand[],
   viewport: Viewport,
 ): void {
-  const m = input.mouse;
-
-  // Control groups: Ctrl+0-9 assigns, 0-9 recalls
-  for (let i = 0; i <= 9; i++) {
-    const key = `Digit${i}`;
-    if (input.keysJustPressed.has(key)) {
-      if (input.ctrlHeld) {
-        // Assign current selection to control group
-        controlGroups[i].clear();
-        for (let eid = 1; eid < world.nextEid; eid++) {
-          if (selected[eid] === 1 && faction[eid] === Faction.Terran) {
-            controlGroups[i].add(eid);
-          }
-        }
-      } else {
-        // Recall control group
-        const group = controlGroups[i];
-        if (group.size > 0) {
-          clearSelection(world);
-          for (const eid of group) {
-            if (entityExists(world, eid) && hasComponents(world, eid, SELECTABLE)) {
-              selected[eid] = 1;
-            } else {
-              group.delete(eid); // Prune dead entities
+  for (const cmd of commands) {
+    switch (cmd.type) {
+      case CommandType.ControlGroupAssign:
+        if (cmd.data !== undefined) {
+          controlGroups[cmd.data].clear();
+          for (let eid = 1; eid < world.nextEid; eid++) {
+            if (selected[eid] === 1 && faction[eid] === Faction.Terran) {
+              controlGroups[cmd.data].add(eid);
             }
           }
         }
-      }
-    }
-  }
+        break;
 
-  // Tab = cycle through unit types in current selection (SC2 subgroup cycling)
-  if (input.keysJustPressed.has('Tab')) {
-    cycleSubgroup(world);
-  }
-
-  // Convert screen position to world position
-  const worldPos = viewport.toWorld(m.x, m.y);
-
-  // Left click release — either single select or box select
-  // Skip if attack-move mode is consuming this click
-  if (m.leftJustReleased && !attackMoveMode) {
-    if (m.isDragging) {
-      // Box select — only Terran units/buildings
-      const startWorld = viewport.toWorld(m.dragStartX, m.dragStartY);
-      const endWorld = worldPos;
-
-      const minX = Math.min(startWorld.x, endWorld.x);
-      const maxX = Math.max(startWorld.x, endWorld.x);
-      const minY = Math.min(startWorld.y, endWorld.y);
-      const maxY = Math.max(startWorld.y, endWorld.y);
-
-      if (!input.shiftHeld) clearSelection(world);
-
-      const bits = POSITION | SELECTABLE;
-      for (let eid = 1; eid < world.nextEid; eid++) {
-        if (!hasComponents(world, eid, bits)) continue;
-        if (faction[eid] !== Faction.Terran) continue;
-
-        const x = posX[eid];
-        const y = posY[eid];
-        if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
-          selected[eid] = 1;
-        }
-      }
-    } else {
-      // Single click — select Terran entities OR neutral resources (for info)
-      if (!input.shiftHeld) clearSelection(world);
-
-      const closest = findUnitAt(world, worldPos.x, worldPos.y);
-      if (closest > 0) {
-        const fac = faction[closest];
-        if (fac === Faction.Terran || fac === Faction.None) {
-          selected[closest] = selected[closest] === 1 && input.shiftHeld ? 0 : 1;
-
-          // Double-click: select all visible units of the same type
-          if (m.leftDoubleClick && fac === Faction.Terran && hasComponents(world, closest, UNIT_TYPE)) {
-            const uType = unitType[closest];
-            const screenW = viewport.screenWidth;
-            const screenH = viewport.screenHeight;
-            for (let eid2 = 1; eid2 < world.nextEid; eid2++) {
-              if (!hasComponents(world, eid2, POSITION | SELECTABLE | UNIT_TYPE)) continue;
-              if (faction[eid2] !== Faction.Terran) continue;
-              if (unitType[eid2] !== uType) continue;
-              // Check if on screen
-              const screen = viewport.toScreen(posX[eid2], posY[eid2]);
-              if (screen.x >= 0 && screen.x <= screenW && screen.y >= 0 && screen.y <= screenH) {
-                selected[eid2] = 1;
+      case CommandType.ControlGroupRecall:
+        if (cmd.data !== undefined) {
+          const group = controlGroups[cmd.data];
+          if (group.size > 0) {
+            clearSelection(world);
+            for (const eid of group) {
+              if (entityExists(world, eid) && hasComponents(world, eid, SELECTABLE)) {
+                selected[eid] = 1;
+              } else {
+                group.delete(eid);
               }
             }
           }
         }
+        break;
+
+      case CommandType.Select: {
+        // Single click — sx/sy are screen coords
+        if (!cmd.shiftHeld) clearSelection(world);
+        const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
+        const closest = findUnitAt(world, worldPos.x, worldPos.y);
+        if (closest > 0) {
+          const fac = faction[closest];
+          if (fac === Faction.Terran || fac === Faction.None) {
+            selected[closest] = selected[closest] === 1 && cmd.shiftHeld ? 0 : 1;
+          }
+        }
+        // Play select sound
+        let firstType = 0;
+        for (let eid2 = 1; eid2 < world.nextEid; eid2++) {
+          if (selected[eid2] === 1 && hasComponents(world, eid2, UNIT_TYPE)) {
+            firstType = unitType[eid2];
+            break;
+          }
+        }
+        if (firstType > 0) soundManager.playSelectUnit(firstType);
+        else soundManager.playSelect();
+        break;
       }
-    }
-    // Play unit-specific select sound based on first selected entity
-    let firstSelectedType = 0;
-    for (let eid3 = 1; eid3 < world.nextEid; eid3++) {
-      if (selected[eid3] === 1 && hasComponents(world, eid3, UNIT_TYPE)) {
-        firstSelectedType = unitType[eid3];
+
+      case CommandType.DoubleClickSelect: {
+        // Double-click: select all on-screen units of same type
+        if (!cmd.shiftHeld) clearSelection(world);
+        const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
+        const closest = findUnitAt(world, worldPos.x, worldPos.y);
+        if (closest > 0 && faction[closest] === Faction.Terran && hasComponents(world, closest, UNIT_TYPE)) {
+          selected[closest] = 1;
+          const uType = unitType[closest];
+          const screenW = viewport.screenWidth;
+          const screenH = viewport.screenHeight;
+          for (let eid2 = 1; eid2 < world.nextEid; eid2++) {
+            if (!hasComponents(world, eid2, POSITION | SELECTABLE | UNIT_TYPE)) continue;
+            if (faction[eid2] !== Faction.Terran) continue;
+            if (unitType[eid2] !== uType) continue;
+            const screen = viewport.toScreen(posX[eid2], posY[eid2]);
+            if (screen.x >= 0 && screen.x <= screenW && screen.y >= 0 && screen.y <= screenH) {
+              selected[eid2] = 1;
+            }
+          }
+          soundManager.playSelectUnit(uType);
+        }
+        break;
+      }
+
+      case CommandType.BoxSelect: {
+        // Drag box — sx/sy = start screen, sx2/sy2 = end screen
+        const startWorld = viewport.toWorld(cmd.sx!, cmd.sy!);
+        const endWorld = viewport.toWorld(cmd.sx2!, cmd.sy2!);
+        const minX = Math.min(startWorld.x, endWorld.x);
+        const maxX = Math.max(startWorld.x, endWorld.x);
+        const minY = Math.min(startWorld.y, endWorld.y);
+        const maxY = Math.max(startWorld.y, endWorld.y);
+
+        if (!cmd.shiftHeld) clearSelection(world);
+
+        const bits = POSITION | SELECTABLE;
+        for (let eid = 1; eid < world.nextEid; eid++) {
+          if (!hasComponents(world, eid, bits)) continue;
+          if (faction[eid] !== Faction.Terran) continue;
+          const x = posX[eid];
+          const y = posY[eid];
+          if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+            selected[eid] = 1;
+          }
+        }
+        soundManager.playSelect();
         break;
       }
     }
-    if (firstSelectedType > 0) {
-      soundManager.playSelectUnit(firstSelectedType);
-    } else {
-      soundManager.playSelect();
-    }
   }
+
+  // TODO: Tab subgroup cycling — needs command queue integration
 }
 
 function clearSelection(world: World): void {
@@ -163,39 +158,4 @@ function findUnitAt(world: World, wx: number, wy: number): number {
   }
 
   return closestEid;
-}
-
-/** Track which subgroup index we're on for Tab cycling */
-let subgroupIndex = 0;
-
-/** Cycle through unit types in the current selection. Press Tab to show only one type at a time. */
-function cycleSubgroup(world: World): void {
-  // Collect all selected unit types
-  const types: number[] = [];
-  const typeSet = new Set<number>();
-  for (let eid = 1; eid < world.nextEid; eid++) {
-    if (selected[eid] !== 1) continue;
-    if (faction[eid] !== Faction.Terran) continue;
-    if (!hasComponents(world, eid, UNIT_TYPE)) continue;
-    const ut = unitType[eid];
-    if (!typeSet.has(ut)) {
-      typeSet.add(ut);
-      types.push(ut);
-    }
-  }
-
-  if (types.length <= 1) return; // Nothing to cycle
-
-  // Advance to next type
-  subgroupIndex = (subgroupIndex + 1) % types.length;
-  const targetType = types[subgroupIndex];
-
-  // Deselect all, then select only the target type
-  for (let eid = 1; eid < world.nextEid; eid++) {
-    if (selected[eid] !== 1) continue;
-    if (faction[eid] !== Faction.Terran) continue;
-    if (!hasComponents(world, eid, UNIT_TYPE) || unitType[eid] !== targetType) {
-      selected[eid] = 0;
-    }
-  }
 }

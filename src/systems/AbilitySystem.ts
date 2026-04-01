@@ -6,12 +6,12 @@ import {
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
   lastCombatTime, movePathIndex,
-  energy, cloaked,
+  energy, cloaked, commandMode,
   injectTimer, buildingType, buildState,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import {
-  UnitType, Faction, SiegeMode, TILE_SIZE,
+  UnitType, Faction, SiegeMode, CommandMode, TILE_SIZE,
   STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH,
   MEDIVAC_HEAL_RATE, MEDIVAC_HEAL_RANGE,
@@ -33,6 +33,7 @@ export function abilitySystem(world: World, dt: number, gameTime: number): void 
   processRoachRegen(world, dt, gameTime);
   processGhostCloak(world, dt);
   processQueenEnergyRegen(world, dt);
+  processWidowMineBurrow(world);
 }
 
 function processGhostCloak(world: World, dt: number): void {
@@ -174,6 +175,18 @@ function processQueenEnergyRegen(world: World, dt: number): void {
     if (hpCurrent[eid] <= 0) continue;
     if (energy[eid] < QUEEN_ENERGY_MAX) {
       energy[eid] = Math.min(QUEEN_ENERGY_MAX, energy[eid] + QUEEN_ENERGY_REGEN * dt);
+    }
+  }
+}
+
+function processWidowMineBurrow(world: World): void {
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (unitType[eid] !== UnitType.WidowMine) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (commandMode[eid] === CommandMode.Idle && movePathIndex[eid] < 0) {
+      cloaked[eid] = 1; // burrowed = effectively cloaked
+    } else {
+      cloaked[eid] = 0; // unburrow when moving
     }
   }
 }

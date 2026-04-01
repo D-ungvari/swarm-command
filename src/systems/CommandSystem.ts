@@ -12,6 +12,7 @@ import {
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   cloaked,
   energy, injectTimer,
+  isAir, canTargetGround, canTargetAir, atkRange, atkDamage,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -71,7 +72,10 @@ export function commandSystem(
         break;
 
       case CommandType.SiegeToggle:
-        if (cmd.units) toggleSiegeMode(world, cmd.units, gameTime);
+        if (cmd.units) {
+          toggleSiegeMode(world, cmd.units, gameTime);
+          vikingTransform(world, cmd.units);
+        }
         break;
 
       case CommandType.Cloak:
@@ -291,6 +295,29 @@ function toggleSiegeMode(world: World, units: number[], gameTime: number): void 
       // Sieged → start packing → will become Mobile
       siegeMode[eid] = SiegeMode.Packing;
       siegeTransitionEnd[eid] = gameTime + SIEGE_PACK_TIME;
+    }
+  }
+}
+
+export function vikingTransform(world: World, units: number[]): void {
+  for (const eid of units) {
+    if (unitType[eid] !== UnitType.Viking) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    if (isAir[eid] === 1) {
+      // Fighter (air) → Assault (ground)
+      isAir[eid] = 0;
+      canTargetGround[eid] = 1;
+      canTargetAir[eid] = 0;
+      atkRange[eid] = 5 * TILE_SIZE;
+      atkDamage[eid] = 12;
+    } else {
+      // Assault (ground) → Fighter (air)
+      isAir[eid] = 1;
+      canTargetGround[eid] = 0;
+      canTargetAir[eid] = 1;
+      atkRange[eid] = 9 * TILE_SIZE;
+      atkDamage[eid] = 10;
     }
   }
 }

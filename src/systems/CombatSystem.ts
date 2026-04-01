@@ -35,6 +35,12 @@ const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
   [UnitType.Mutalisk]: 600,
   [UnitType.Ghost]: 650,
   [UnitType.Hellion]: 550,
+  [UnitType.Reaper]: 700,
+  [UnitType.Viking]: 500,
+  [UnitType.Cyclone]: 600,
+  [UnitType.Thor]: 300,
+  [UnitType.Battlecruiser]: 400,
+  [UnitType.WidowMine]: 0, // no visual projectile (it's a mine)
 };
 
 /** How far a target must move before we re-path to chase it */

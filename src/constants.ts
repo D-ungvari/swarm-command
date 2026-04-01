@@ -55,6 +55,13 @@ export const enum UnitType {
   Mutalisk = 15,
   Queen    = 16,
   Overlord = 17,
+  // Additional Terran
+  Reaper = 18,
+  Viking = 19,
+  WidowMine = 20,
+  Cyclone = 21,
+  Thor = 22,
+  Battlecruiser = 23,
 }
 
 // ── Command modes ──

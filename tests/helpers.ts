@@ -45,6 +45,8 @@ export const UnitType = {
   SCV: 1, Marine: 2, Marauder: 3, SiegeTank: 4, Medivac: 5,
   Ghost: 6, Hellion: 7,
   Drone: 10, Zergling: 11, Baneling: 12, Hydralisk: 13, Roach: 14, Mutalisk: 15,
+  Queen: 16, Overlord: 17,
+  Reaper: 18, Viking: 19, WidowMine: 20, Cyclone: 21, Thor: 22, Battlecruiser: 23,
 } as const;
 export const CommandMode = {
   Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3, Gather: 4, Build: 5,

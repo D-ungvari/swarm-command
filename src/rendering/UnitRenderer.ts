@@ -1120,6 +1120,107 @@ export class UnitRenderer {
             g.fill({ color: 0x444444, alpha: 0.9 });
           }
 
+        } else if (uType === UnitType.Reaper) {
+          // ── Reaper: fast infantry with jump-jets ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Shadow
+          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body rect
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: bodyColor });
+          g.rect(x - hw, y - hh, w, h);
+          g.stroke({ color: 0x6699aa, width: 1, alpha: 0.7 });
+          // Jump jets (back/left side)
+          g.moveTo(posX[eid] - hw - 4, posY[eid] - 3);
+          g.lineTo(posX[eid] - hw - 1, posY[eid]);
+          g.moveTo(posX[eid] - hw - 4, posY[eid] + 3);
+          g.lineTo(posX[eid] - hw - 1, posY[eid]);
+          g.stroke({ color: 0xaaccff, width: 1.5, alpha: 0.8 });
+
+        } else if (uType === UnitType.Viking) {
+          // ── Viking: delta-wing fighter/assault mech ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Wings spread out
+          g.moveTo(posX[eid], posY[eid] - hh);
+          g.lineTo(posX[eid] - hw - 6, posY[eid] + hh);
+          g.lineTo(posX[eid] + hw + 6, posY[eid] + hh);
+          g.closePath();
+          g.fill({ color: 0x3366aa, alpha: 0.5 });
+          // Fuselage
+          g.rect(posX[eid] - 3, posY[eid] - hh - 2, 6, hh * 2 + 4);
+          g.fill({ color: 0x6699bb, alpha: 0.9 });
+
+        } else if (uType === UnitType.WidowMine) {
+          // ── Widow Mine: burrowing mine with spider legs ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Shadow
+          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: bodyColor });
+          g.rect(x - hw, y - hh, w, h);
+          g.stroke({ color: 0x665544, width: 1, alpha: 0.7 });
+          // Three legs
+          for (let i = -1; i <= 1; i++) {
+            g.moveTo(posX[eid] + i * 4, posY[eid] + hh);
+            g.lineTo(posX[eid] + i * 7, posY[eid] + hh + 5);
+          }
+          g.stroke({ color: 0x665544, width: 1.5, alpha: 0.8 });
+
+        } else if (uType === UnitType.Cyclone) {
+          // ── Cyclone: lock-on missile vehicle ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Shadow
+          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main body
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: bodyColor });
+          g.rect(x - hw, y - hh, w, h);
+          g.stroke({ color: 0x4466aa, width: 1, alpha: 0.7 });
+          // Lock-on arcs
+          g.arc(posX[eid], posY[eid], hw + 3, -Math.PI * 0.7, Math.PI * 0.7);
+          g.stroke({ color: 0x4488cc, width: 1.5, alpha: 0.7 });
+
+        } else if (uType === UnitType.Thor) {
+          // ── Thor: massive quad-cannon walker ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Shadow
+          g.rect(x - hw - 3, y - hh - 3, w + 6, h + 6);
+          g.fill({ color: 0x000000, alpha: 0.5 });
+          // Main body
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: bodyColor });
+          g.rect(x - hw, y - hh, w, h);
+          g.stroke({ color: 0x667788, width: 2, alpha: 0.8 });
+          // Four gun barrels pointing up
+          for (let i = -1; i <= 1; i += 2 / 3) {
+            g.moveTo(posX[eid] + i * 8, posY[eid] - hh);
+            g.lineTo(posX[eid] + i * 8, posY[eid] - hh - 7);
+          }
+          g.stroke({ color: 0x8899aa, width: 2.5, alpha: 0.9 });
+
+        } else if (uType === UnitType.Battlecruiser) {
+          // ── Battlecruiser: massive capital ship ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Triangle body
+          g.moveTo(posX[eid], posY[eid] - hh);
+          g.lineTo(posX[eid] - hw, posY[eid] + hh);
+          g.lineTo(posX[eid] + hw, posY[eid] + hh);
+          g.closePath();
+          g.fill({ color: 0x334455, alpha: 0.9 });
+          // Engine glow at back
+          g.circle(posX[eid], posY[eid] + hh - 3, 5);
+          g.fill({ color: 0x4488ff, alpha: 0.6 });
+
         } else {
           // Fallback for any unknown Terran unit
           g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);

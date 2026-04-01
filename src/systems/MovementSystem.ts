@@ -7,6 +7,7 @@ import {
   slowFactor, siegeMode, faction, hpCurrent,
   patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
 } from '../ecs/components';
+import { spatialHash } from '../ecs/SpatialHash';
 import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE } from '../constants';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld } from '../map/MapData';
@@ -140,6 +141,8 @@ export function movementSystem(world: World, dt: number, map?: MapData): void {
 function separationPass(world: World, map?: MapData): void {
   const bits = POSITION | MOVEMENT;
 
+  spatialHash.ensureBuilt(world);
+
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (hpCurrent[eid] <= 0) continue;
@@ -150,8 +153,9 @@ function separationPass(world: World, map?: MapData): void {
     const ay = posY[eid];
     const facA = faction[eid];
 
-    // Only check entities with higher EIDs to avoid double-processing
-    for (let other = eid + 1; other < world.nextEid; other++) {
+    const nearby = spatialHash.queryRadius(ax, ay, SEPARATION_RADIUS * 2);
+    for (const other of nearby) {
+      if (other <= eid) continue; // avoid double-processing
       if (!hasComponents(world, other, bits)) continue;
       if (hpCurrent[other] <= 0) continue;
       if (hasComponents(world, other, BUILDING) || hasComponents(world, other, RESOURCE)) continue;

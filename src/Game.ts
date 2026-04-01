@@ -54,6 +54,7 @@ import { MinimapRenderer } from './rendering/MinimapRenderer';
 import { GameOverRenderer } from './rendering/GameOverRenderer';
 import { AlertRenderer } from './rendering/AlertRenderer';
 import { movementSystem } from './systems/MovementSystem';
+import { spatialHash } from './ecs/SpatialHash';
 import { selectionSystem } from './systems/SelectionSystem';
 import { commandSystem } from './systems/CommandSystem';
 import { GameCommandQueue } from './input/CommandQueue';
@@ -277,6 +278,9 @@ export class Game {
 
   private tick(dt: number): void {
     this.gameTime += dt;
+
+    // Rebuild spatial hash once per tick — must run before any system that queries it
+    spatialHash.rebuild(this.world);
 
     // APM: count simulation commands issued this tick
     if (this.simulationQueue.length > 0) {

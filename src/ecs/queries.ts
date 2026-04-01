@@ -7,6 +7,7 @@ import {
   atkDamage, targetEntity, pendingDamage,
 } from './components';
 import { type Faction, ResourceType, BuildingType, BuildState } from '../constants';
+import { spatialHash } from './SpatialHash';
 
 /**
  * Find the closest unit at a world position (for click targeting).
@@ -46,7 +47,9 @@ export function findEnemyAt(world: World, wx: number, wy: number, myFaction: Fac
   let closestEid = 0;
   let closestDist = Infinity;
 
-  for (let eid = 1; eid < world.nextEid; eid++) {
+  spatialHash.ensureBuilt(world);
+  const candidates = spatialHash.queryRadius(wx, wy, 32);
+  for (const eid of candidates) {
     if (!hasComponents(world, eid, bits)) continue;
     if (faction[eid] === myFaction || faction[eid] === 0) continue;
     if (hpCurrent[eid] <= 0) continue;
@@ -82,7 +85,9 @@ export function findClosestEnemy(world: World, eid: number, range: number): numb
   let closestEid = 0;
   let closestDist = Infinity;
 
-  for (let other = 1; other < world.nextEid; other++) {
+  spatialHash.ensureBuilt(world);
+  const candidates = spatialHash.queryRadius(ex, ey, range);
+  for (const other of candidates) {
     if (other === eid) continue;
     if (!hasComponents(world, other, bits)) continue;
     if (faction[other] === myFac || faction[other] === 0) continue;
@@ -110,7 +115,9 @@ export function findResourceAt(world: World, wx: number, wy: number): number {
   let closestEid = 0;
   let closestDist = Infinity;
 
-  for (let eid = 1; eid < world.nextEid; eid++) {
+  spatialHash.ensureBuilt(world);
+  const candidates = spatialHash.queryRadius(wx, wy, 32);
+  for (const eid of candidates) {
     if (!hasComponents(world, eid, bits)) continue;
     if (resourceRemaining[eid] <= 0) continue;
 
@@ -166,7 +173,9 @@ export function findBuildingAt(world: World, wx: number, wy: number, bType: Buil
   let closestEid = 0;
   let closestDist = Infinity;
 
-  for (let eid = 1; eid < world.nextEid; eid++) {
+  spatialHash.ensureBuilt(world);
+  const candidates = spatialHash.queryRadius(wx, wy, 32);
+  for (const eid of candidates) {
     if (!hasComponents(world, eid, bits)) continue;
     if (buildingType[eid] !== bType) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
@@ -281,7 +290,9 @@ export function findBestTarget(world: World, eid: number, range: number): number
   const bestEid = [0, 0, 0, 0];
   const bestDist = [Infinity, Infinity, Infinity, Infinity];
 
-  for (let other = 1; other < world.nextEid; other++) {
+  spatialHash.ensureBuilt(world);
+  const candidates = spatialHash.queryRadius(posX[eid], posY[eid], range);
+  for (const other of candidates) {
     if (!hasComponents(world, other, POSITION | HEALTH)) continue;
     if (faction[other] === myFac || faction[other] === 0) continue;
     if (hpCurrent[other] <= 0) continue;

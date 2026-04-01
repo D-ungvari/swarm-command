@@ -98,7 +98,10 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     if (targetEntity[eid] < 1) {
       // Search with a generous aggro range: max of attack range and 6 tiles (192px)
       // This ensures melee units detect ranged attackers shooting them
-      const aggroRange = Math.max(range, 6 * TILE_SIZE);
+      // HoldPosition: only acquire within actual attack range (no wider aggro)
+      const aggroRange = commandMode[eid] === CommandMode.HoldPosition
+        ? range
+        : Math.max(range, 6 * TILE_SIZE);
       const enemy = findBestTarget(world, eid, aggroRange);
       if (enemy > 0) {
         // Terran units can't auto-acquire targets hidden in fog
@@ -131,7 +134,11 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         targetEntity[eid] = -1;
         continue;
       }
-      // Target out of range — chase (unless pure Move mode)
+      // HoldPosition: drop target instead of chasing — stay put
+      if (commandMode[eid] === CommandMode.HoldPosition) {
+        targetEntity[eid] = -1;
+        continue;
+      }
       // AttackTarget: chase the explicit target regardless of distance until it dies.
       // Auto-acquire (findBestTarget) will never override a live explicit target
       // because targetEntity[eid] is only cleared on target death (above).

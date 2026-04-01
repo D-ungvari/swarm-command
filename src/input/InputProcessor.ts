@@ -7,6 +7,7 @@ import type { Viewport } from 'pixi-viewport';
 
 export class InputProcessor {
   private attackMovePending = false;
+  private patrolPending = false;
 
   constructor(
     private input: InputManager,
@@ -18,6 +19,10 @@ export class InputProcessor {
 
   get isAttackMovePending(): boolean {
     return this.attackMovePending;
+  }
+
+  get isPatrolPending(): boolean {
+    return this.patrolPending;
   }
 
   /** Call once per frame, after InputManager.update(), before the tick loop. */
@@ -43,9 +48,10 @@ export class InputProcessor {
       }
     }
 
-    // Escape: cancel attack-move mode
+    // Escape: cancel attack-move / patrol mode
     if (keys.has('Escape')) {
       this.attackMovePending = false;
+      this.patrolPending = false;
     }
 
     // A: enter attack-move mode
@@ -54,8 +60,14 @@ export class InputProcessor {
     }
 
     // Unit orders — snapshot selection at key time
-    if (keys.has('KeyS') || keys.has('KeyH')) {
+    if (keys.has('KeyS')) {
       this.simulationQueue.push({ type: CommandType.Stop, units: this.snapshotSelection() });
+    }
+    if (keys.has('KeyH')) {
+      this.simulationQueue.push({ type: CommandType.HoldPosition, units: this.snapshotSelection() });
+    }
+    if (keys.has('KeyP')) {
+      this.patrolPending = true;
     }
     if (keys.has('KeyT')) {
       this.simulationQueue.push({ type: CommandType.Stim, units: this.snapshotSelection() });
@@ -105,6 +117,14 @@ export class InputProcessor {
             units: this.snapshotSelection(),
           });
           this.attackMovePending = false;
+        } else if (this.patrolPending) {
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.Patrol,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.patrolPending = false;
         } else {
           // Single click — select
           const type: CommandType = evt.isDouble
@@ -127,6 +147,7 @@ export class InputProcessor {
           shiftHeld: state.shiftHeld,
         });
         this.attackMovePending = false;
+        this.patrolPending = false;
       }
     }
 

@@ -4,6 +4,7 @@ import {
   posX, posY, selected, moveTargetX, moveTargetY,
   setPath, appendPath, getPathWaypoint, pathLengths, faction, movePathIndex, unitType, velX, velY,
   targetEntity, commandMode,
+  patrolOriginX, patrolOriginY,
   stimEndTime, hpCurrent, moveSpeed, atkCooldown,
   siegeMode, siegeTransitionEnd,
   workerState, workerTargetEid, resourceType, resourceRemaining,
@@ -12,7 +13,7 @@ import {
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
-import { findEnemyAt, findResourceAt, findBuildingAt } from '../ecs/queries';
+import { findEnemyAt, findResourceAt, findBuildingAt, findFriendlyAt } from '../ecs/queries';
 import { CommandType, type GameCommand } from '../input/CommandQueue';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile } from '../map/MapData';
@@ -43,6 +44,23 @@ export function commandSystem(
       case CommandType.Stop:
         if (cmd.units) stopUnits(world, cmd.units);
         break;
+
+      case CommandType.HoldPosition:
+        if (cmd.units) holdUnits(world, cmd.units);
+        break;
+
+      case CommandType.Patrol: {
+        const units = cmd.units ?? [];
+        if (units.length === 0) break;
+        // Record current position as patrol origin for each unit
+        for (const eid of units) {
+          patrolOriginX[eid] = posX[eid];
+          patrolOriginY[eid] = posY[eid];
+        }
+        issuePathCommand(world, units, cmd.wx!, cmd.wy!, map, CommandMode.Patrol);
+        addCommandPing(cmd.wx!, cmd.wy!, 0xffaa00, gameTime);
+        break;
+      }
 
       case CommandType.Stim:
         if (cmd.units) applyStim(world, cmd.units, gameTime);
@@ -150,6 +168,25 @@ export function commandSystem(
           break;
         }
 
+        // Check if right-clicking on a friendly unit (Medivac heal-follow)
+        const friendly = findFriendlyAt(world, wx, wy, Faction.Terran);
+        if (friendly > 0) {
+          const medivacs: number[] = [];
+          const others: number[] = [];
+          for (const eid of units) {
+            (unitType[eid] === UnitType.Medivac ? medivacs : others).push(eid);
+          }
+          if (medivacs.length > 0) {
+            issuePathCommand(world, medivacs, posX[friendly], posY[friendly], map, CommandMode.Move);
+            addCommandPing(posX[friendly], posY[friendly], 0x00ffff, gameTime);
+          }
+          if (others.length > 0) {
+            issuePathCommand(world, others, wx, wy, map, CommandMode.Move, cmd.shiftHeld ?? false);
+            addCommandPing(wx, wy, cmd.shiftHeld ? 0xffff44 : 0x44ff44, gameTime);
+          }
+          break;
+        }
+
         // Check enemy
         const enemy = findEnemyAt(world, wx, wy, Faction.Terran);
         if (enemy > 0) {
@@ -227,6 +264,18 @@ function stopUnits(world: World, units: number[]): void {
     moveTargetX[eid] = -1;
     moveTargetY[eid] = -1;
     movePathIndex[eid] = -1;
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
+  }
+}
+
+function holdUnits(world: World, units: number[]): void {
+  for (const eid of units) {
+    targetEntity[eid] = -1;
+    commandMode[eid] = CommandMode.HoldPosition;
+    movePathIndex[eid] = -1;
+    velX[eid] = 0;
+    velY[eid] = 0;
     workerState[eid] = WorkerState.Idle;
     workerTargetEid[eid] = -1;
   }

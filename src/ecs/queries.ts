@@ -1,6 +1,6 @@
 import { type World, hasComponents, entityExists } from './world';
 import {
-  POSITION, SELECTABLE, RENDERABLE, HEALTH, ATTACK, RESOURCE, BUILDING,
+  POSITION, SELECTABLE, RENDERABLE, HEALTH, ATTACK, RESOURCE, BUILDING, UNIT_TYPE,
   posX, posY, renderWidth, renderHeight, faction, hpCurrent, atkRange,
   resourceRemaining, resourceType,
   buildingType, buildState,
@@ -224,6 +224,35 @@ export function findNearestCommandCenter(world: World, fac: Faction, wx: number,
     const distSq = dx * dx + dy * dy;
 
     if (distSq < closestDist) {
+      closestDist = distSq;
+      closestEid = eid;
+    }
+  }
+
+  return closestEid;
+}
+
+/**
+ * Find the closest friendly unit (not building) at or near a world position.
+ * Returns entity ID or 0 if none found within tolerance.
+ */
+export function findFriendlyAt(world: World, wx: number, wy: number, myFaction: number): number {
+  const TOLERANCE = 32; // px — generous for click targeting
+  const toleranceSq = TOLERANCE * TOLERANCE;
+
+  let closestEid = 0;
+  let closestDist = Infinity;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, POSITION | HEALTH | UNIT_TYPE)) continue;
+    if (hasComponents(world, eid, BUILDING)) continue; // exclude buildings
+    if (faction[eid] !== myFaction) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const distSq = dx * dx + dy * dy;
+    if (distSq <= toleranceSq && distSq < closestDist) {
       closestDist = distSq;
       closestEid = eid;
     }

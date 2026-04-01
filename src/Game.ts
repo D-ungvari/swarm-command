@@ -12,7 +12,7 @@ import {
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
   addUnitComponents, addWorkerComponent, addResourceComponents, addBuildingComponents,
-  POSITION, WORKER, MOVEMENT, BUILDING,
+  POSITION, WORKER, MOVEMENT, BUILDING, UNIT_TYPE, SELECTABLE,
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
@@ -67,6 +67,7 @@ import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import { getLastTerranHit } from './systems/CombatSystem';
 import { fogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
+import { WaypointRenderer } from './rendering/WaypointRenderer';
 import type { PlayerResources } from './types';
 import { soundManager } from './audio/SoundManager';
 
@@ -98,6 +99,7 @@ export class Game {
   private hotkeyPanelRenderer!: HotkeyPanelRenderer;
   private minimapRenderer!: MinimapRenderer;
   private fogRenderer!: FogRenderer;
+  private waypointRenderer!: WaypointRenderer;
   private gameOverRenderer!: GameOverRenderer;
   private alertRenderer!: AlertRenderer;
   private lastAIAttacking = false;
@@ -164,6 +166,9 @@ export class Game {
 
     this.unitRenderer = new UnitRenderer();
     this.viewport.addChild(this.unitRenderer.container);
+
+    this.waypointRenderer = new WaypointRenderer();
+    this.viewport.addChild(this.waypointRenderer.container);
 
     // Ghost preview for building placement (world space)
     this.ghostGraphics = new Graphics();
@@ -259,6 +264,7 @@ export class Game {
   private render(): void {
     this.tilemapRenderer.updateWater(this.gameTime);
     this.unitRenderer.render(this.world, this.gameTime);
+    this.waypointRenderer.render(this.world, this.input.state.shiftHeld);
     this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();
     this.fogRenderer.render();
@@ -304,9 +310,12 @@ export class Game {
       this.viewport.moveCenter(ccPos.x, ccPos.y);
     }
 
-    // F2 = select all idle workers
+    // F2 = select all combat units, F3 = select all workers
     if (this.input.state.keysJustPressed.has('F2')) {
-      this.selectIdleWorkers();
+      this.selectAllCombatUnits();
+    }
+    if (this.input.state.keysJustPressed.has('F3')) {
+      this.selectAllWorkers();
     }
     this.alertRenderer.update(this.gameTime);
 
@@ -586,6 +595,43 @@ export class Game {
       count++;
     }
     return count;
+  }
+
+  private selectAllCombatUnits(): void {
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      selected[eid] = 0;
+    }
+    let found = false;
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (!hasComponents(this.world, eid, UNIT_TYPE | POSITION | SELECTABLE)) continue;
+      if (hasComponents(this.world, eid, BUILDING)) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      const ut = unitType[eid] as UnitType;
+      if (ut === UnitType.SCV || ut === UnitType.Drone) continue; // exclude workers
+      selected[eid] = 1;
+      if (!found) {
+        this.viewport.moveCenter(posX[eid], posY[eid]);
+        found = true;
+      }
+    }
+  }
+
+  private selectAllWorkers(): void {
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      selected[eid] = 0;
+    }
+    let found = false;
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (!hasComponents(this.world, eid, WORKER | POSITION | SELECTABLE)) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      selected[eid] = 1;
+      if (!found) {
+        this.viewport.moveCenter(posX[eid], posY[eid]);
+        found = true;
+      }
+    }
   }
 
   private selectIdleWorkers(): void {

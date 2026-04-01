@@ -59,6 +59,8 @@ export const enum CommandMode {
   AttackTarget = 3,
   Gather = 4,
   Build = 5,
+  HoldPosition = 6,
+  Patrol = 7,
 }
 
 // ── Building types ──

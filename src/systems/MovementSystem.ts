@@ -5,9 +5,12 @@ import {
   moveSpeed, moveTargetX, moveTargetY,
   movePathIndex, pathLengths, getPathWaypoint,
   slowFactor, siegeMode, faction, hpCurrent,
+  patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
 } from '../ecs/components';
-import { SiegeMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE } from '../constants';
+import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE } from '../constants';
 import type { MapData } from '../map/MapData';
+import { worldToTile, tileToWorld } from '../map/MapData';
+import { findPath } from '../map/Pathfinder';
 
 const ARRIVAL_THRESHOLD = 4; // px — close enough to waypoint
 
@@ -38,9 +41,28 @@ export function movementSystem(world: World, dt: number, map?: MapData): void {
 
     const pathIdx = movePathIndex[eid];
     if (pathIdx < 0) {
-      velX[eid] = 0;
-      velY[eid] = 0;
-      continue;
+      // If patrolling and idle (path cleared by combat), re-issue path toward origin
+      if (commandMode[eid] === CommandMode.Patrol && map && targetEntity[eid] < 1) {
+        const startTile = worldToTile(posX[eid], posY[eid]);
+        const endTile = worldToTile(patrolOriginX[eid], patrolOriginY[eid]);
+        const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+        if (tilePath.length > 0) {
+          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+            const wp = tileToWorld(c, r);
+            return [wp.x, wp.y] as [number, number];
+          });
+          setPath(eid, worldPath);
+          // Don't continue — fall through to the path-following logic below
+        } else {
+          velX[eid] = 0;
+          velY[eid] = 0;
+          continue;
+        }
+      } else {
+        velX[eid] = 0;
+        velY[eid] = 0;
+        continue;
+      }
     }
 
     // Get current waypoint
@@ -59,12 +81,37 @@ export function movementSystem(world: World, dt: number, map?: MapData): void {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < ARRIVAL_THRESHOLD) {
-      // Move to next waypoint
       movePathIndex[eid]++;
       if (movePathIndex[eid] >= pathLengths[eid]) {
-        movePathIndex[eid] = -1;
-        velX[eid] = 0;
-        velY[eid] = 0;
+        // Path complete
+        if (commandMode[eid] === CommandMode.Patrol && map) {
+          // Swap: current pos becomes new origin, old origin becomes new target
+          const newTargetX = patrolOriginX[eid];
+          const newTargetY = patrolOriginY[eid];
+          patrolOriginX[eid] = posX[eid];
+          patrolOriginY[eid] = posY[eid];
+          // Re-path to the old origin
+          const startTile = worldToTile(posX[eid], posY[eid]);
+          const endTile = worldToTile(newTargetX, newTargetY);
+          const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+          if (tilePath.length > 0) {
+            const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+              const wp = tileToWorld(c, r);
+              return [wp.x, wp.y] as [number, number];
+            });
+            setPath(eid, worldPath);
+          } else {
+            // No path found — stop patrol
+            movePathIndex[eid] = -1;
+            commandMode[eid] = CommandMode.Idle;
+            velX[eid] = 0;
+            velY[eid] = 0;
+          }
+        } else {
+          movePathIndex[eid] = -1;
+          velX[eid] = 0;
+          velY[eid] = 0;
+        }
       }
       continue;
     }

@@ -46,6 +46,7 @@ export const UnitType = {
 } as const;
 export const CommandMode = {
   Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3, Gather: 4, Build: 5,
+  HoldPosition: 6, Patrol: 7,
 } as const;
 export const SiegeMode = {
   Mobile: 0, Sieged: 1, Packing: 2, Unpacking: 3,

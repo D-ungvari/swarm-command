@@ -2,7 +2,7 @@ import { type World, hasComponents, entityExists } from '../ecs/world';
 import {
   POSITION, SELECTABLE,
   posX, posY, renderWidth, renderHeight,
-  selected, faction, RENDERABLE, UNIT_TYPE,
+  selected, faction, RENDERABLE, UNIT_TYPE, BUILDING,
   unitType,
 } from '../ecs/components';
 import { CommandType, type GameCommand } from '../input/CommandQueue';
@@ -137,25 +137,37 @@ function clearSelection(world: World): void {
 
 function findUnitAt(world: World, wx: number, wy: number): number {
   const bits = POSITION | SELECTABLE | RENDERABLE;
+  const TOLERANCE = 12;
+
+  // Pass 1: prefer units over buildings
   let closestEid = 0;
   let closestDist = Infinity;
-
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
-
+    if (hasComponents(world, eid, BUILDING)) continue; // skip buildings in pass 1
     const dx = posX[eid] - wx;
     const dy = posY[eid] - wy;
-    const halfW = renderWidth[eid] / 2 + 8; // generous click tolerance
-    const halfH = renderHeight[eid] / 2 + 8;
-
+    const halfW = renderWidth[eid] / 2 + TOLERANCE;
+    const halfH = renderHeight[eid] / 2 + TOLERANCE;
     if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
       const dist = dx * dx + dy * dy;
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestEid = eid;
-      }
+      if (dist < closestDist) { closestDist = dist; closestEid = eid; }
     }
   }
+  if (closestEid > 0) return closestEid;
 
+  // Pass 2: fall back to buildings
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (!hasComponents(world, eid, BUILDING)) continue; // only buildings in pass 2
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const halfW = renderWidth[eid] / 2 + TOLERANCE;
+    const halfH = renderHeight[eid] / 2 + TOLERANCE;
+    if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
+      const dist = dx * dx + dy * dy;
+      if (dist < closestDist) { closestDist = dist; closestEid = eid; }
+    }
+  }
   return closestEid;
 }

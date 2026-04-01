@@ -114,6 +114,11 @@ export const workerMineTimer = new Float32Array(MAX_ENTITIES);
 export const workerBaseX = new Float32Array(MAX_ENTITIES);
 export const workerBaseY = new Float32Array(MAX_ENTITIES);
 
+// ── Patrol ──
+/** World position where patrol command was issued (one end of patrol route) */
+export const patrolOriginX = new Float32Array(MAX_ENTITIES);
+export const patrolOriginY = new Float32Array(MAX_ENTITIES);
+
 // ── Building ──
 /** BuildingType enum value */
 export const buildingType = new Uint8Array(MAX_ENTITIES);
@@ -241,6 +246,8 @@ export function resetComponents(eid: number): void {
   workerMineTimer[eid] = 0;
   workerBaseX[eid] = 0;
   workerBaseY[eid] = 0;
+  patrolOriginX[eid] = 0;
+  patrolOriginY[eid] = 0;
   buildingType[eid] = 0;
   buildState[eid] = 0;
   buildProgress[eid] = 0;

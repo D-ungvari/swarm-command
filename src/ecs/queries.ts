@@ -5,6 +5,7 @@ import {
   resourceRemaining, resourceType,
   buildingType, buildState,
   atkDamage, targetEntity, pendingDamage,
+  cloaked,
 } from './components';
 import { type Faction, ResourceType, BuildingType, BuildState } from '../constants';
 import { spatialHash } from './SpatialHash';
@@ -296,6 +297,9 @@ export function findBestTarget(world: World, eid: number, range: number): number
     if (!hasComponents(world, other, POSITION | HEALTH)) continue;
     if (faction[other] === myFac || faction[other] === 0) continue;
     if (hpCurrent[other] <= 0) continue;
+
+    // Skip cloaked enemies (cannot be auto-targeted)
+    if (cloaked[other] === 1) continue;
 
     // Overkill prevention: skip over-committed targets
     if (pendingDamage[other] >= hpCurrent[other]) continue;

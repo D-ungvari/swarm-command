@@ -10,6 +10,7 @@ import {
   workerState, workerTargetEid, resourceType, resourceRemaining,
   rallyX, rallyY, buildState, buildingType, prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
+  cloaked,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -68,6 +69,15 @@ export function commandSystem(
 
       case CommandType.SiegeToggle:
         if (cmd.units) toggleSiegeMode(world, cmd.units, gameTime);
+        break;
+
+      case CommandType.Cloak:
+        if (cmd.units) {
+          for (const eid of cmd.units) {
+            if (unitType[eid] !== UnitType.Ghost) continue;
+            cloaked[eid] = cloaked[eid] === 1 ? 0 : 1; // toggle
+          }
+        }
         break;
 
       case CommandType.Cancel:

@@ -103,6 +103,12 @@ export const lastCombatTime = new Float32Array(MAX_ENTITIES);
 /** gameTime when unit died (0 = alive). Used for shrink/fade-out animation. */
 export const deathTime = new Float32Array(MAX_ENTITIES);
 
+// ── Cloak ──
+/** Energy pool for cloaking. Max 200, drains 0.5/s while cloaked. */
+export const energy = new Float32Array(MAX_ENTITIES);
+/** 1 = cloaked, 0 = visible */
+export const cloaked = new Uint8Array(MAX_ENTITIES);
+
 // ── Resource node ──
 /** ResourceType enum: Mineral=1, Gas=2 */
 export const resourceType = new Uint8Array(MAX_ENTITIES);
@@ -243,6 +249,8 @@ export function resetComponents(eid: number): void {
   siegeTransitionEnd[eid] = 0;
   lastCombatTime[eid] = 0;
   deathTime[eid] = 0;
+  energy[eid] = 0;
+  cloaked[eid] = 0;
   resourceType[eid] = 0;
   resourceRemaining[eid] = 0;
   workerState[eid] = 0;

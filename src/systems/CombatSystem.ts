@@ -8,6 +8,7 @@ import {
   unitType,
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
   atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
+  cloaked,
 } from '../ecs/components';
 import { findBestTarget } from '../ecs/queries';
 import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, DamageType, ArmorClass, UpgradeType } from '../constants';
@@ -30,6 +31,8 @@ const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
   [UnitType.Hydralisk]: 550,
   [UnitType.Roach]: 450,
   [UnitType.Drone]: 400,
+  [UnitType.Mutalisk]: 600,
+  [UnitType.Ghost]: 650,
 };
 
 /** How far a target must move before we re-path to chase it */
@@ -251,6 +254,64 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       lastTerranHitTime = gameTime;
       lastTerranHitX = posX[tgt];
       lastTerranHitY = posY[tgt];
+    }
+
+    // Mutalisk glaive bounce — hits 2 additional targets at reduced damage
+    if (unitType[eid] === UnitType.Mutalisk) {
+      const bounceRange = 3 * TILE_SIZE; // 96px
+      let lastX = posX[tgt];
+      let lastY = posY[tgt];
+      let lastDmg = rawDmg;
+      const bounced = new Set([tgt]);
+
+      for (let bounce = 0; bounce < 2; bounce++) {
+        const bounceDmg = Math.max(1, Math.round(lastDmg * 0.3));
+        // Find nearest enemy NOT already bounced to
+        let nearestEid = 0;
+        let nearestDist = Infinity;
+        const myFac = faction[eid];
+        for (let other = 1; other < world.nextEid; other++) {
+          if (bounced.has(other)) continue;
+          if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+          if (faction[other] === myFac || faction[other] === 0) continue;
+          if (hpCurrent[other] <= 0) continue;
+          const dx = posX[other] - lastX;
+          const dy = posY[other] - lastY;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < bounceRange * bounceRange && distSq < nearestDist) {
+            nearestDist = distSq;
+            nearestEid = other;
+          }
+        }
+        if (nearestEid === 0) break;
+
+        hpCurrent[nearestEid] -= bounceDmg;
+        bounced.add(nearestEid);
+        lastX = posX[nearestEid];
+        lastY = posY[nearestEid];
+        lastDmg = bounceDmg;
+
+        // Emit bounce projectile
+        emitProjectile({
+          fromX: posX[tgt], fromY: posY[tgt],
+          toX: posX[nearestEid], toY: posY[nearestEid],
+          unitType: UnitType.Mutalisk,
+          speed: 600,
+          time: gameTime,
+        });
+
+        // Track Terran under-attack for bounce hits too
+        if (faction[nearestEid] === Faction.Terran) {
+          lastTerranHitTime = gameTime;
+          lastTerranHitX = posX[nearestEid];
+          lastTerranHitY = posY[nearestEid];
+        }
+
+        if (hpCurrent[nearestEid] <= 0) {
+          killCount[eid]++;
+          pendingDamage[nearestEid] = 0;
+        }
+      }
     }
 
     // Retaliation: victim auto-targets attacker if idle and can fight

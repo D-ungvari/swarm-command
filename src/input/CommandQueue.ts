@@ -19,6 +19,7 @@ export const enum CommandType {
   ControlGroupAssign = 17,
   ControlGroupRecall = 18,
   CycleSubgroup = 19,
+  Cloak = 20,
 }
 
 export interface GameCommand {

@@ -6,6 +6,7 @@ import {
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
   lastCombatTime, movePathIndex,
+  energy, cloaked,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import {
@@ -26,6 +27,29 @@ export function abilitySystem(world: World, dt: number, gameTime: number): void 
   processSiegeTransitions(world, gameTime);
   processMedivacHeal(world, dt);
   processRoachRegen(world, dt, gameTime);
+  processGhostCloak(world, dt);
+}
+
+function processGhostCloak(world: World, dt: number): void {
+  const bits = ABILITY | UNIT_TYPE;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (unitType[eid] !== UnitType.Ghost) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    // Regenerate energy when not cloaked (1/s)
+    if (cloaked[eid] === 0 && energy[eid] < 200) {
+      energy[eid] = Math.min(200, energy[eid] + dt);
+    }
+
+    // Drain energy while cloaked (0.5/s)
+    if (cloaked[eid] === 1) {
+      energy[eid] = Math.max(0, energy[eid] - dt * 0.5);
+      if (energy[eid] <= 0) {
+        cloaked[eid] = 0; // auto-uncloak
+      }
+    }
+  }
 }
 
 function processStimExpiry(world: World, gameTime: number): void {

@@ -12,6 +12,7 @@ import {
   prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   velX, velY, commandMode,
+  cloaked,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -1005,6 +1006,20 @@ export class UnitRenderer {
           g.rect(x - w / 2, y - h / 2, w, h);
           g.fill({ color: bodyColor });
         }
+      }
+
+      // Cloak visual: shimmer ring + reduced alpha overlay
+      if (cloaked[eid] === 1) {
+        const pulse = 0.4 + Math.sin(gameTime * 4 + eid) * 0.3;
+        g.circle(posX[eid], posY[eid], renderWidth[eid] / 2 + 4);
+        g.stroke({ color: 0x88aaff, width: 1, alpha: pulse });
+        // Faded overlay to visually indicate reduced visibility
+        if (fac === Faction.Zerg) {
+          g.ellipse(posX[eid], posY[eid], renderWidth[eid] / 2, renderHeight[eid] / 2);
+        } else {
+          g.rect(posX[eid] - renderWidth[eid] / 2, posY[eid] - renderHeight[eid] / 2, renderWidth[eid], renderHeight[eid]);
+        }
+        g.fill({ color: 0x000033, alpha: 0.55 }); // dark overlay to dim the unit to ~30% visible
       }
 
       // Projectile line for ranged units when attacking

@@ -6,6 +6,7 @@ import {
   resourceRemaining, resourceType, unitType,
   selected, hpCurrent, hpMax, faction, renderTint, killCount,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
+  energy, cloaked,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -387,6 +388,13 @@ export class InfoPanelRenderer {
       const facName = fac === Faction.Terran ? 'Terran' : fac === Faction.Zerg ? 'Zerg' : '';
       const kills = killCount[eid];
       this.detailEl.textContent = kills > 0 ? `${facName}  Kills: ${kills}` : facName;
+
+      // Ghost: show energy and cloak status
+      if (ut === UnitType.Ghost) {
+        const energyVal = energy[eid];
+        const cloakStatus = cloaked[eid] === 1 ? ' [CLOAKED]' : '';
+        this.detailEl.textContent += `  E:${Math.floor(energyVal)}${cloakStatus}`;
+      }
 
       // Show upgrade bonuses
       if (playerResources?.upgrades && fac === Faction.Terran) {

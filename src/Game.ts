@@ -31,6 +31,7 @@ import {
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   supplyProvided, supplyCost,
   selected, setPath,
+  energy,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
 import { BUILDING_DEFS } from './data/buildings';
@@ -1018,6 +1019,11 @@ export class Game {
 
     faction[eid] = fac;
     unitType[eid] = def.type;
+
+    // Ghost energy setup
+    if (type === UnitType.Ghost) {
+      energy[eid] = 200; // start with full energy
+    }
 
     // Worker setup
     if (type === UnitType.SCV || type === UnitType.Drone) {

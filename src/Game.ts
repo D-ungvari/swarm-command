@@ -76,6 +76,7 @@ import { ProjectileRenderer } from './rendering/ProjectileRenderer';
 import type { PlayerResources } from './types';
 import { soundManager } from './audio/SoundManager';
 import { GameStats } from './stats/GameStats';
+import { consumeCameraShake } from './rendering/CameraShake';
 
 export class Game {
   app!: Application;
@@ -130,6 +131,7 @@ export class Game {
   private accumulator = 0;
   private lastTime = 0;
   private gameTime = 0;
+  private paused = false;
 
   // Stats tracking
   private stats = new GameStats();
@@ -297,6 +299,15 @@ export class Game {
     this.accumulator += frameTime;
 
     this.input.update();
+
+    // Escape toggles pause — only when no modal modes are active
+    if (this.input.state.keysJustPressed.has('Escape')
+        && !this.placementMode
+        && !this.inputProcessor.isAttackMovePending
+        && !this.inputProcessor.isPatrolPending) {
+      this.paused = !this.paused;
+    }
+
     this.handleMinimapClick();         // runs first — consumes minimap clicks
     this.handleEdgeScroll();
     this.handleBuildPlacement();       // runs second — consumes build placement clicks
@@ -304,10 +315,12 @@ export class Game {
     this.applySelectionCommands();     // frame-rate: drain selectionQueue immediately
 
     const currentMsPerTick = MS_PER_TICK / GAME_SPEEDS[this.gameSpeedIndex];
-    while (this.accumulator >= currentMsPerTick) {
-      this.tick(currentMsPerTick / 1000);
-      this.accumulator -= currentMsPerTick;
-      // No manual flag clearing needed — InputProcessor already consumed raw events
+    if (!this.paused) {
+      while (this.accumulator >= currentMsPerTick) {
+        this.tick(currentMsPerTick / 1000);
+        this.accumulator -= currentMsPerTick;
+        // No manual flag clearing needed — InputProcessor already consumed raw events
+      }
     }
 
     this.render();
@@ -398,6 +411,9 @@ export class Game {
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode, this.inputProcessor.isPatrolPending);
+    if (this.paused) {
+      this.modeIndicatorRenderer.showPaused();
+    }
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world);
 
@@ -463,6 +479,16 @@ export class Game {
       document.body.style.cursor = 'crosshair';
     } else {
       document.body.style.cursor = 'default';
+    }
+
+    // Camera shake — offset the entire stage and restore each frame
+    const shake = consumeCameraShake(1 / 60);
+    if (shake > 0.5) {
+      this.app.stage.x = Math.sin(this.gameTime * 45) * shake;
+      this.app.stage.y = Math.cos(this.gameTime * 41) * shake * 0.7;
+    } else {
+      this.app.stage.x = 0;
+      this.app.stage.y = 0;
     }
   }
 

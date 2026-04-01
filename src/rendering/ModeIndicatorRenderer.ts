@@ -27,6 +27,13 @@ export class ModeIndicatorRenderer {
     container.appendChild(this.el);
   }
 
+  showPaused(): void {
+    this.el.style.display = 'block';
+    this.el.textContent = '⏸ PAUSED';
+    this.el.style.color = '#ffffff';
+    this.el.style.background = 'rgba(0, 0, 0, 0.7)';
+  }
+
   update(attackMoveMode: boolean, placementMode: boolean, isPatrolPending: boolean = false): void {
     let text = '';
     let color = '';

@@ -18,6 +18,7 @@ import { isTileVisible } from './FogSystem';
 import { soundManager } from '../audio/SoundManager';
 import { type PlayerResources } from '../types';
 import { emitProjectile } from '../rendering/ProjectileRenderer';
+import { triggerCameraShake } from '../rendering/CameraShake';
 
 const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
   [UnitType.Marine]: 700,
@@ -192,6 +193,11 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     atkLastTime[eid] = gameTime;
     atkFlashTimer[eid] = FLASH_DURATION;
     soundManager.playAttack();
+
+    // Camera shake for splash-damage units (Siege Tank, Baneling)
+    if (atkSplash[eid] > 0) {
+      triggerCameraShake(atkSplash[eid] * 1.5);
+    }
 
     // Emit projectile visual (cosmetic only — damage already applied below)
     const projSpeed = PROJECTILE_SPEEDS[unitType[eid] as UnitType] ?? 500;

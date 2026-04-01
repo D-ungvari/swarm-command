@@ -5,7 +5,7 @@ import {
   posX, posY, renderWidth, renderHeight, renderTint,
   selected, faction, hpCurrent, hpMax, unitType,
   atkFlashTimer, atkRange, atkDamage, targetEntity,
-  stimEndTime, slowEndTime, siegeMode, lastCombatTime, deathTime,
+  stimEndTime, slowEndTime, slowFactor, siegeMode, lastCombatTime, deathTime,
   resourceType, resourceRemaining,
   buildState, buildProgress, buildingType, rallyX, rallyY,
   workerCarrying, workerState,
@@ -417,6 +417,22 @@ export class UnitRenderer {
           const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
           g.rect(barX3, barY3, barW3 * hpRatio, barH3);
           g.fill({ color: hpColor });
+
+          // Fire effect at critical HP (< 25%)
+          if (hpRatio < 0.25 && hpRatio > 0) {
+            const flicker1 = Math.sin(gameTime * 8 + eid * 1.7) > 0;
+            const flicker2 = Math.sin(gameTime * 11 + eid * 2.3) > 0;
+            if (flicker1) {
+              g.circle(x - w * 0.2, y - h * 0.5 - 3, 4);
+              g.fill({ color: 0xff6600, alpha: 0.7 });
+              g.circle(x - w * 0.2, y - h * 0.5 - 3, 2);
+              g.fill({ color: 0xffcc00, alpha: 0.8 });
+            }
+            if (flicker2) {
+              g.circle(x + w * 0.15, y - h * 0.5 - 5, 3);
+              g.fill({ color: 0xff4400, alpha: 0.7 });
+            }
+          }
         }
 
         // Rally point indicator
@@ -484,10 +500,13 @@ export class UnitRenderer {
         g.stroke({ color: 0xff4444, width: 0.5, alpha: 0.2 });
       }
 
-      // Slow debuff indicator — frosty ring behind unit
-      if (isSlowed) {
-        g.circle(x, y, Math.max(w, h) * 0.6);
-        g.fill({ color: 0x4488cc, alpha: 0.25 });
+      // Slow debuff indicator — icy stroke ring around unit
+      if (slowFactor[eid] > 0) {
+        const halfW = renderWidth[eid] / 2;
+        const halfH = renderHeight[eid] / 2;
+        const radius = Math.max(halfW, halfH) + 3;
+        g.circle(x, y, radius);
+        g.stroke({ color: 0x88ccff, width: 1.5, alpha: 0.7 });
       }
 
       // Idle unit breathing animation — subtle vertical bob

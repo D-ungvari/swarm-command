@@ -9,6 +9,7 @@ import {
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
   atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
   cloaked,
+  isAir, canTargetGround, canTargetAir,
 } from '../ecs/components';
 import { findBestTarget } from '../ecs/queries';
 import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, DamageType, ArmorClass, UpgradeType } from '../constants';
@@ -128,6 +129,15 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         targetEntity[eid] = -1;
         // If was attack-moving, resume path (movement system handles this via existing path)
         // If was attacking a specific target, go idle
+        if (commandMode[eid] === CommandMode.AttackTarget) {
+          commandMode[eid] = CommandMode.Idle;
+        }
+      } else if (
+        (isAir[target] === 1 && !canTargetAir[eid]) ||
+        (isAir[target] === 0 && !canTargetGround[eid])
+      ) {
+        // Can't target this unit type — drop it silently
+        targetEntity[eid] = -1;
         if (commandMode[eid] === CommandMode.AttackTarget) {
           commandMode[eid] = CommandMode.Idle;
         }
@@ -383,6 +393,14 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 }
 
 function chaseTarget(eid: number, tgt: number, map: MapData): void {
+  // Air units fly in a straight line — no A* needed
+  if (isAir[eid]) {
+    setPath(eid, [[posX[tgt], posY[tgt]]]);
+    chaseTargetX[eid] = posX[tgt];
+    chaseTargetY[eid] = posY[tgt];
+    return;
+  }
+
   const tx = posX[tgt];
   const ty = posY[tgt];
 

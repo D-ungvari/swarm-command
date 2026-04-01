@@ -6,6 +6,7 @@ import {
   buildingType, buildState,
   atkDamage, targetEntity, pendingDamage,
   cloaked,
+  isAir, canTargetGround, canTargetAir,
 } from './components';
 import { type Faction, ResourceType, BuildingType, BuildState } from '../constants';
 import { spatialHash } from './SpatialHash';
@@ -93,6 +94,10 @@ export function findClosestEnemy(world: World, eid: number, range: number): numb
     if (!hasComponents(world, other, bits)) continue;
     if (faction[other] === myFac || faction[other] === 0) continue;
     if (hpCurrent[other] <= 0) continue;
+
+    // Respect air/ground targeting restrictions
+    if (isAir[other] === 1 && !canTargetAir[eid]) continue;
+    if (isAir[other] === 0 && !canTargetGround[eid]) continue;
 
     const dx = posX[other] - ex;
     const dy = posY[other] - ey;
@@ -300,6 +305,10 @@ export function findBestTarget(world: World, eid: number, range: number): number
 
     // Skip cloaked enemies (cannot be auto-targeted)
     if (cloaked[other] === 1) continue;
+
+    // Respect air/ground targeting restrictions
+    if (isAir[other] === 1 && !canTargetAir[eid]) continue;
+    if (isAir[other] === 0 && !canTargetGround[eid]) continue;
 
     // Overkill prevention: skip over-committed targets
     if (pendingDamage[other] >= hpCurrent[other]) continue;

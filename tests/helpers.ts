@@ -33,6 +33,7 @@ import {
   rallyX, rallyY,
   prodUnitType, prodProgress, prodTimeTotal,
   supplyProvided, supplyCost,
+  isAir, canTargetGround, canTargetAir,
 } from '../src/ecs/components';
 import type { MapData } from '../src/map/MapData';
 import type { PlayerResources } from '../src/types';
@@ -43,7 +44,7 @@ export const Faction = { None: 0, Terran: 1, Zerg: 2 } as const;
 export const UnitType = {
   SCV: 1, Marine: 2, Marauder: 3, SiegeTank: 4, Medivac: 5,
   Ghost: 6, Hellion: 7,
-  Drone: 10, Zergling: 11, Baneling: 12, Hydralisk: 13, Roach: 14,
+  Drone: 10, Zergling: 11, Baneling: 12, Hydralisk: 13, Roach: 14, Mutalisk: 15,
 } as const;
 export const CommandMode = {
   Idle: 0, Move: 1, AttackMove: 2, AttackTarget: 3, Gather: 4, Build: 5,
@@ -92,6 +93,9 @@ export interface SpawnOpts {
   height?: number;
   damageTypeId?: number;  // DamageType value
   armorClassId?: number;  // ArmorClass value
+  isAirUnit?: boolean;
+  canTargetGroundUnit?: boolean;
+  canTargetAirUnit?: boolean;
 }
 
 /** Create a fresh world for a single test. */
@@ -134,6 +138,11 @@ export function spawnUnit(world: World, opts: SpawnOpts = {}): number {
   siegeMode[eid] = 0;
   siegeTransitionEnd[eid] = 0;
   lastCombatTime[eid] = 0;
+
+  // Air/targeting capability — default: ground unit that can target both
+  isAir[eid] = opts.isAirUnit ? 1 : 0;
+  canTargetGround[eid] = opts.canTargetGroundUnit !== false ? 1 : 0;
+  canTargetAir[eid] = opts.canTargetAirUnit !== false ? 1 : 0;
 
   // Damage type & armor
   atkDamageType[eid] = opts.damageTypeId ?? 0;  // DamageType.Normal

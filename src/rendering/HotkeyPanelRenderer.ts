@@ -35,19 +35,25 @@ export class HotkeyPanelRenderer {
     this.panel.appendChild(title);
 
     const lines = [
-      'LMB: Select / Box Select',
-      'RMB: Move / Attack / Gather',
-      'A+Click: Attack Move',
-      'S: Stop  H: Hold',
-      'T: Stim (Marine)',
-      'E: Siege (Tank)',
-      'B+1-6: Build',
-      'Q/W: Produce Unit',
-      'Ctrl+0-9: Set Group',
-      '0-9: Recall Group',
-      'Space: Jump to Base',
-      'F2: Select Idle Workers',
-      'F1: Toggle Help',
+      'LMB          Select / Box Select',
+      'RMB          Move / Attack / Gather',
+      'A + LMB      Attack Move',
+      'S            Stop',
+      'H            Hold Position',
+      'P + LMB      Patrol',
+      'T            Stim Pack (Marine)',
+      'E            Siege Mode (Tank)',
+      'C            Cloak (Ghost)',
+      'B + 1-7      Build Structure',
+      'Q / W        Produce Unit (slot 1/2)',
+      'Ctrl+0-9     Set Control Group',
+      '0-9          Recall Group',
+      'F2           Select Army',
+      'F3           Select Workers',
+      'Space        Jump to Base',
+      '+/-          Game Speed',
+      'Escape       Pause / Cancel Mode',
+      'F1           Toggle Help',
     ];
 
     for (const line of lines) {

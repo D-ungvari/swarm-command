@@ -56,6 +56,14 @@ export const renderTint = new Uint32Array(MAX_ENTITIES);
 // ── Unit type ──
 export const unitType = new Uint8Array(MAX_ENTITIES);
 
+// ── Air / targeting capability ──
+/** 1 = this unit is an air unit (flies over terrain, separate z-layer) */
+export const isAir = new Uint8Array(MAX_ENTITIES);
+/** 1 = this unit can attack ground targets */
+export const canTargetGround = new Uint8Array(MAX_ENTITIES);
+/** 1 = this unit can attack air targets */
+export const canTargetAir = new Uint8Array(MAX_ENTITIES);
+
 // ── Combat target ──
 /** Entity ID of current attack target, -1 = no target */
 export const targetEntity = new Int16Array(MAX_ENTITIES);
@@ -238,6 +246,9 @@ export function resetComponents(eid: number): void {
   selected[eid] = 0; faction[eid] = 0;
   renderWidth[eid] = 0; renderHeight[eid] = 0; renderTint[eid] = 0;
   unitType[eid] = 0;
+  isAir[eid] = 0;
+  canTargetGround[eid] = 0;
+  canTargetAir[eid] = 0;
   pathLengths[eid] = 0;
   targetEntity[eid] = -1;
   commandMode[eid] = 0;

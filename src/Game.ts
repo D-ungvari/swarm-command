@@ -32,6 +32,7 @@ import {
   supplyProvided, supplyCost,
   selected, setPath,
   energy,
+  isAir, canTargetGround, canTargetAir,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
 import { BUILDING_DEFS } from './data/buildings';
@@ -1020,6 +1021,9 @@ export class Game {
 
     faction[eid] = fac;
     unitType[eid] = def.type;
+    isAir[eid] = def.isAir;
+    canTargetGround[eid] = def.canTargetGround;
+    canTargetAir[eid] = def.canTargetAir;
 
     // Ghost energy setup
     if (type === UnitType.Ghost) {

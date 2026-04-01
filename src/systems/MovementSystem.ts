@@ -6,6 +6,7 @@ import {
   movePathIndex, pathLengths, getPathWaypoint,
   slowFactor, siegeMode, faction, hpCurrent,
   patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
+  isAir,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
 import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, Faction } from '../constants';
@@ -171,6 +172,9 @@ function separationPass(world: World, map?: MapData): void {
       if (hpCurrent[other] <= 0) continue;
       if (hasComponents(world, other, BUILDING) || hasComponents(world, other, RESOURCE)) continue;
 
+      // Do not separate air units from ground units (different z-layer)
+      if (isAir[eid] !== isAir[other]) continue;
+
       // Only separate same-faction units
       if (faction[other] !== facA) continue;
 
@@ -210,7 +214,7 @@ function separationPass(world: World, map?: MapData): void {
         const colA = Math.floor(newAX / TILE_SIZE);
         const rowA = Math.floor(newAY / TILE_SIZE);
         if (colA >= 0 && colA < map.cols && rowA >= 0 && rowA < map.rows) {
-          if (map.walkable[rowA * map.cols + colA] === 1) {
+          if (isAir[eid] === 1 || map.walkable[rowA * map.cols + colA] === 1) {
             posX[eid] = newAX;
             posY[eid] = newAY;
           }
@@ -219,7 +223,7 @@ function separationPass(world: World, map?: MapData): void {
         const colB = Math.floor(newBX / TILE_SIZE);
         const rowB = Math.floor(newBY / TILE_SIZE);
         if (colB >= 0 && colB < map.cols && rowB >= 0 && rowB < map.rows) {
-          if (map.walkable[rowB * map.cols + colB] === 1) {
+          if (isAir[other] === 1 || map.walkable[rowB * map.cols + colB] === 1) {
             posX[other] = newBX;
             posY[other] = newBY;
           }

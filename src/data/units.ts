@@ -12,6 +12,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 14, height: 14, color: TERRAN_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 12,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Marine]: {
     type: UnitType.Marine,
@@ -22,6 +23,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 12, height: 12, color: TERRAN_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 18,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Marauder]: {
     type: UnitType.Marauder,
@@ -32,6 +34,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 16, height: 16, color: TERRAN_COLOR,
     costMinerals: 100, costGas: 25, buildTime: 21,
     damageType: DamageType.Concussive, armorClass: ArmorClass.Armored,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.SiegeTank]: {
     type: UnitType.SiegeTank,
@@ -42,6 +45,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 20, height: 20, color: TERRAN_COLOR,
     costMinerals: 150, costGas: 125, buildTime: 30,
     damageType: DamageType.Explosive, armorClass: ArmorClass.Armored,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Medivac]: {
     type: UnitType.Medivac,
@@ -52,6 +56,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 18, height: 18, color: TERRAN_COLOR,
     costMinerals: 100, costGas: 100, buildTime: 30,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 1, canTargetGround: 0, canTargetAir: 0,
   },
   [UnitType.Ghost]: {
     type: UnitType.Ghost,
@@ -62,6 +67,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 10, height: 10, color: 0x4488cc,
     costMinerals: 200, costGas: 100, buildTime: 32,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Hellion]: {
     type: UnitType.Hellion,
@@ -72,6 +78,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 14, height: 10, color: 0xff6600,
     costMinerals: 100, costGas: 0, buildTime: 21,
     damageType: DamageType.Explosive, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
 
   // ── Zerg ──
@@ -84,6 +91,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 12, height: 12, color: ZERG_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 12,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Zergling]: {
     type: UnitType.Zergling,
@@ -94,6 +102,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 10, height: 10, color: ZERG_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 17,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Baneling]: {
     type: UnitType.Baneling,
@@ -104,6 +113,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 12, height: 12, color: 0x44cc44,
     costMinerals: 50, costGas: 25, buildTime: 14,
     damageType: DamageType.Explosive, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Hydralisk]: {
     type: UnitType.Hydralisk,
@@ -114,6 +124,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 14, height: 14, color: ZERG_COLOR,
     costMinerals: 100, costGas: 50, buildTime: 24,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Roach]: {
     type: UnitType.Roach,
@@ -124,6 +135,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 16, height: 16, color: ZERG_COLOR,
     costMinerals: 75, costGas: 25, buildTime: 19,
     damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Mutalisk]: {
     type: UnitType.Mutalisk,
@@ -134,5 +146,6 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     width: 14, height: 14, color: 0xaa66dd,
     costMinerals: 100, costGas: 100, buildTime: 33,
     damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    isAir: 1, canTargetGround: 1, canTargetAir: 1,
   },
 };

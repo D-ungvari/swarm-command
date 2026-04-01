@@ -36,6 +36,9 @@ export interface UnitDef {
   buildTime: number;
   damageType: number;
   armorClass: number;
+  isAir: number;          // 1 = air unit (Medivac, Mutalisk)
+  canTargetGround: number; // 1 = can attack ground units
+  canTargetAir: number;   // 1 = can attack air units
 }
 
 /** Building stat definition from data tables */

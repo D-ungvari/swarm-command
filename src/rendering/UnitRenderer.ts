@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR } from '../constants';
+import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, CommandMode, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR } from '../constants';
 import {
   POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING, WORKER,
   posX, posY, renderWidth, renderHeight, renderTint,
@@ -11,7 +11,7 @@ import {
   workerCarrying, workerState,
   prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
-  velX, velY,
+  velX, velY, commandMode,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -32,6 +32,25 @@ const PING_DURATION = 0.5;
 /** Add a command feedback ping at a world-space position */
 export function addCommandPing(x: number, y: number, color: number, gameTime: number): void {
   commandPings.push({ x, y, time: gameTime, color });
+}
+
+function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: number, color: number, alpha: number, dashLen: number, gapLen: number): void {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return;
+  const nx = dx / len, ny = dy / len;
+  let d = 0, drawing = true;
+  while (d < len) {
+    const seg = Math.min(drawing ? dashLen : gapLen, len - d);
+    const ex = x1 + nx * (d + seg), ey = y1 + ny * (d + seg);
+    if (drawing) {
+      g.moveTo(x1 + nx * d, y1 + ny * d);
+      g.lineTo(ex, ey);
+      g.stroke({ color, width: 1, alpha });
+    }
+    d += seg;
+    drawing = !drawing;
+  }
 }
 
 /**
@@ -401,12 +420,22 @@ export class UnitRenderer {
         }
 
         // Rally point indicator
-        if (isSelected && rallyX[eid] >= 0) {
-          g.circle(rallyX[eid], rallyY[eid], 4);
-          g.fill({ color: 0x44ff44, alpha: 0.6 });
-          g.moveTo(x, y);
-          g.lineTo(rallyX[eid], rallyY[eid]);
-          g.stroke({ color: 0x44ff44, width: 1, alpha: 0.3 });
+        if (isSelected && rallyX[eid] !== -1) {
+          const bx = posX[eid];
+          const by = posY[eid];
+          const rx = rallyX[eid];
+          const ry = rallyY[eid];
+
+          // Dashed line to rally point
+          drawDashedLine(g, bx, by, rx, ry, 0x44ff88, 0.5, 5, 4);
+
+          // Flag marker at rally point
+          g.moveTo(rx, ry - 10);
+          g.lineTo(rx, ry);
+          g.moveTo(rx, ry - 10);
+          g.lineTo(rx + 7, ry - 7);
+          g.lineTo(rx, ry - 4);
+          g.stroke({ color: 0x44ff88, width: 1.5, alpha: 0.8 });
         }
 
         // Production progress ring (visible without selecting)
@@ -431,6 +460,22 @@ export class UnitRenderer {
       if (isSelected) {
         g.circle(x, y, Math.max(w, h) * 0.7);
         g.stroke({ color: SELECTION_COLOR, width: 1.5, alpha: 0.8 });
+
+        // Mode indicator badge
+        const halfH = h / 2;
+        const cm = commandMode[eid] as CommandMode;
+        if (cm === CommandMode.HoldPosition) {
+          // Small shield: two horizontal lines above the unit
+          g.moveTo(posX[eid] - 4, posY[eid] - halfH - 4);
+          g.lineTo(posX[eid] + 4, posY[eid] - halfH - 4);
+          g.moveTo(posX[eid] - 3, posY[eid] - halfH - 7);
+          g.lineTo(posX[eid] + 3, posY[eid] - halfH - 7);
+          g.stroke({ color: 0xffcc44, width: 1.5, alpha: 0.9 });
+        } else if (cm === CommandMode.Patrol) {
+          // Small circular arrow indicator: arc above unit
+          g.arc(posX[eid], posY[eid] - halfH - 6, 4, -Math.PI * 0.8, Math.PI * 0.8);
+          g.stroke({ color: 0x44ffaa, width: 1.5, alpha: 0.9 });
+        }
       }
 
       // Range circle for selected units that can attack

@@ -27,7 +27,7 @@ export class ModeIndicatorRenderer {
     container.appendChild(this.el);
   }
 
-  update(attackMoveMode: boolean, placementMode: boolean): void {
+  update(attackMoveMode: boolean, placementMode: boolean, isPatrolPending: boolean = false): void {
     let text = '';
     let color = '';
     let bg = '';
@@ -36,6 +36,10 @@ export class ModeIndicatorRenderer {
       text = 'ATTACK MOVE';
       color = '#ffcc44';
       bg = 'rgba(100, 80, 0, 0.6)';
+    } else if (isPatrolPending) {
+      text = 'PATROL';
+      color = '#44ffaa';
+      bg = 'rgba(0, 80, 50, 0.6)';
     } else if (placementMode) {
       text = 'BUILD MODE';
       color = '#88bbff';

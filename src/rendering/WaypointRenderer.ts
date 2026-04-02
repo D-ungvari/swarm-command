@@ -4,14 +4,13 @@ import {
   POSITION, MOVEMENT, SELECTABLE,
   posX, posY, selected, faction,
   paths, pathLengths, movePathIndex,
+  commandMode,
 } from '../ecs/components';
-import { Faction } from '../constants';
+import { Faction, CommandMode } from '../constants';
 
 const DASH_LENGTH = 6;
 const GAP_LENGTH = 4;
 const WAYPOINT_RADIUS = 3;
-const LINE_COLOR = 0x44ff88;
-const LINE_ALPHA = 0.6;
 
 export class WaypointRenderer {
   readonly container: Container;
@@ -23,7 +22,7 @@ export class WaypointRenderer {
     this.container.addChild(this.g);
   }
 
-  render(world: World, shiftHeld: boolean): void {
+  render(world: World, shiftHeld: boolean, gameTime: number): void {
     this.g.clear();
     if (!shiftHeld) return;
 
@@ -32,7 +31,6 @@ export class WaypointRenderer {
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (!hasComponents(world, eid, bits)) continue;
       if (selected[eid] !== 1) continue;
-      if (faction[eid] !== Faction.Terran) continue;
 
       const pathLen = pathLengths[eid];
       const pathIdx = movePathIndex[eid];
@@ -42,6 +40,13 @@ export class WaypointRenderer {
       const unitPath = paths[eid];
       if (!unitPath) continue;
 
+      // Faction-specific waypoint colors
+      const fac = faction[eid] as Faction;
+      const isAttackMove = commandMode[eid] === CommandMode.AttackMove;
+      const lineColor = isAttackMove ? 0xff4444 : (fac === Faction.Terran ? 0x44aaff : 0x44ff88);
+      const lineAlpha = 0.5;
+      const waypointColor = isAttackMove ? 0xff6644 : (fac === Faction.Terran ? 0x66ccff : 0x66ffaa);
+
       // Draw dashed line from unit to first remaining waypoint, then waypoint-to-waypoint
       let prevX = posX[eid];
       let prevY = posY[eid];
@@ -50,12 +55,20 @@ export class WaypointRenderer {
         const wpX = unitPath[i * 2];
         const wpY = unitPath[i * 2 + 1];
 
-        // Dashed segment from prev to this waypoint
-        drawDashedLine(this.g, prevX, prevY, wpX, wpY, LINE_COLOR, LINE_ALPHA);
+        // Animated dashed segment from prev to this waypoint
+        drawAnimatedDash(this.g, prevX, prevY, wpX, wpY, lineColor, lineAlpha, gameTime);
 
-        // Circle at waypoint
+        // Waypoint marker: circle with glow
+        this.g.circle(wpX, wpY, WAYPOINT_RADIUS + 1);
+        this.g.fill({ color: waypointColor, alpha: 0.2 });
         this.g.circle(wpX, wpY, WAYPOINT_RADIUS);
-        this.g.fill({ color: LINE_COLOR, alpha: LINE_ALPHA });
+        this.g.fill({ color: waypointColor, alpha: lineAlpha });
+
+        // Final waypoint gets a brighter marker
+        if (i === pathLen - 1) {
+          this.g.circle(wpX, wpY, WAYPOINT_RADIUS + 3);
+          this.g.stroke({ color: waypointColor, width: 1, alpha: 0.4 });
+        }
 
         prevX = wpX;
         prevY = wpY;
@@ -64,12 +77,13 @@ export class WaypointRenderer {
   }
 }
 
-function drawDashedLine(
+function drawAnimatedDash(
   g: Graphics,
   x1: number, y1: number,
   x2: number, y2: number,
   color: number,
   alpha: number,
+  gameTime: number,
 ): void {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -79,26 +93,29 @@ function drawDashedLine(
   const nx = dx / len;
   const ny = dy / len;
 
-  let drawn = 0;
+  // Animate dash offset — dashes march along the path
+  const dashCycle = DASH_LENGTH + GAP_LENGTH;
+  const offset = (gameTime * 30) % dashCycle; // march speed
+
+  let drawn = -offset; // start offset for animation
   let drawing = true;
 
-  g.moveTo(x1, y1);
-
   while (drawn < len) {
+    const segStart = Math.max(0, drawn);
     const segLen = drawing ? DASH_LENGTH : GAP_LENGTH;
-    const end = Math.min(drawn + segLen, len);
-    const ex = x1 + nx * end;
-    const ey = y1 + ny * end;
+    const segEnd = Math.min(drawn + segLen, len);
 
-    if (drawing) {
+    if (drawing && segEnd > 0 && segStart < len) {
+      const sx = x1 + nx * Math.max(0, segStart);
+      const sy = y1 + ny * Math.max(0, segStart);
+      const ex = x1 + nx * Math.min(len, segEnd);
+      const ey = y1 + ny * Math.min(len, segEnd);
+      g.moveTo(sx, sy);
       g.lineTo(ex, ey);
-      g.stroke({ color, width: 1, alpha });
-      g.moveTo(ex, ey);
-    } else {
-      g.moveTo(ex, ey);
+      g.stroke({ color, width: 1.2, alpha });
     }
 
-    drawn = end;
+    drawn += segLen;
     drawing = !drawing;
   }
 }

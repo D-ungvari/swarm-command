@@ -706,25 +706,38 @@ export class UnitRenderer {
       const isSlowed = slowEndTime[eid] > gameTime;
       const sm = siegeMode[eid] as SiegeMode;
 
-      // Selection brackets (SC2-style corner brackets)
+      // Selection brackets (SC2-style corner brackets with glow)
       if (isSelected) {
         const hw = w / 2;
         const hh = h / 2;
         const bracketLen = Math.max(4, Math.min(hw, hh) * 0.4);
         const bOff = 2;
-        // Top-left
+
+        // Outer glow pass (wider, dimmer)
         g.moveTo(x - hw - bOff, y - hh - bOff + bracketLen);
         g.lineTo(x - hw - bOff, y - hh - bOff);
         g.lineTo(x - hw - bOff + bracketLen, y - hh - bOff);
-        // Top-right
         g.moveTo(x + hw + bOff - bracketLen, y - hh - bOff);
         g.lineTo(x + hw + bOff, y - hh - bOff);
         g.lineTo(x + hw + bOff, y - hh - bOff + bracketLen);
-        // Bottom-left
         g.moveTo(x - hw - bOff, y + hh + bOff - bracketLen);
         g.lineTo(x - hw - bOff, y + hh + bOff);
         g.lineTo(x - hw - bOff + bracketLen, y + hh + bOff);
-        // Bottom-right
+        g.moveTo(x + hw + bOff - bracketLen, y + hh + bOff);
+        g.lineTo(x + hw + bOff, y + hh + bOff);
+        g.lineTo(x + hw + bOff, y + hh + bOff - bracketLen);
+        g.stroke({ color: SELECTION_COLOR, width: 3.5, alpha: 0.25 });
+
+        // Inner bright pass
+        g.moveTo(x - hw - bOff, y - hh - bOff + bracketLen);
+        g.lineTo(x - hw - bOff, y - hh - bOff);
+        g.lineTo(x - hw - bOff + bracketLen, y - hh - bOff);
+        g.moveTo(x + hw + bOff - bracketLen, y - hh - bOff);
+        g.lineTo(x + hw + bOff, y - hh - bOff);
+        g.lineTo(x + hw + bOff, y - hh - bOff + bracketLen);
+        g.moveTo(x - hw - bOff, y + hh + bOff - bracketLen);
+        g.lineTo(x - hw - bOff, y + hh + bOff);
+        g.lineTo(x - hw - bOff + bracketLen, y + hh + bOff);
         g.moveTo(x + hw + bOff - bracketLen, y + hh + bOff);
         g.lineTo(x + hw + bOff, y + hh + bOff);
         g.lineTo(x + hw + bOff, y + hh + bOff - bracketLen);

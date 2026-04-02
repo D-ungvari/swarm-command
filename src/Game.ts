@@ -640,7 +640,7 @@ export class Game {
     this.unitRenderer.render(this.world, this.gameTime, this.viewport.scale.x);
     this.projRenderer.update(this.gameTime);
     this.projRenderer.render(this.gameTime);
-    this.waypointRenderer.render(this.world, this.input.state.shiftHeld);
+    this.waypointRenderer.render(this.world, this.input.state.shiftHeld, this.gameTime);
     this.selectionRenderer.render(this.input.state, this.gameTime);
     this.renderGhost();
     if (this.fogEnabled) this.fogRenderer.render(this.gameTime);

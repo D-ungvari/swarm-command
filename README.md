@@ -38,7 +38,7 @@ Practice StarCraft 2 mechanics in your browser. True unit stats. No install.
 | Camera | pixi-viewport (pan, zoom, edge-scroll) |
 | Pathfinding | A* via pathfinding.js |
 | Build | Vite |
-| Tests | Vitest (197 tests) |
+| Tests | Vitest (198 tests) |
 | ECS | Hand-rolled (TypedArrays + bitmask queries) |
 
 ---
@@ -91,6 +91,37 @@ All player input (move, attack, gather, ability) is translated into discrete com
 | Space | Jump to base |
 | F2 | Select idle workers |
 | F1 | Toggle help overlay |
+
+---
+
+## Project Structure
+
+```
+src/
+├── ecs/           # Hand-rolled ECS — world, components (TypedArrays)
+├── systems/       # Game systems — Combat, AI, Movement, Selection, Death, Abilities
+├── rendering/     # PixiJS renderers — Units, Tilemap, Fog, Minimap, Projectiles, UI
+├── input/         # Input manager, command queue, key bindings
+├── map/           # Map generation, pathfinding, tile data
+├── data/          # Unit and building stat definitions
+├── scenarios/     # Practice scenarios, campaign missions, score tracking
+├── audio/         # Procedural sound via Web Audio API
+└── main.ts        # Entry point
+```
+
+---
+
+## Why This Project
+
+Built as a portfolio piece demonstrating:
+
+- **TypeScript architecture** — strict mode, no `any`, clean module boundaries
+- **Performance engineering** — SoA ECS with TypedArrays, bitmask queries, viewport culling
+- **Game AI** — build orders, threat assessment, multi-prong attacks, base defense, harassment squads
+- **SC2 domain knowledge** — accurate unit stats, proper ability mechanics, real build orders
+- **Full product scope** — practice scenarios, campaign, achievements, replay, map editor
+
+> "I understood SC2's mechanics deeply enough to recreate them accurately in TypeScript"
 
 ---
 

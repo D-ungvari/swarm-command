@@ -19,7 +19,15 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       background: radial-gradient(ellipse at center, #0a1628 0%, #060a10 70%);
       z-index: 200; color: #ccc;
+      overflow-y: auto;
     }
+    /* Subtle animated scan line */
+    #start-screen::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,20,40,0.03) 2px, rgba(0,20,40,0.03) 4px);
+      pointer-events: none; z-index: 0;
+    }
+    #start-screen > * { position: relative; z-index: 1; }
     #start-screen h1 {
       font-size: 42px; color: #3399ff; letter-spacing: 4px;
       text-shadow: 0 0 30px rgba(51, 153, 255, 0.4);
@@ -45,7 +53,8 @@
 <body>
   <div id="start-screen">
     <h1>SWARM COMMAND</h1>
-    <div class="subtitle">TERRAN VS ZERG &mdash; BROWSER RTS</div>
+    <div class="subtitle">SC2 MECHANICS PRACTICE TOOL</div>
+    <div style="font-size:11px; color:#446; margin-bottom:8px; letter-spacing:1px;">Practice StarCraft 2 mechanics in your browser. True unit stats. No install.</div>
     <div class="controls">
       <span class="key">LMB / Drag</span><span>Select units</span>
       <span class="key">RMB</span><span>Move / Attack / Gather</span>
@@ -151,6 +160,7 @@
         </label>
       </div>
     </details>
+    <div style="width:300px;height:1px;background:linear-gradient(90deg,transparent,#334466,transparent);margin:16px 0;"></div>
     <button class="play-btn" id="campaign-btn" style="
       margin-bottom: 8px;
       background: linear-gradient(180deg, #2a1a5a 0%, #1a0a3a 100%);
@@ -225,6 +235,7 @@
         font-size: 12px;
       ">&larr; Back</button>
     </div>
+    <div style="width:200px;height:1px;background:linear-gradient(90deg,transparent,#223344,transparent);margin:12px 0;"></div>
     <button class="play-btn" id="play-btn" style="font-size: 13px; padding: 8px 28px; opacity: 0.8;">SKIRMISH VS AI</button>
     <button class="play-btn" id="map-editor-btn" style="
       margin-top: 8px;

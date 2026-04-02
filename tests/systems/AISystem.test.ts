@@ -13,6 +13,7 @@ import {
 import {
   aiSystem, initAI, getAIState, setAIMinerals,
 } from '../../src/systems/AISystem';
+import { faction } from '../../src/ecs/components';
 import {
   hpCurrent, commandMode,
 } from '../../src/ecs/components';
@@ -109,7 +110,7 @@ describe('AISystem', () => {
       let nextEid = 100;
       const spawnFn = vi.fn(() => nextEid++);
       setAIMinerals(500, 500);
-      runOneDecision(50, spawnFn);
+      runOneDecision(150, spawnFn);
       expect(spawnFn).toHaveBeenCalled();
       expect(spawnFn.mock.calls[0][1]).toBe(Faction.Zerg);
     });
@@ -118,7 +119,7 @@ describe('AISystem', () => {
       let nextEid = 100;
       const spawnFn = vi.fn(() => nextEid++);
       setAIMinerals(1000, 1000);
-      runOneDecision(50, spawnFn);
+      runOneDecision(150, spawnFn);
       // New AI spawns up to 3 units per decision
       expect(spawnFn.mock.calls.length).toBeGreaterThanOrEqual(1);
     });
@@ -126,7 +127,7 @@ describe('AISystem', () => {
     it('adds spawned units to army tracking', () => {
       const spawnFn = vi.fn(() => 42);
       setAIMinerals(500, 500);
-      runOneDecision(50, spawnFn);
+      runOneDecision(150, spawnFn);
       expect(getAIState().armySize).toBeGreaterThanOrEqual(1);
     });
   });
@@ -217,7 +218,7 @@ describe('AISystem', () => {
       const spawnFn = vi.fn(() => 0);
       setAIMinerals(1000, 1000);
       world.nextEid = MAX_ENTITIES - 49;
-      runOneDecision(50, spawnFn);
+      runOneDecision(150, spawnFn);
       expect(spawnFn).not.toHaveBeenCalled();
     });
   });
@@ -225,7 +226,7 @@ describe('AISystem', () => {
   describe('initAI', () => {
     it('resets all state', () => {
       setAIMinerals(5000, 5000);
-      runOneDecision(50, vi.fn(() => track(spawnUnit(world, { factionId: Faction.Zerg, hp: 100 }))));
+      runOneDecision(150, vi.fn(() => track(spawnUnit(world, { factionId: Faction.Zerg, hp: 100 }))));
       expect(getAIState().armySize).toBeGreaterThan(0);
       initAI();
       const s = getAIState();

@@ -269,7 +269,7 @@ export class Game {
     this.app.stage.addChild(this.viewport);
 
     this.viewport
-      .drag({ mouseButtons: isTouchDevice ? 'left' : 'middle' }) // touch: single-finger pan; desktop: middle-click pan
+      .drag({ mouseButtons: 'middle' }) // middle-click pan; touch pan handled by pixi-viewport touch events
       .pinch()
       .wheel()
       .clampZoom({ minScale: MIN_ZOOM, maxScale: MAX_ZOOM })

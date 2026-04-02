@@ -10,6 +10,8 @@ export interface MouseState {
   rightJustPressed: boolean;
   leftJustReleased: boolean;
   leftDoubleClick: boolean;
+  /** True if the current left-button interaction started from a touch event */
+  fromTouch: boolean;
   /** Drag start position (screen space) */
   dragStartX: number;
   dragStartY: number;
@@ -51,6 +53,7 @@ export class InputManager {
     y: number;
     time: number;
     isDouble?: boolean;
+    fromTouch?: boolean;
   }> = [];
 
   constructor(canvas: HTMLCanvasElement) {
@@ -62,6 +65,7 @@ export class InputManager {
         leftJustPressed: false, rightJustPressed: false,
         leftJustReleased: false, leftDoubleClick: false,
         dragStartX: 0, dragStartY: 0, isDragging: false,
+        fromTouch: false,
       },
       keys: new Set(),
       keysJustPressed: new Set(),
@@ -140,6 +144,7 @@ export class InputManager {
             type: 'leftdown',
             x: t.clientX, y: t.clientY,
             time: now, isDouble: isDouble || undefined,
+            fromTouch: true,
           });
         } else if (e.touches.length === 2) {
           // Two-finger gesture: may be pinch-zoom or two-finger tap (= right-click)
@@ -152,7 +157,7 @@ export class InputManager {
               this.pendingMouseEvents.push({
                 type: 'leftup',
                 x: this.lastTouchX, y: this.lastTouchY,
-                time: performance.now(),
+                time: performance.now(), fromTouch: true,
               });
             }
           }
@@ -182,7 +187,7 @@ export class InputManager {
               this.pendingMouseEvents.push({
                 type: 'rightdown',
                 x: this.lastTouchX, y: this.lastTouchY,
-                time: performance.now(),
+                time: performance.now(), fromTouch: true,
               });
             }
             this.touchStarted2Fingers = false;
@@ -192,7 +197,7 @@ export class InputManager {
             this.pendingMouseEvents.push({
               type: 'leftup',
               x: this.lastTouchX, y: this.lastTouchY,
-              time: performance.now(),
+              time: performance.now(), fromTouch: true,
             });
           }
         }
@@ -214,6 +219,7 @@ export class InputManager {
         m.dragStartX = evt.x;
         m.dragStartY = evt.y;
         m.isDragging = false;
+        m.fromTouch = !!evt.fromTouch;
       }
       if (evt.type === 'leftup' && !m.leftJustReleased) {
         m.leftJustReleased = true;
@@ -264,6 +270,7 @@ export class InputManager {
     y: number;
     time: number;
     isDouble?: boolean;
+    fromTouch?: boolean;
   }> {
     return this.pendingMouseEvents;
   }

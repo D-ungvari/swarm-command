@@ -1,6 +1,30 @@
-# Iteration Plan 2 — Selection UI & AI Behavior Overhaul
+# Iteration Plan 2 — SC2 Mechanics Trainer
 
-## Audit Summary
+## Product Vision (updated)
+
+**Swarm Command is an SC2 mechanics practice tool — not a standalone RTS.**
+
+The closest analogy: [Mechanics.gg](https://mechanics.gg) for League of Legends, where players dodge champion skillshots in a browser tab to warm up before ladder games. That site is enormously popular with LoL players because it loads instantly, practices one real skill, and uses simple shapes intentionally.
+
+**Swarm Command's positioning:**
+> "Practice StarCraft 2 mechanics in your browser. True unit stats. No install. No account. Open a tab between ladder games."
+
+**Why this framing wins:**
+- Simple graphics are a **feature**, not a limitation — they load in 2 seconds and remove distractions
+- Doesn't compete with SC2 — it *complements* it. SC2 players are the target audience.
+- Mechanical accuracy matters more than visual fidelity — Marine vs Zergling must behave exactly like in SC2
+- Clear portfolio story: "I understood SC2's mechanics deeply enough to recreate them accurately in TypeScript"
+- Specific practice modes (build order drill, micro trainer, timing scenarios) give it clear utility
+
+**What this means for priorities:**
+1. **Mechanical accuracy** before visual polish — stats must match SC2 wiki values exactly
+2. **Practice modes** are Tier 1, not Tier 3 — a scenario trainer is core functionality
+3. **Quick-load design** — minimize bundle size, no account walls, single URL shareable
+4. **True SC2 keybindings** — players who already know SC2 hotkeys should feel at home
+
+---
+
+## Audit Summary — Previous State
 
 ### What already works (don't re-implement)
 - Double-click: selects all on-screen units of same type ✓
@@ -4445,6 +4469,210 @@ v6.0  Sprints 201–250: Game feel mastery. Cloud saves. Coach AI. Full unit par
 
 **250 sprints. ~300 days. ~60 weeks. 15 months.**
 **End state:** A complete three-faction real-time strategy game, a published open-source engine, a living community platform, a documented architecture used as a teaching resource, and a codebase that outlives any single developer.
+
+---
+
+---
+
+---
+
+# Iteration PT — Practice Tool Core Modes
+
+This is the **heart** of the product. Without dedicated practice modes, it's just a game. With them, it's a training tool.
+
+## PT.1 — SC2 Stat Accuracy Audit
+
+Before anything else: audit every unit's stats against the SC2 wiki and correct mismatches. The tool is worthless if Marine vs Zergling doesn't feel like SC2.
+
+**Audit checklist per unit:**
+- HP (base, not upgraded)
+- Shield (Protoss only)
+- Ground/Air attack damage and type (Normal/Concussive/Explosive)
+- Attack cooldown (in seconds, not ms — convert carefully)
+- Movement speed (in SC2 it's in "tiles per second" at 1.0 game speed)
+- Range (in tiles)
+- Armor (base, not upgraded)
+- Sight range
+
+**Known likely mismatches to verify:**
+- Marine: 45 HP, 6 damage Normal, 0.8608s cooldown, 5 range, 2.8125 speed
+- Zergling: 35 HP, 5 damage Normal, 0.697s cooldown, 0.1 range (melee), 4.1328 speed (pair attacks)
+- Mutalisk: 120 HP, 9 dmg Normal (glaive bounce: 9/3/1), 1.7227s cooldown, 3 range, 5.4 speed
+- SiegeTank (siege): 160 HP, 35 damage Explosive, 3.0135s cooldown, 13 range
+
+**Files:** `src/data/units.ts` — systematic comparison against SC2wiki.fandom.com values
+
+## PT.2 — Scenario Mode Framework
+
+A scenario is a pre-configured game state with a specific objective. Scenarios are what make this a training tool.
+
+**`src/scenarios/ScenarioLoader.ts`:**
+```typescript
+interface Scenario {
+  id: string;
+  title: string;
+  description: string;
+  category: 'micro' | 'macro' | 'build-order' | 'timing' | 'survival';
+  difficulty: 1 | 2 | 3;
+  setup: ScenarioSetup;
+  objective: ScenarioObjective;
+  tips: string[];
+  relatedSC2Concept: string;  // e.g. "Marine splitting vs Banelings"
+}
+
+interface ScenarioSetup {
+  playerFaction: Faction;
+  mapType: MapType;
+  playerUnits: { type: UnitType, col: number, row: number }[];
+  enemyUnits:  { type: UnitType, col: number, row: number }[];
+  playerResources?: { minerals: number, gas: number };
+  noAI?: boolean;  // static scenario — enemy doesn't build
+  disableBuilding?: boolean;
+  disableProduction?: boolean;
+}
+
+interface ScenarioObjective {
+  type: 'kill_all' | 'survive_seconds' | 'build_order' | 'reach_supply' | 'kill_without_losing';
+  value?: number;
+  label: string;
+}
+```
+
+**Scenario browser on start screen**: a new "Practice" tab alongside single-player and (future) multiplayer.
+
+## PT.3 — Marine Micro Scenarios (Most Popular SC2 Training)
+
+The most-searched SC2 practice content. These are playable training scenarios, each 1–3 minutes long.
+
+| # | Scenario | Setup | Objective | SC2 Skill |
+|---|----------|-------|-----------|-----------|
+| 1 | **Marine Split** | 20 Marines vs 8 Banelings (no AI) | Kill all Banelings, lose <4 Marines | Splitting bio vs Banelings |
+| 2 | **Stimmed Push** | 16 Marines + 2 Medivacs vs Zerg wall | Push through in < 45s | Stim timing, Medivac micro |
+| 3 | **Bunker Hold** | 1 Bunker + 4 Marines vs 30 Zerglings (3 waves) | Survive all 3 waves | Defensive positioning |
+| 4 | **Tank Line** | 4 SiegeTanks + 8 Marines vs Roach-Ravager push | Kill all without losing tanks | Siege Tank placement |
+| 5 | **Drop Defense** | 12 Marines scattered across map vs 4 Zergling drop pods | Catch all Zerglings before they kill workers | Reaction micro |
+| 6 | **Perfect Stim** | 16 Marines vs 16 Marines (mirror) | Win the fight without losing all units | Stim timing vs opponent |
+
+**Difficulty scaling per scenario**: Easy = more units for player / fewer for enemy. Normal = balanced. Hard = fewer for player / more for enemy.
+
+## PT.4 — Build Order Trainer (The "Guitar Hero" of SC2)
+
+A mode where the player follows a specific build order with real-time timing feedback.
+
+**Display:**
+- The next 5 actions shown in a vertical queue on the right side of the screen
+- Each action has a countdown showing how many seconds ahead/behind optimal timing
+- Colour: green if within 5s, yellow if 5–15s behind, red if >15s behind
+- Example queue:
+  ```
+  ✓ 12 SCV
+  ✓ 13 Supply Depot
+  ► 15 Barracks         [on time]
+    17 SCV
+    19 Refinery
+  ```
+
+**Scoring:**
+- Each action within 5s of optimal: +10 points
+- Each action within 15s: +5 points
+- Score multiplier increases with consecutive perfect timings ("streak")
+- Final grade: S/A/B/C/D based on total points vs max possible
+
+**Included build orders (10 to start):**
+1. Terran 1-1-1 opener
+2. Terran 3-Barracks Marine-Marauder
+3. Terran Mech: 1-1 Tank opener
+4. Zerg 12-Pool
+5. Zerg 3-Hatchery before pool (macro)
+6. Zerg Roach-Ravager all-in
+7. Protoss 2-Gate aggressive expand
+8. Protoss Gateway expand into Colossus
+9. Terran 2-base Marine-Medivac push
+10. Zerg Lair Mutalisk into macro
+
+Each build order has a ghost worker/building sequence that the player matches.
+
+## PT.5 — Mechanics Trainer (Individual SC2 Skills)
+
+Isolated skill drills, each 30–90 seconds. Inspired by aim trainer modes.
+
+**Inject Practice:** Queen + 3 Hatcheries. Timer counts down from 40s. When a Hatchery loses its inject (shown visually), the player must re-inject it. Score = total larva generated. Ideal = never miss an inject cycle.
+
+**Mule Calldown Practice:** Orbital Command + mineral patches. An APM metronome plays every 90s. Player must MULE calldown at exact beat. Score = minerals gathered vs max possible MULE efficiency.
+
+**Scanner Sweep Timing:** Enemy units appear hidden on map. Orbital Command with energy. Player must Scanner Sweep to reveal them and attack before they reach base. Score = threats detected before damage.
+
+**Marine Split Drill (timed):** A Baneling rolls in. Player has 3 seconds to split 10 Marines into groups. Score = Marines alive after Baneling detonation. Repeat 10 times.
+
+**Chrono Boost Rhythm:** Nexus + 3 buildings in production. The ideal is to Chrono every 20s per building. Player must Chrono boost at the right moments. Score = total production time saved vs max possible.
+
+**Worker Saturation Speed:** Start with a base and 200 minerals. How fast can the player reach 22 workers (optimal saturation for a 2-base Terran)? Measured in seconds. Compare vs community leaderboard.
+
+## PT.6 — Scenario Result Screen
+
+After every scenario ends (win or lose):
+
+- Large grade displayed (S/A/B/C/D)
+- Key stats: time taken, units lost, efficiency percentage
+- "What you did well" (2–3 bullet points based on performance)
+- "What to improve" (1–2 actionable tips)
+- "Try again" / "Next scenario" buttons
+- Personal best tracking (localStorage)
+- Share result: copy a text string to clipboard: "Scored A on Marine Split — Easy! Try it: [URL]"
+
+## PT.7 — Quick Practice Menu on Start Screen
+
+Replace or augment the main "START GAME" button with a more prominent practice entry point:
+
+```
+┌────────────────────────────────────────┐
+│         SWARM COMMAND                  │
+│   SC2 Mechanics Practice Tool          │
+│                                        │
+│  [  PRACTICE SCENARIOS  ]  ← primary  │
+│  [  SKIRMISH VS AI      ]             │
+│  [  BUILD ORDER DRILL   ]             │
+│                                        │
+│  Recent: Marine Split (A)  → replay   │
+│  Streak: 3 days ●●●○○                 │
+└────────────────────────────────────────┘
+```
+
+The scenario browser shows categories (Micro / Macro / Build Order / Timing / Survival) with a grid of scenario cards, each showing difficulty stars, a short description, and personal best.
+
+## PT.8 — Scenario Pack: Iconic SC2 Moments
+
+Famous SC2 community scenarios that every player knows:
+
+| Scenario | Reference |
+|----------|-----------|
+| "Marine Split" | Standard BM practice |
+| "The 4-Gate" | Classic Protoss early aggression |
+| "The Zerg Rush" | 6-pool Zergling flood |
+| "Ghost Nuke" | Hit a building with a tactical nuke (Ghost EMP + Nuke sequence) |
+| "The Blinding Cloud" | Viper vs Terran bio — Blinding Cloud timing |
+| "The Baneling Bust" | Zerg wall break vs Terran bunker |
+| "Tank Drop" | Drop Siege Tanks in enemy base via Medivac |
+
+Each references real competitive play situations. The practice tool teaches actual SC2 patterns.
+
+---
+
+## PT Sprint Order
+
+| # | Item | Effort | Why |
+|---|------|--------|-----|
+| PT.1 | SC2 stat accuracy audit | 2h | Foundation — wrong stats = wrong training |
+| PT.7 | Quick practice menu (start screen pivot) | 2h | Changes first impression to "practice tool" |
+| PT.2 | Scenario mode framework | 3h | Enables all subsequent scenarios |
+| PT.3 | Marine micro scenarios (6 scenarios) | 3h | Most popular SC2 practice content |
+| PT.4 | Build order trainer | 4h | "Guitar Hero" mode — very engaging |
+| PT.5 | Mechanics trainer (6 drills) | 3h | Isolated skill practice |
+| PT.6 | Scenario result screen | 2h | Feedback loop makes it a training tool |
+| PT.8 | Iconic SC2 moment scenarios | 2h | Marketing hook — recognisable names |
+
+**Total: ~21 hours (~3 days)**
+**This is the pivot that turns the game into a product.**
 
 ---
 

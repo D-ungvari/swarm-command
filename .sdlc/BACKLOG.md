@@ -10,7 +10,13 @@ Source: ITERATION_PLAN_2.md Iterations A–M and AA.
 
 | # | Title | Type | Tier | Plan Ref |
 |---|-------|------|------|----------|
-| 53 | Sprint 1: Tech tree UI — prereq labels + Zerg buildings (F.1-F.2-F.4-F.5) | fix | **T0** | Iteration F |
+| 53 | Sprint 1: Tech tree UI — prereq labels + Zerg buildings (F.1-F.2-F.4-F.5) ✅ | fix | **T0** | Iteration F |
+| 53a | Sprint PT.1: SC2 stat accuracy audit — verify all unit stats vs SC2 wiki | fix | **T0** | Iteration PT |
+| 53b | Sprint PT.7+PT.2: Start screen → practice tool hub + scenario framework | feat | **T0** | Iteration PT |
+| 53c | Sprint PT.3: Marine micro scenarios (6 playable scenarios) | feat | T1 | Iteration PT |
+| 53d | Sprint PT.4: Build order trainer with timing queue + S/A/B/C/D grading | feat | T1 | Iteration PT |
+| 53e | Sprint PT.5+PT.6: Mechanics drills (inject, MULE, split) + result screen | feat | T1 | Iteration PT |
+| 53f | Sprint PT.8: Iconic SC2 moments (4-gate, baneling bust, tank drop) | feat | T1 | Iteration PT |
 | 54 | Sprint 2: Selection UI — Ctrl+click + control group strip + tab display (A.1-A.2-A.5) | feat | T1 | Iteration A |
 | 55 | Sprint 3: Portraits + subgroup ability panel (A.3-A.4) | feat | T1 | Iteration A |
 | 56 | Sprint 4: AI base defense + faster pressure + cross-map routing (B.1-B.3-B.9) | feat | **T0** | Iteration B |

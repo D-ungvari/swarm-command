@@ -90,6 +90,7 @@ import { TouchCommandBar } from './rendering/TouchCommandBar';
 import { ScenarioManager } from './scenarios/ScenarioManager';
 import type { Scenario } from './scenarios/ScenarioTypes';
 import { ScenarioResultRenderer } from './rendering/ScenarioResultRenderer';
+import { ScenarioHudRenderer } from './rendering/ScenarioHudRenderer';
 import { checkAchievements, showAchievementToast } from './stats/Achievements';
 
 export class Game {
@@ -111,6 +112,7 @@ export class Game {
   playerFaction: Faction = Faction.Terran;
   private scenarioManager?: ScenarioManager;
   private scenarioResult?: ScenarioResultRenderer;
+  private scenarioHud?: ScenarioHudRenderer;
   private initialPlayerUnitCount = 0;
 
   setPlayerFaction(f: Faction): void {
@@ -347,6 +349,10 @@ export class Game {
 
     this.gameOverRenderer = new GameOverRenderer(container);
     this.scenarioResult = new ScenarioResultRenderer(container);
+    if (this.scenarioManager) {
+      this.scenarioHud = new ScenarioHudRenderer(container);
+      this.scenarioHud.show();
+    }
     this.alertRenderer = new AlertRenderer(container);
     this.debugOverlay = new DebugOverlay(container);
 
@@ -677,12 +683,23 @@ export class Game {
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world, this.gameTime);
 
+    // Scenario objective HUD
+    if (this.scenarioHud && this.scenarioManager) {
+      const sc = this.scenarioManager.getScenario();
+      if (sc) {
+        this.scenarioHud.update(sc.title, sc.objective.label, this.gameTime, sc.setup.timeLimit);
+      }
+    }
+
     if (this.input.state.keysJustPressed.has('F12')) this.debugOverlay.toggle();
     this.debugOverlay.update(this.world.nextEid - 1, 197, this.gameTime);
 
     const wasShown = this.gameOverRenderer.isShown;
     const snapshot = this.stats.getSnapshot(this.gameTime);
-    this.gameOverRenderer.update(this.world, this.gameTime, this.winCondition, snapshot.resourcesGathered);
+    // Skip normal game-over check in scenario mode — ScenarioManager handles win/loss
+    if (!this.scenarioManager) {
+      this.gameOverRenderer.update(this.world, this.gameTime, this.winCondition, snapshot.resourcesGathered);
+    }
     if (!wasShown && this.gameOverRenderer.isShown && !this.gameEnded) {
       this.gameEnded = true;
       this.gameOverRenderer.setStats(snapshot);
@@ -827,6 +844,8 @@ export class Game {
   }
 
   private handleBuildPlacement(): void {
+    if (this.scenarioManager?.getScenario()?.setup.disableBuilding) return;
+
     const input = this.input.state;
 
     // B key opens build mode
@@ -1516,6 +1535,8 @@ export class Game {
 
   /** Handle production button click from info panel */
   private handleProductionButtonClick(buildingEid: number, uType: number): void {
+    if (this.scenarioManager?.getScenario()?.setup.disableProduction) return;
+
     // Must be a completed building
     if (buildState[buildingEid] !== BuildState.Complete) return;
 

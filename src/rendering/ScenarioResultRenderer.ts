@@ -1,6 +1,7 @@
 import type { ScenarioGrade } from '../scenarios/ScenarioTypes';
 import { gradeFromScore } from '../scenarios/ScenarioTypes';
 import { isCampaignMission, saveCampaignProgress } from '../scenarios/campaign';
+import { saveScenarioScore, getScenarioBestScore } from '../scenarios/ScenarioProgress';
 
 export class ScenarioResultRenderer {
   private overlay: HTMLDivElement;
@@ -37,11 +38,21 @@ export class ScenarioResultRenderer {
     const gradeColor = this.getGradeColor(grade);
     const timeStr = `${Math.floor(result.timeElapsed)}s`;
 
+    // Save score and check for new best
+    const isNewBest = saveScenarioScore(result.scenarioId, result.score, result.maxScore, grade);
+    const prevBest = getScenarioBestScore(result.scenarioId);
+    const bestLabel = isNewBest
+      ? '<span style="color:#ffdd00;font-size:14px;font-weight:bold;">NEW BEST!</span>'
+      : prevBest
+        ? `<span style="color:#667788;font-size:12px;">BEST: ${prevBest.grade}</span>`
+        : '';
+
     this.overlay.innerHTML = `
       <div style="text-align:center; max-width:400px;">
         <div style="font-size:14px;color:#88aacc;letter-spacing:2px;margin-bottom:8px;">SCENARIO COMPLETE</div>
         <div style="font-size:18px;color:#eef;margin-bottom:16px;">${result.scenarioTitle}</div>
         <div style="font-size:72px;color:${gradeColor};font-weight:bold;margin:16px 0;">${grade}</div>
+        ${bestLabel ? `<div style="margin-bottom:8px;">${bestLabel}</div>` : ''}
         <div style="font-size:13px;color:${result.won ? '#44ff88' : '#ff6644'};margin-bottom:12px;">
           ${result.won ? 'OBJECTIVE COMPLETE' : 'OBJECTIVE FAILED'}
         </div>

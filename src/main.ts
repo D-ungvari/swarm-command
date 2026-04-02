@@ -6,6 +6,7 @@ import type { Scenario } from './scenarios/ScenarioTypes';
 import { TERRAN_CAMPAIGN, ZERG_CAMPAIGN, getCampaignProgress, isMissionUnlocked } from './scenarios/campaign';
 import { MapEditor } from './map/MapEditor';
 import { ACHIEVEMENTS, getUnlockedAchievements } from './stats/Achievements';
+import { getScenarioBestScore } from './scenarios/ScenarioProgress';
 
 const startScreen = document.getElementById('start-screen');
 const playBtn = document.getElementById('play-btn');
@@ -109,9 +110,14 @@ if (scenarioList) {
       padding: 10px 14px; cursor: pointer; border-radius: 4px;
       transition: border-color 0.15s;
     `;
+    const best = getScenarioBestScore(s.id);
+    const bestBadge = best
+      ? `<span style="color:#ffdd00;font-size:11px;font-weight:bold;margin-left:8px;background:rgba(255,220,0,0.12);padding:1px 5px;border-radius:2px;">${best.grade}</span>`
+      : '';
     card.innerHTML = `
       <div style="color:#cce0ff;font-size:13px;font-weight:bold">${s.title}
         <span style="color:#667;font-size:11px;margin-left:8px">${'\u2605'.repeat(s.difficulty)}${'\u2606'.repeat(3 - s.difficulty)}</span>
+        ${bestBadge}
       </div>
       <div style="color:#8899aa;font-size:11px;margin-top:4px">${s.description}</div>
       <div style="color:#557799;font-size:10px;margin-top:4px">SC2 concept: ${s.sc2Concept}</div>
@@ -173,12 +179,17 @@ function renderCampaignMissions(faction: 'terran' | 'zerg'): void {
     const statusIcon = completed ? '<span style="color:#44ff88;margin-left:8px;">&#10003;</span>'
       : !unlocked ? '<span style="color:#ff6644;margin-left:8px;">&#128274;</span>'
       : '';
+    const mBest = getScenarioBestScore(m.id);
+    const mBestBadge = mBest
+      ? `<span style="color:#ffdd00;font-size:11px;font-weight:bold;margin-left:8px;background:rgba(255,220,0,0.12);padding:1px 5px;border-radius:2px;">${mBest.grade}</span>`
+      : '';
 
     card.innerHTML = `
       <div style="color:#cce0ff;font-size:13px;font-weight:bold">
         ${prefix}${i + 1}: ${m.title}
         <span style="color:#667;font-size:11px;margin-left:8px">${stars}</span>
         ${statusIcon}
+        ${mBestBadge}
       </div>
       <div style="color:#8899aa;font-size:11px;margin-top:4px">${m.description}</div>
       <div style="color:#557799;font-size:10px;margin-top:4px">SC2 concept: ${m.sc2Concept}</div>

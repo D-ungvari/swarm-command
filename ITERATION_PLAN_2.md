@@ -1284,5 +1284,143 @@ Day 7: E.1-E.2-E.3 (camera, unit depth, fog improvements)
 
 Day 8: E.4-E.5-E.7 (game modes, minimap intelligence, creep highway)
        + Final QA pass + push
+
+---
+
+---
+
+# Iteration F — Tech Tree UI & Build Menu Clarity
+
+## Audit Findings
+
+The tech tree logic itself is **correct and bug-free** — prerequisites gate buildings properly through `isTechAvailable()` → `hasCompletedBuilding()`. The problem is purely **UI communication**:
+
+- Locked buildings show as greyed-out text with a subtle red border tint — **not obvious enough**
+- No text tells the player WHY a building is locked
+- No tooltip or label says "Requires: Barracks"
+- The Zerg build menu always shows all 3 buildings as available (no dynamic prerequisites)
+- Missing Zerg tech buildings: RoachWarren, HydraliskDen, Spire, InfestationPit are not defined
+
+---
+
+## F.1 — Build Menu Prerequisite Labels
+
+**Problem:** When Factory is locked (grey, red tint), there is no text explaining why. Players don't know they need to build a Barracks first.
+
+**Fix:** In `BuildMenuRenderer.ts`, when a building's tech is not available, append a "Req: [BuildingName]" line below the cost:
+
+```
+5: Factory (150m/100g)
+   Req: Barracks
+```
+
+**Implementation:**
+- In `update()`, for each slot where `!techOk`, look up `BUILDING_DEFS[bType].requires`
+- Map the required `BuildingType` to its name via `BUILDING_DEFS[requiresType].name`
+- Update the option element's innerHTML to include a second smaller line:
+  ```html
+  5: Factory (150m/100g)<br><span style="color:#884444;font-size:9px">Req: Barracks</span>
+  ```
+
+**Files:** `src/rendering/BuildMenuRenderer.ts`
+
+---
+
+## F.2 — Build Menu Ghost Preview on Locked Buildings
+
+**Problem:** Pressing `5` when Factory is locked does nothing silently. Players think the key doesn't work.
+
+**Fix:** When the player presses a digit key for a locked building, flash the menu slot briefly red and show a tooltip "Build Barracks first" for 2 seconds.
+
+**Implementation:**
+- In `Game.handleBuildPlacement()`, when `!this.isTechAvailable(bType)`, set a `lockedFlashTimer` and `lockedFlashMessage` on `BuildMenuRenderer`
+- `BuildMenuRenderer` shows the flash via a brief red border pulse and a tooltip div that appears for 2s then fades
+
+**Files:** `src/Game.ts`, `src/rendering/BuildMenuRenderer.ts`
+
+---
+
+## F.3 — Tech Tree Visual Diagram in Build Menu
+
+Add a small visual tech tree indicator at the top of the build menu showing the current unlock progression:
+
+```
+CC → Supply → Barracks → Factory → Starport
+                       ↘ Eng Bay
+```
+
+Each building in the tree is a small colored dot: green = built, yellow = affordable but not built, grey = locked. The current hover/selected building is highlighted.
+
+**Implementation:**
+- New `renderTechTree()` method in `BuildMenuRenderer` using HTML/CSS
+- A `<div>` row at the top of the menu panel with 7 small circles connected by lines
+- Updates every frame via `update()`
+
+**Files:** `src/rendering/BuildMenuRenderer.ts`
+
+---
+
+## F.4 — Missing Zerg Tech Buildings
+
+**Problem:** RoachWarren, HydraliskDen, Spire, and InfestationPit are not defined in `buildings.ts`, so Roach/Hydralisk/Mutalisk/Infestor units are only buildable via Hatchery with no tech gate.
+
+**Fix:** Add these buildings to `buildings.ts` and wire them into the Zerg build menu.
+
+| Building | BuildingType | Prereq | Unlocks | Cost | Size |
+|----------|-------------|--------|---------|------|------|
+| RoachWarren | 34 | SpawningPool | Roach, Ravager | 150m/0g | 2×2 |
+| HydraliskDen | 35 | Hatchery | Hydralisk, Lurker | 100m/100g | 2×2 |
+| Spire | 36 | Hatchery | Mutalisk, Corruptor | 200m/200g | 2×2 |
+| InfestationPit | 37 | Lair (→ Hive) | Infestor, Viper | 100m/100g | 2×2 |
+
+For Lair (BuildingType 38): Hatchery morphs into Lair for 150m/100g. This unlocks T2 Zerg tech. Simplification: make Lair a separate building instead of a morph, placed on top of an existing Hatchery tile.
+
+**Zerg build menu update:** Replace the 3-slot always-available menu with a proper 7-slot menu:
+- 1: Hatchery
+- 2: SpawningPool
+- 3: RoachWarren (req: SpawningPool)
+- 4: HydraliskDen (req: Hatchery)
+- 5: Spire (req: Hatchery)
+- 6: EvolutionChamber (req: SpawningPool)
+- 7: InfestationPit (req: SpawningPool)
+
+In `getTechAvailability()`, update the Zerg branch to check actual prerequisites instead of always returning `true`.
+
+**Production gating:** Update Hatchery's produces array to only show units the player has tech for:
+- Roach/Ravager: only if RoachWarren is built
+- Hydralisk/Lurker: only if HydraliskDen is built
+- Mutalisk/Corruptor: only if Spire is built
+- Infestor/Viper: only if InfestationPit is built
+- Queen/Overlord/Zergling/Drone: always available
+
+In `InfoPanelRenderer.updateProductionButtons()`, filter the `produces` array by tech availability before showing buttons.
+
+**Files:** `src/constants.ts`, `src/data/buildings.ts`, `src/Game.ts`, `src/rendering/BuildMenuRenderer.ts`, `src/rendering/InfoPanelRenderer.ts`
+
+---
+
+## F.5 — Production Button Tech Gating
+
+**Problem:** Even with no tech buildings, a player can click the Infestor button on the Hatchery info panel and queue one (the button shows but produces nothing useful without InfestationPit).
+
+**Fix:** In `InfoPanelRenderer.updateProductionButtons()`, for each unit in `def.produces`, check if the unit's tech prerequisite is met before showing the button. Units whose tech building isn't built should show as locked (grey, no hover) with tooltip "Requires InfestationPit".
+
+The check: define a `getUnitTechReq(uType: UnitType): BuildingType | null` lookup table mapping each unit to its required building. If the requirement isn't met, render the button as locked.
+
+**Files:** `src/rendering/InfoPanelRenderer.ts`, new `src/data/unitTechReqs.ts` lookup
+
+---
+
+## F Sprint Order
+
+| # | Item | Effort | Why |
+|---|------|--------|-----|
+| F.1 | Prerequisite labels in build menu | 1h | Most important UX fix — tells player what to build |
+| F.2 | Locked building flash + tooltip | 30min | Silences the "my keys don't work" confusion |
+| F.4 | Missing Zerg tech buildings | 3h | Zerg has no tech tree without these |
+| F.5 | Production button tech gating | 1h | Prevents confusing locked production |
+| F.3 | Tech tree visual diagram | 2h | Nice-to-have — visual guide to the tree |
+
+**Total: ~7.5 hours (1 day)**
 ```
 ```

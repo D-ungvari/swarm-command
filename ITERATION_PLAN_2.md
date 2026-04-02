@@ -2648,6 +2648,296 @@ v2.0  (Sprint 71–100): Full unit parity. Esports tools. Open source. Community
 
 ---
 
+---
+
+# Iteration AA — Proper Start Menu & Map Selection
+
+## Current State
+
+The start screen is functional but looks like a settings form. It has:
+- Faction: two plain buttons (TERRAN / ZERG)
+- Difficulty: a `<select>` dropdown
+- Map: a `<select>` dropdown (3 options: Plains, Canyon, Islands)
+- Advanced settings collapsed in a `<details>` element
+- No map previews, no faction art, no visual differentiation between choices
+
+This feels like a debug menu, not a game launcher. SC2's lobby is visually stunning — faction portraits, animated map previews, glowing selected states. We need to close that gap.
+
+---
+
+## AA.1 — Full Start Menu Redesign
+
+Replace the current form-style layout with a proper game lobby with three distinct panels.
+
+### Layout
+```
+┌─────────────────────────────────────────────────────────────┐
+│  SWARM COMMAND                              [v1.0] [Credits] │
+│  ─────────────────────────────────────────────────────────── │
+│                                                             │
+│  ┌─── FACTION ───┐  ┌──────── MAP ────────┐  ┌── SETTINGS ─┐ │
+│  │  [TERRAN]  ◄  │  │  ┌──────────────┐  │  │ Difficulty  │ │
+│  │  [ZERG]       │  │  │ Map preview  │  │  │ ○ Easy      │ │
+│  │  [PROTOSS]*   │  │  │ (geometric)  │  │  │ ● Normal    │ │
+│  │               │  │  └──────────────┘  │  │ ○ Hard      │ │
+│  │  [Portrait]   │  │  Plains            │  │ ○ Brutal    │ │
+│  │  description  │  │  ◄ ──────── ►      │  │             │ │
+│  └───────────────┘  └────────────────────┘  │ Enemy Faction│ │
+│                                              │ ○ Zerg      │ │
+│                     ┌── RECENT ──────────┐  │ ● Random    │ │
+│                     │ Last: Normal W 4:32│  └─────────────┘ │
+│                                                             │
+│                     [  START GAME  ]                        │
+│                     [  CAMPAIGN    ]                        │
+│                     [WATCH REPLAY  ]                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+*Protoss panel disabled (greyed, "Coming Soon") until Iteration N ships.
+
+### Faction Panel
+
+Three faction cards, each a `<div>` that acts as a radio button:
+- **Terran card**: Blue-tinted, title "TERRAN", sub "Resilient. Adaptive. Human." — geometric Marine portrait (the 22-layer design rendered on a `<canvas>` element)
+- **Zerg card**: Red/purple-tinted, "ZERG", sub "Relentless. Organic. Overwhelming." — Queen portrait
+- **Protoss card**: Gold-tinted, "PROTOSS", sub "Ancient. Powerful. Proud." — Zealot portrait — greyed overlay "Coming Soon"
+
+Selected card: bright border, background lighten. Hover: subtle scale(1.02) transform.
+
+Each faction card also shows a small tooltip on hover: key mechanics summary.
+- Terran: "Build anywhere. Upgrade to Orbital. Siege tanks and air superiority."
+- Zerg: "Larva inject. Creep highways. Queen, Overlord supply. Swarm and overwhelm."
+
+### Enemy Faction Selector
+
+When playing single-player vs AI, choose what the enemy plays:
+- **Random** (default) — AI picks based on difficulty
+- **Zerg** — always face Zerg (current default behaviour)
+- **Terran** — Terran AI (already implemented in AISystem)
+- **Mirror** — same faction as you
+
+New `enemyFaction` field in Game, passed to `initAI()`.
+
+---
+
+## AA.2 — Map Selection with Visual Previews
+
+Replace the dropdown with a **map card carousel**. Each map is a clickable card showing:
+
+1. **Geometric preview** (80×80px canvas) — a simplified bird's-eye representation of the map topology:
+   - Ground tiles = dark grey
+   - Water tiles = dark blue
+   - Cliffs/rocks = dark brown
+   - Mineral patches = tiny blue dots
+   - Gas geysers = tiny green dots
+   - Start positions = coloured triangles (blue = player, red = enemy)
+   
+   Drawn once at map-select render time by calling a `renderMapPreview(canvas, mapType)` function that iterates the map's tile array at 1px-per-tile resolution.
+
+2. **Map name** ("Plains", "Canyon", "Islands") in large text
+
+3. **Descriptor tags**: 2-3 small badges describing the map's character:
+   - Plains: `[Open Field]` `[Air Friendly]` `[Economic]`
+   - Canyon: `[Choke Points]` `[Siege Favored]` `[Defensive]`
+   - Islands: `[Water Crossing]` `[Medivac Essential]` `[Isolated Bases]`
+
+4. **Playstyle note**: One sentence beneath the name:
+   - Plains: "Wide open map. Air units dominate. Expand early."
+   - Canyon: "Narrow passages. Siege Tanks are king. Control the gaps."
+   - Islands: "Separated bases. Medivac drops decide games. Turtles win."
+
+Cards laid out horizontally. Click to select (highlighted card). Arrow keys to cycle. Preview canvas updates in real time.
+
+---
+
+## AA.3 — 7 New Maps with Distinct Topography
+
+The current 3 maps (Plains, Canyon, Islands) are a start but need more variety. Add 7 new maps covering every strategic playstyle:
+
+### Map 4 — Crossfire (MapType.Crossfire = 3)
+**Playstyle:** Skirmish. Constant early pressure. No turtling.
+- **Shape:** Two diagonal corridors crossing at the map center. No natural expansion — bases are exposed.
+- **Features:** 4 small mineral patches per base (resource-poor, forces quick aggression), no gas until center expansion
+- **Favours:** Fast units, Zerglings, Reapers, early pressure builds
+
+### Map 5 — Fortress (MapType.Fortress = 4)
+**Playstyle:** Defensive. Long macro games. Turtle to late game.
+- **Shape:** Each base is surrounded by cliff walls with only 2 narrow entrance ramps.
+- **Features:** Very rich mineral patches (12 per base), multiple gas geysers, a fortified neutral "fortress" structure at the center that grants +5 armor to nearby units when controlled
+- **Favours:** Siege Tanks, defensive builds, Spine/Spore Crawlers, bio-ball compositions
+
+### Map 6 — Archipelago (MapType.Archipelago = 5)
+**Playstyle:** Air-heavy. Drop-heavy. Map control via flying.
+- **Shape:** 5 islands connected by narrow land bridges (2 tiles wide). Bridges destructible.
+- **Features:** Each island has a small mineral patch. Controlling 3+ islands wins on resources.
+- **Favours:** Medivacs, Mutalisks, Carriers, Phoenix — any air unit is premium here
+
+### Map 7 — Deadlock (MapType.Deadlock = 6)
+**Playstyle:** Symmetric choke. Pure army vs army.
+- **Shape:** Two bases connected by a single 6-tile-wide corridor. No expansions at all.
+- **Features:** Extremely rich starting minerals (unlimited for the game's duration), no gas, all units are ground-only relevant. Perfect for learning unit compositions without economic pressure.
+- **Favours:** Marine/Marauder, Roach/Ravager, Zealot/Stalker — pure unit combat
+
+### Map 8 — Desert Storm (MapType.DesertStorm = 7)
+**Playstyle:** Aggressive early game, contested center.
+- **Shape:** Large open center with only desert ground (fast movement), bases in corners with cliffs for protection.
+- **Features:** Xel'Naga Watchtower at center grants vision bonus. Three neutral expansion bases in the center (contested). Sand terrain type: ground units on sand have -10% speed (adds strategic weight to terrain position).
+- **Favours:** Fast harassment, Hellion/Zergling early pressure, map control over resource denial
+
+### Map 9 — Frozen Tundra (MapType.FrozenTundra = 8)
+**Playstyle:** Slow, methodical. Defensive positions matter.
+- **Shape:** Maze-like with multiple branching paths through ice cliff formations. Multiple small "room" areas.
+- **Features:** Ice tile type: units on ice have -15% speed but +10% range (slower but sight lines open). Frozen geysers must be "broken" (attack them like rocks) before harvesting.
+- **Favours:** Siege Tanks, Hydralisks, Stalkers — ranged units that want controlled engagements
+
+### Map 10 — Volcano (MapType.Volcano = 9)
+**Playstyle:** High-risk, dynamic. Terrain changes mid-game.
+- **Shape:** Circular map with a volcano at the center. Bases on the outer ring.
+- **Features:** Every 90 seconds, lava erupts from the center for 15 seconds — any unit in the lava zone takes 50 damage per second. This forces both players to pull back and creates natural lulls in fighting.
+- **Favours:** Mobile armies, Medivacs for healing, armies that can engage and disengage quickly
+
+---
+
+## AA.4 — Map Preview Canvas Rendering
+
+`src/rendering/MapPreviewRenderer.ts`:
+
+```typescript
+export function renderMapPreview(
+  canvas: HTMLCanvasElement,
+  mapType: MapType,
+  playerFaction: Faction,
+): void {
+  const map = generateMap(mapType);  // generate a fresh map instance for preview
+  const ctx = canvas.getContext('2d')!;
+  const scale = canvas.width / map.cols;  // typically 80/128 ≈ 0.625px per tile
+  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  for (let row = 0; row < map.rows; row++) {
+    for (let col = 0; col < map.cols; col++) {
+      const tile = map.tiles[row * map.cols + col];
+      ctx.fillStyle = TILE_PREVIEW_COLORS[tile];
+      ctx.fillRect(col * scale, row * scale, scale, scale);
+    }
+  }
+  
+  // Mineral patches
+  for (const patch of getResourceTiles(map)) {
+    ctx.fillStyle = '#44aaff';
+    ctx.fillRect(patch.col * scale, patch.row * scale, scale * 1.5, scale * 1.5);
+  }
+  
+  // Start positions
+  ctx.fillStyle = playerFaction === Faction.Terran ? '#4488ff' : '#cc2244';
+  ctx.beginPath();
+  ctx.arc(15 * scale, 15 * scale, scale * 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#cc4422';  // enemy
+  ctx.beginPath();
+  ctx.arc(112 * scale, 112 * scale, scale * 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+```
+
+---
+
+## AA.5 — Menu State Machine
+
+The start screen becomes a proper state machine with distinct screens:
+
+```
+MAIN_MENU
+├── PLAY → GAME_SETUP → LOADING → IN_GAME
+├── CAMPAIGN → CAMPAIGN_SELECT → MISSION_BRIEF → LOADING → IN_GAME
+├── WATCH_REPLAY → REPLAY_SELECT → IN_GAME(replay mode)
+├── SETTINGS → SETTINGS_SCREEN → MAIN_MENU
+└── CREDITS → CREDITS_SCREEN → MAIN_MENU
+```
+
+Each screen is a full-screen `<div>` with CSS transitions (slide left/right, fade). Proper back-navigation via `Escape` key.
+
+**Game Setup screen** (the current start screen, redesigned per AA.1-AA.2) shows:
+- Faction picker
+- Map carousel
+- Difficulty selector (visual radio buttons not a dropdown)
+- Enemy faction picker
+- Advanced settings (collapsed by default)
+- Prominent "START GAME" button
+
+---
+
+## AA.6 — Difficulty Visual Redesign
+
+Replace the `<select>` dropdown with visual difficulty cards:
+
+```
+[ EASY ]    [ NORMAL ]    [ HARD ]    [ BRUTAL ]
+  ★☆☆☆       ★★☆☆          ★★★☆        ★★★★
+  Relaxed    Balanced      Challenging  Merciless
+  Waves      Waves &       Aggressive   Director AI
+  only       Harassment    AI + Tech    + All Modes
+```
+
+Each card shows:
+- Star rating
+- Name
+- 3 bullet points of what changes
+- A colour: Easy=green, Normal=blue, Hard=orange, Brutal=red
+
+Selected card: glowing border in its accent colour. Hover: slight lift effect.
+
+---
+
+## AA.7 — Map Playstyle Tags System
+
+Each map registers a set of tags that inform both the UI and the AI Director:
+
+```typescript
+export const MAP_METADATA: Record<MapType, MapMetadata> = {
+  [MapType.Plains]:      { tags: ['open', 'air-friendly', 'economic'],  aiPreference: 'balanced' },
+  [MapType.Canyon]:      { tags: ['choke', 'siege-favored', 'defensive'], aiPreference: 'mech' },
+  [MapType.Islands]:     { tags: ['water', 'drop-heavy', 'isolated'],   aiPreference: 'air' },
+  [MapType.Crossfire]:   { tags: ['skirmish', 'early-pressure', 'fast'], aiPreference: 'rush' },
+  [MapType.Fortress]:    { tags: ['defensive', 'macro', 'turtle'],       aiPreference: 'macro' },
+  [MapType.Archipelago]: { tags: ['air', 'islands', 'drop'],             aiPreference: 'air' },
+  [MapType.Deadlock]:    { tags: ['symmetric', 'army-fight', 'no-expand'], aiPreference: 'bio' },
+  [MapType.DesertStorm]: { tags: ['aggressive', 'contested', 'mobile'], aiPreference: 'harass' },
+  [MapType.FrozenTundra]:{ tags: ['methodical', 'ranged', 'maze'],       aiPreference: 'mech' },
+  [MapType.Volcano]:     { tags: ['dynamic', 'risky', 'mobile'],         aiPreference: 'skirmish' },
+};
+```
+
+The AI Director uses `aiPreference` to bias its unit composition and timing. On "rush" maps, it skips macro and goes aggressive immediately. On "turtle" maps, it builds up slowly for a devastating late push.
+
+---
+
+## AA Sprint Order
+
+| # | Item | Effort |
+|---|------|--------|
+| AA.1 | Full start menu redesign (faction cards, layout) | 4h |
+| AA.6 | Difficulty visual cards | 1h |
+| AA.2 | Map selection carousel + descriptor tags | 3h |
+| AA.4 | Map preview canvas renderer | 2h |
+| AA.3 | 7 new maps (Crossfire through Volcano) | 4h |
+| AA.7 | Map metadata tags + AI Director integration | 1h |
+| AA.5 | Menu state machine (Campaign/Settings/Credits screens) | 3h |
+
+**Total: ~18 hours (2–3 days)**
+**Impact: The game's first impression is transformed from debug form to proper game launcher.**
+
+Add to **Sprint Calendar**:
+```
+Sprint 101 (2d): AA.1-AA.6       — Start menu redesign + difficulty visual cards
+Sprint 102 (2d): AA.2-AA.4       — Map carousel + preview canvas renderer
+Sprint 103 (2d): AA.3             — 7 new maps with distinct topography
+Sprint 104 (1d): AA.7-AA.5        — Map metadata + menu state machine
+```
+
+---
+
 ## Architecture Evolution Map
 
 ```

@@ -1028,31 +1028,140 @@ export class UnitRenderer {
           g.stroke({ color: tint, width: 1.2 });
 
         } else if (uType === UnitType.Ravager) {
-          // ── Ravager: squat armored body with back-mounted cannon ──
+          // ── Ravager: evolved Roach — wide carapace, bile launcher, acid vents ──
+
           // Shadow
-          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body (wider oval)
-          g.ellipse(x, y, w * 0.7, h / 2);
-          g.fill({ color: bodyColor, alpha: 0.9 });
-          // Cannon tube on top
-          g.rect(x - 2, y - h / 2 - 6, 4, 7);
-          g.fill({ color: 0xaa3311, alpha: 0.9 });
+          g.ellipse(x, y + 2, w * 0.75, h * 0.3);
+          g.fill({ color: 0x000000, alpha: 0.35 });
+
+          // 6 stubby legs (3 per side, angled outward)
+          for (let l = 0; l < 3; l++) {
+            const lx = x - w * 0.25 + l * w * 0.22;
+            // Bottom legs
+            g.moveTo(lx, y + h * 0.3);
+            g.lineTo(lx - w * 0.08, y + h * 0.55);
+            g.stroke({ color: darken(tint, 20), width: 1.2 });
+            // Top legs
+            g.moveTo(lx, y - h * 0.3);
+            g.lineTo(lx - w * 0.08, y - h * 0.55);
+            g.stroke({ color: darken(tint, 20), width: 1.2 });
+          }
+
+          // Wide squat body ellipse (wider than Roach)
+          g.ellipse(x, y, w * 0.7, h * 0.4);
+          g.fill({ color: bodyColor });
+
+          // Dark carapace arc on top half
+          g.arc(x, y - h * 0.05, w * 0.65, Math.PI, 0, false);
+          g.closePath();
+          g.fill({ color: darken(bodyColor, 40), alpha: 0.5 });
+          g.arc(x, y - h * 0.05, w * 0.65, Math.PI, 0, false);
+          g.stroke({ color: 0x886644, width: 2, alpha: 0.7 });
+
+          // 4 armored segment lines across body
+          for (let s = 0; s < 4; s++) {
+            const sy = y - h * 0.2 + s * h * 0.12;
+            g.moveTo(x - w * 0.45, sy);
+            g.lineTo(x + w * 0.45, sy);
+            g.stroke({ color: 0x884422, width: 1, alpha: 0.35 });
+          }
+
+          // 2 forward mandibles (short, thick)
+          g.moveTo(x + w * 0.5, y - h * 0.12);
+          g.lineTo(x + w * 0.75, y - h * 0.3);
+          g.stroke({ color: 0xaa6644, width: 2.5 });
+          g.moveTo(x + w * 0.5, y + h * 0.12);
+          g.lineTo(x + w * 0.75, y + h * 0.3);
+          g.stroke({ color: 0xaa6644, width: 2.5 });
+
+          // Back-mounted bile launcher: thick rect extending upward
+          g.rect(x - w * 0.12, y - h * 0.4 - 8, w * 0.24, 10);
+          g.fill({ color: 0x663311, alpha: 0.9 });
+          g.rect(x - w * 0.12, y - h * 0.4 - 8, w * 0.24, 10);
+          g.stroke({ color: 0x884422, width: 1, alpha: 0.6 });
+          // Glowing bile tip (pulsing orange-green)
+          const bilePulse = 0.5 + 0.4 * Math.sin(gameTime * 3.5 + eid * 1.7);
+          g.circle(x, y - h * 0.4 - 10, 3);
+          g.fill({ color: ZERG_ACID, alpha: bilePulse * 0.8 });
+          g.circle(x, y - h * 0.4 - 10, 5);
+          g.stroke({ color: 0xaacc44, width: 1.5, alpha: bilePulse * 0.4 });
+
+          // Acid glow vents on each side
+          g.circle(x - w * 0.45, y, 2.5);
+          g.fill({ color: ZERG_ACID, alpha: 0.5 + 0.2 * Math.sin(gameTime * 2 + 1) });
+          g.circle(x + w * 0.45, y, 2.5);
+          g.fill({ color: ZERG_ACID, alpha: 0.5 + 0.2 * Math.sin(gameTime * 2 + 3) });
+
+          // Border stroke on body
+          g.ellipse(x, y, w * 0.7, h * 0.4);
+          g.stroke({ color: lighten(bodyColor, 15), width: 1, alpha: 0.5 });
 
         } else if (uType === UnitType.Lurker) {
-          // ── Lurker: flat body with spine protrusions ──
+          // ── Lurker: flat segmented body, long fanning spines, ambush predator ──
+
           // Shadow
-          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Flat body
-          g.ellipse(x, y, w / 2, h * 0.35);
-          g.fill({ color: bodyColor, alpha: 0.9 });
-          // 4 spines
-          for (let i = -3; i <= 3; i += 2) {
-            g.moveTo(x + i * 4, y - h * 0.35);
-            g.lineTo(x + i * 4, y - h * 0.35 - 6);
+          g.ellipse(x, y + 2, w * 0.6, h * 0.25);
+          g.fill({ color: 0x000000, alpha: 0.35 });
+
+          // 4 legs tucked underneath (barely visible)
+          g.moveTo(x - w * 0.25, y + h * 0.25);
+          g.lineTo(x - w * 0.35, y + h * 0.42);
+          g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
+          g.moveTo(x + w * 0.15, y + h * 0.25);
+          g.lineTo(x + w * 0.25, y + h * 0.42);
+          g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
+          g.moveTo(x - w * 0.1, y + h * 0.28);
+          g.lineTo(x - w * 0.18, y + h * 0.45);
+          g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
+          g.moveTo(x + w * 0.3, y + h * 0.25);
+          g.lineTo(x + w * 0.38, y + h * 0.42);
+          g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
+
+          // Dark underbelly shading
+          g.ellipse(x, y + h * 0.05, w * 0.48, h * 0.22);
+          g.fill({ color: darken(bodyColor, 35), alpha: 0.5 });
+
+          // Wide flat body ellipse
+          g.ellipse(x, y, w * 0.55, h * 0.3);
+          g.fill({ color: bodyColor });
+
+          // Segmented carapace — 3 horizontal lines
+          for (let s = 0; s < 3; s++) {
+            const sy = y - h * 0.12 + s * h * 0.1;
+            g.moveTo(x - w * 0.38, sy);
+            g.lineTo(x + w * 0.38, sy);
+            g.stroke({ color: darken(tint, 25), width: 1, alpha: 0.45 });
           }
-          g.stroke({ color: 0x886633, width: 1.5, alpha: 0.8 });
+
+          // 6 long spines fanning outward from top (spread at angles)
+          const spineAngles = [-1.8, -1.35, -0.9, -0.45, 0.0, 0.45];
+          for (let i = 0; i < 6; i++) {
+            const angle = spineAngles[i] - Math.PI / 2;
+            const baseX = x - w * 0.15 + i * w * 0.08;
+            const baseY = y - h * 0.25;
+            const tipX = baseX + Math.cos(angle) * h * 0.55;
+            const tipY = baseY + Math.sin(angle) * h * 0.55;
+            // Spine shaft
+            g.moveTo(baseX, baseY);
+            g.lineTo(tipX, tipY);
+            g.stroke({ color: 0x998866, width: 1.8, alpha: 0.85 });
+            // Spine tip glow (light bone color)
+            g.circle(tipX, tipY, 1.5);
+            g.fill({ color: 0xccbb99, alpha: 0.6 });
+          }
+
+          // Small head protrusion at front with mandible dots
+          g.ellipse(x + w * 0.45, y, w * 0.12, h * 0.15);
+          g.fill({ color: darken(bodyColor, 15) });
+          // Mandible dots
+          g.circle(x + w * 0.55, y - h * 0.06, 1.2);
+          g.fill({ color: ZERG_EYE, alpha: 0.7 });
+          g.circle(x + w * 0.55, y + h * 0.06, 1.2);
+          g.fill({ color: ZERG_EYE, alpha: 0.7 });
+
+          // Body border stroke
+          g.ellipse(x, y, w * 0.55, h * 0.3);
+          g.stroke({ color: lighten(bodyColor, 10), width: 1, alpha: 0.4 });
 
         } else if (uType === UnitType.Infestor) {
           // ── Infestor: pulsing blob with tentacles and drifting spores ──
@@ -1733,72 +1842,283 @@ export class UnitRenderer {
           }
 
         } else if (uType === UnitType.Reaper) {
-          // ── Reaper: fast infantry with jump-jets ──
+          // ── Reaper: agile infantry, dual pistols, jet pack, light armor ──
           const hw = w / 2;
           const hh = h / 2;
-          // Shadow
-          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body rect
-          g.rect(x - hw, y - hh, w, h);
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+
+          // Layer 1: Drop shadow (ellipse, not rect — agile unit)
+          g.ellipse(x, y + hh + 3, hw * 1.2, hh * 0.3);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+
+          // Layer 2: Jet pack — two cylindrical shapes on back
+          g.rect(x - hw * 0.55, y - hh * 0.3, hw * 0.28, hh * 0.7);
+          g.fill({ color: TERRAN_DARK, alpha: 0.9 });
+          g.rect(x - hw * 0.55, y - hh * 0.3, hw * 0.28, hh * 0.7);
+          g.stroke({ color: TERRAN_METAL, width: 0.8, alpha: 0.6 });
+          g.rect(x + hw * 0.27, y - hh * 0.3, hw * 0.28, hh * 0.7);
+          g.fill({ color: TERRAN_DARK, alpha: 0.9 });
+          g.rect(x + hw * 0.27, y - hh * 0.3, hw * 0.28, hh * 0.7);
+          g.stroke({ color: TERRAN_METAL, width: 0.8, alpha: 0.6 });
+
+          // Jet thruster glow (orange when moving)
+          if (isMoving) {
+            const thrustPulse = 0.6 + 0.3 * Math.sin(gameTime * 8 + eid * 2);
+            g.circle(x - hw * 0.41, y + hh * 0.45, 2.5);
+            g.fill({ color: 0xff8822, alpha: thrustPulse });
+            g.circle(x + hw * 0.41, y + hh * 0.45, 2.5);
+            g.fill({ color: 0xff8822, alpha: thrustPulse });
+            // Flame trails behind
+            for (let t = 0; t < 2; t++) {
+              const trailX = t === 0 ? x - hw * 0.41 : x + hw * 0.41;
+              g.circle(trailX, y + hh * 0.65, 1.8);
+              g.fill({ color: 0xff6600, alpha: thrustPulse * 0.5 });
+              g.circle(trailX, y + hh * 0.8, 1.2);
+              g.fill({ color: 0xff4400, alpha: thrustPulse * 0.3 });
+            }
+          }
+
+          // Layer 3: Slim torso (narrower than Marine — shows agility)
+          g.moveTo(x - hw * 0.28, y - hh * 0.25);
+          g.lineTo(x + hw * 0.28, y - hh * 0.25);
+          g.lineTo(x + hw * 0.22, y + hh * 0.2);
+          g.lineTo(x - hw * 0.22, y + hh * 0.2);
+          g.closePath();
           g.fill({ color: bodyColor });
-          g.rect(x - hw, y - hh, w, h);
-          g.stroke({ color: 0x6699aa, width: 1, alpha: 0.7 });
-          // Jump jets (back/left side)
-          g.moveTo(posX[eid] - hw - 4, posY[eid] - 3);
-          g.lineTo(posX[eid] - hw - 1, posY[eid]);
-          g.moveTo(posX[eid] - hw - 4, posY[eid] + 3);
-          g.lineTo(posX[eid] - hw - 1, posY[eid]);
-          g.stroke({ color: 0xaaccff, width: 1.5, alpha: 0.8 });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 0.8, alpha: 0.6 });
+
+          // Layer 4: Light armor plates (3 lines on torso)
+          for (let p = 0; p < 3; p++) {
+            const py = y - hh * 0.15 + p * hh * 0.12;
+            g.moveTo(x - hw * 0.2, py);
+            g.lineTo(x + hw * 0.2, py);
+            g.stroke({ color: TERRAN_DARK, width: 0.8, alpha: 0.4 });
+          }
+
+          // Layer 5: Dual pistol lines extending from sides (angled forward)
+          g.moveTo(x - hw * 0.3, y + hh * 0.05);
+          g.lineTo(x - hw * 0.65, y - hh * 0.15);
+          g.stroke({ color: TERRAN_METAL, width: 1.8 });
+          g.circle(x - hw * 0.65, y - hh * 0.15, 1);
+          g.fill({ color: 0xffaa44, alpha: 0.5 });
+          g.moveTo(x + hw * 0.3, y + hh * 0.05);
+          g.lineTo(x + hw * 0.65, y - hh * 0.15);
+          g.stroke({ color: TERRAN_METAL, width: 1.8 });
+          g.circle(x + hw * 0.65, y - hh * 0.15, 1);
+          g.fill({ color: 0xffaa44, alpha: 0.5 });
+
+          // Layer 6: Head (smaller than Marine)
+          g.arc(x, y - hh * 0.45, hw * 0.24, Math.PI, 0);
+          g.closePath();
+          g.fill({ color: bodyColor });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 0.8, alpha: 0.6 });
+
+          // Layer 7: Visor (horizontal line — distinct from Marine T-shape)
+          g.moveTo(x - hw * 0.2, y - hh * 0.38);
+          g.lineTo(x + hw * 0.2, y - hh * 0.38);
+          g.stroke({ color: TERRAN_VISOR, width: 2 });
+
+          // Layer 8: Boots
+          g.rect(x - hw * 0.2, y + hh * 0.2, hw * 0.16, hh * 0.2);
+          g.fill({ color: darken(bodyColor, 35) });
+          g.rect(x + hw * 0.04, y + hh * 0.2, hw * 0.16, hh * 0.2);
+          g.fill({ color: darken(bodyColor, 35) });
 
         } else if (uType === UnitType.Viking) {
-          // ── Viking: delta-wing fighter/assault mech ──
+          // ── Viking: transforming fighter jet — swept wings, dual guns, engine pods ──
           const hw = w / 2;
           const hh = h / 2;
-          // Wings spread out
-          g.moveTo(posX[eid], posY[eid] - hh);
-          g.lineTo(posX[eid] - hw - 6, posY[eid] + hh);
-          g.lineTo(posX[eid] + hw + 6, posY[eid] + hh);
+
+          // Layer 1: Faint ground shadow (offset below — it's an air unit)
+          g.ellipse(x, y + hh + 6, hw * 0.8, hh * 0.2);
+          g.fill({ color: 0x000000, alpha: 0.15 });
+
+          // Layer 2: Swept delta wings
+          g.moveTo(x, y - hh * 0.6);
+          g.lineTo(x - hw - 7, y + hh * 0.6);
+          g.lineTo(x - hw * 0.3, y + hh * 0.4);
           g.closePath();
-          g.fill({ color: 0x3366aa, alpha: 0.5 });
-          // Fuselage
-          g.rect(posX[eid] - 3, posY[eid] - hh - 2, 6, hh * 2 + 4);
-          g.fill({ color: 0x6699bb, alpha: 0.9 });
+          g.fill({ color: darken(bodyColor, 15), alpha: 0.7 });
+          g.moveTo(x, y - hh * 0.6);
+          g.lineTo(x + hw + 7, y + hh * 0.6);
+          g.lineTo(x + hw * 0.3, y + hh * 0.4);
+          g.closePath();
+          g.fill({ color: darken(bodyColor, 15), alpha: 0.7 });
+
+          // Layer 3: Wing hardpoints (small circles at wing tips)
+          g.circle(x - hw - 5, y + hh * 0.55, 2);
+          g.fill({ color: TERRAN_METAL, alpha: 0.8 });
+          g.circle(x + hw + 5, y + hh * 0.55, 2);
+          g.fill({ color: TERRAN_METAL, alpha: 0.8 });
+
+          // Layer 4: Engine pods on each wing (small ellipses with blue glow)
+          g.ellipse(x - hw * 0.55, y + hh * 0.25, 3, 5);
+          g.fill({ color: TERRAN_DARK, alpha: 0.9 });
+          g.circle(x - hw * 0.55, y + hh * 0.55, 2);
+          g.fill({ color: 0x4488ff, alpha: 0.5 + 0.3 * Math.sin(gameTime * 4 + eid) });
+          g.ellipse(x + hw * 0.55, y + hh * 0.25, 3, 5);
+          g.fill({ color: TERRAN_DARK, alpha: 0.9 });
+          g.circle(x + hw * 0.55, y + hh * 0.55, 2);
+          g.fill({ color: 0x4488ff, alpha: 0.5 + 0.3 * Math.sin(gameTime * 4 + eid) });
+
+          // Layer 5: Central fuselage (long narrow rect)
+          g.rect(x - hw * 0.2, y - hh * 0.7, hw * 0.4, hh * 1.5);
+          g.fill({ color: bodyColor, alpha: 0.9 });
+          g.rect(x - hw * 0.2, y - hh * 0.7, hw * 0.4, hh * 1.5);
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 1, alpha: 0.6 });
+
+          // Layer 6: Cockpit dot (brighter color at front)
+          g.circle(x, y - hh * 0.5, 2);
+          g.fill({ color: TERRAN_VISOR, alpha: 0.9 });
+
+          // Layer 7: Dual gun barrels extending forward from fuselage
+          g.moveTo(x - hw * 0.15, y - hh * 0.7);
+          g.lineTo(x - hw * 0.15, y - hh * 1.1);
+          g.stroke({ color: TERRAN_METAL, width: 1.5 });
+          g.moveTo(x + hw * 0.15, y - hh * 0.7);
+          g.lineTo(x + hw * 0.15, y - hh * 1.1);
+          g.stroke({ color: TERRAN_METAL, width: 1.5 });
+
+          // Layer 8: Tail fins (small lines at rear)
+          g.moveTo(x - hw * 0.15, y + hh * 0.7);
+          g.lineTo(x - hw * 0.35, y + hh * 1.0);
+          g.stroke({ color: bodyColor, width: 1.5 });
+          g.moveTo(x + hw * 0.15, y + hh * 0.7);
+          g.lineTo(x + hw * 0.35, y + hh * 1.0);
+          g.stroke({ color: bodyColor, width: 1.5 });
+
+          // Layer 9: Running lights — red left, green right
+          g.circle(x - hw - 3, y + hh * 0.45, 1.2);
+          g.fill({ color: 0xff2222, alpha: 0.7 + 0.3 * Math.sin(gameTime * 2) });
+          g.circle(x + hw + 3, y + hh * 0.45, 1.2);
+          g.fill({ color: 0x22ff22, alpha: 0.7 + 0.3 * Math.sin(gameTime * 2) });
 
         } else if (uType === UnitType.WidowMine) {
-          // ── Widow Mine: burrowing mine with spider legs ──
+          // ── Widow Mine: spider-like mine, glowing sensor eye, drill bit ──
           const hw = w / 2;
           const hh = h / 2;
-          // Shadow
-          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body
-          g.rect(x - hw, y - hh, w, h);
-          g.fill({ color: bodyColor });
-          g.rect(x - hw, y - hh, w, h);
-          g.stroke({ color: 0x665544, width: 1, alpha: 0.7 });
-          // Three legs
-          for (let i = -1; i <= 1; i++) {
-            g.moveTo(posX[eid] + i * 4, posY[eid] + hh);
-            g.lineTo(posX[eid] + i * 7, posY[eid] + hh + 5);
+          const mineR = Math.min(hw, hh) * 0.85;
+
+          // Shadow (circular)
+          g.circle(x, y + 2, mineR + 2);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+
+          // 4 articulated spider legs (angled outward with joint bends)
+          const legAngles = [-0.7, -2.4, 0.7, 2.4];
+          for (let l = 0; l < 4; l++) {
+            const angle = legAngles[l];
+            const jointX = x + Math.cos(angle) * mineR * 0.9;
+            const jointY = y + Math.sin(angle) * mineR * 0.5;
+            const tipX = jointX + Math.cos(angle + 0.3) * mineR * 0.7;
+            const tipY = jointY + Math.abs(Math.sin(angle)) * mineR * 0.6 + 2;
+            // Upper segment
+            g.moveTo(x + Math.cos(angle) * mineR * 0.4, y + Math.sin(angle) * mineR * 0.3);
+            g.lineTo(jointX, jointY);
+            g.stroke({ color: TERRAN_METAL, width: 1.5, alpha: 0.8 });
+            // Lower segment
+            g.moveTo(jointX, jointY);
+            g.lineTo(tipX, tipY);
+            g.stroke({ color: TERRAN_METAL, width: 1.2, alpha: 0.7 });
+            // Joint dot
+            g.circle(jointX, jointY, 1);
+            g.fill({ color: TERRAN_DARK, alpha: 0.8 });
           }
-          g.stroke({ color: 0x665544, width: 1.5, alpha: 0.8 });
+
+          // Drill bit underneath (small triangle pointing down)
+          g.moveTo(x - 2.5, y + mineR * 0.5);
+          g.lineTo(x, y + mineR * 1.1);
+          g.lineTo(x + 2.5, y + mineR * 0.5);
+          g.closePath();
+          g.fill({ color: TERRAN_METAL, alpha: 0.7 });
+
+          // Main circular body (dark metallic)
+          g.circle(x, y, mineR);
+          g.fill({ color: darken(bodyColor, 20) });
+          g.circle(x, y, mineR);
+          g.stroke({ color: TERRAN_METAL, width: 1.2, alpha: 0.7 });
+
+          // Inner ring detail
+          g.circle(x, y, mineR * 0.6);
+          g.stroke({ color: TERRAN_DARK, width: 0.8, alpha: 0.5 });
+
+          // Central glowing sensor eye (red pulsing dot)
+          const eyePulse = 0.5 + 0.5 * Math.sin(gameTime * 3 + eid * 1.3);
+          g.circle(x, y, 2.5);
+          g.fill({ color: 0xff2222, alpha: eyePulse });
+          g.circle(x, y, 4);
+          g.stroke({ color: 0xff4444, width: 1, alpha: eyePulse * 0.4 });
+
+          // Danger aura when attacking/targeting
+          if (targetEntity[eid] > 0 && entityExists(world, targetEntity[eid])) {
+            const auraPulse = 0.3 + 0.3 * Math.sin(gameTime * 6);
+            g.circle(x, y, mineR + 5);
+            g.stroke({ color: 0xff3333, width: 1.5, alpha: auraPulse });
+          }
 
         } else if (uType === UnitType.Cyclone) {
-          // ── Cyclone: lock-on missile vehicle ──
+          // ── Cyclone: tracked vehicle, rotating missile launcher turret, lock-on ──
           const hw = w / 2;
           const hh = h / 2;
-          // Shadow
+
+          // Layer 1: Drop shadow
           g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body
-          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: 0x000000, alpha: 0.35 });
+
+          // Layer 2: Track marks — two darker rects on sides (tread indicators)
+          g.rect(x - hw - 1, y - hh * 0.6, 3, hh * 1.2);
+          g.fill({ color: darken(bodyColor, 40) });
+          g.rect(x - hw - 1, y - hh * 0.6, 3, hh * 1.2);
+          g.stroke({ color: TERRAN_DARK, width: 0.6, alpha: 0.5 });
+          g.rect(x + hw - 2, y - hh * 0.6, 3, hh * 1.2);
+          g.fill({ color: darken(bodyColor, 40) });
+          g.rect(x + hw - 2, y - hh * 0.6, 3, hh * 1.2);
+          g.stroke({ color: TERRAN_DARK, width: 0.6, alpha: 0.5 });
+
+          // Layer 3: Lower hull rect (tank-like base)
+          g.rect(x - hw * 0.85, y - hh * 0.6, w * 0.85, hh * 1.2);
           g.fill({ color: bodyColor });
-          g.rect(x - hw, y - hh, w, h);
-          g.stroke({ color: 0x4466aa, width: 1, alpha: 0.7 });
-          // Lock-on arcs
-          g.arc(posX[eid], posY[eid], hw + 3, -Math.PI * 0.7, Math.PI * 0.7);
-          g.stroke({ color: 0x4488cc, width: 1.5, alpha: 0.7 });
+          g.rect(x - hw * 0.85, y - hh * 0.6, w * 0.85, hh * 1.2);
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 1, alpha: 0.5 });
+
+          // Layer 4: Hull plating lines
+          for (let p = 0; p < 2; p++) {
+            const py = y - hh * 0.25 + p * hh * 0.35;
+            g.moveTo(x - hw * 0.7, py);
+            g.lineTo(x + hw * 0.7, py);
+            g.stroke({ color: TERRAN_DARK, width: 0.8, alpha: 0.35 });
+          }
+
+          // Layer 5: Upper turret (smaller rect on top, slightly rotated)
+          const turretW = hw * 0.7;
+          const turretH = hh * 0.55;
+          g.rect(x - turretW / 2, y - hh * 0.55 - turretH * 0.3, turretW, turretH);
+          g.fill({ color: lighten(bodyColor, 15) });
+          g.rect(x - turretW / 2, y - hh * 0.55 - turretH * 0.3, turretW, turretH);
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 0.8, alpha: 0.6 });
+
+          // Layer 6: Missile pod — 2 small rects (launcher tubes)
+          const podY = y - hh * 0.55 - turretH * 0.2;
+          g.rect(x - turretW * 0.35, podY - hh * 0.4, 2.5, hh * 0.35);
+          g.fill({ color: TERRAN_METAL, alpha: 0.9 });
+          g.rect(x + turretW * 0.15, podY - hh * 0.4, 2.5, hh * 0.35);
+          g.fill({ color: TERRAN_METAL, alpha: 0.9 });
+
+          // Layer 7: Targeting dish (small circle on top of turret)
+          g.circle(x, y - hh * 0.55 - turretH * 0.3, 2);
+          g.fill({ color: TERRAN_VISOR, alpha: 0.7 });
+
+          // Layer 8: Lock-on indicator — pulsing circle at target when attacking
+          if (targetEntity[eid] > 0 && entityExists(world, targetEntity[eid])) {
+            const tgtX = posX[targetEntity[eid]];
+            const tgtY = posY[targetEntity[eid]];
+            const lockPulse = 0.4 + 0.4 * Math.sin(gameTime * 6);
+            g.circle(tgtX, tgtY, 8);
+            g.stroke({ color: 0xff4444, width: 1.5, alpha: lockPulse });
+            g.circle(tgtX, tgtY, 4);
+            g.stroke({ color: 0xff6666, width: 1, alpha: lockPulse * 0.7 });
+            // Dashed line to target
+            drawDashedLine(g, x, y, tgtX, tgtY, 0xff4444, lockPulse * 0.3, 4, 3);
+          }
 
         } else if (uType === UnitType.Thor) {
           // ── Thor: massive quad-cannon walker ──

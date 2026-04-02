@@ -1,35 +1,29 @@
 # Progress
 
 ## Current Phase
-COMPLETE — All 13 sprints shipped
+IDLE — Ready for Sprint 1 (Tech tree UI)
 
-## Sprint History
-| Sprint | Theme | Commit |
-|--------|-------|--------|
-| 1 | Input Architecture (command queue, zero click loss) | 231be70 |
-| 2 | Core Combat (damage types, armor, overkill prevention) | a41fd6c |
-| 3 | Control QoL (hold position, patrol, F2/F3, waypoints) | f6c336b |
-| 4 | Upgrades & Engineering Bay, AI auto-upgrade | 89ae213 |
-| 5 | Visual Polish (projectiles, death animations) | 1e36079 |
-| 6 | Advanced AI (difficulty levels, multi-prong, regroup) | 7d82806 |
-| 7 | Map & Terrain (3 layouts, destructible rocks) | ec84f1b |
-| 8 | Audio (already implemented — no changes needed) | — |
-| 9 | Stats & APM (post-game screen, live APM counter) | b924069 |
-| 10 | Performance (spatial hash O(n) queries) | f3fb04c |
-| 11 | Content (Ghost, Mutalisk, Creep system) | fab46a4 |
-| 12 | Scenarios (game speed, custom settings, fog toggle) | 26047ab |
-| 13 | Deploy (GitHub Actions, README, OG meta, mobile) | ea16dfa |
+## What to do next
+Run `/go` inside `swarm-command/` to start Sprint 1 (item #53 in BACKLOG.md).
 
-## Final State
-- 13 test files, 180 tests, all passing
-- TypeScript strict, zero type errors
-- GitHub Actions CI/CD deploy to GitHub Pages on push to master
-- See ITERATION_PLAN.md for full sprint specifications
+Sprint 1 = Iteration F (Tech tree UI + Zerg buildings):
+- F.1: Prerequisite labels in build menu ("Req: Barracks" text on locked slots)
+- F.2: Locked building flash + tooltip when pressing a locked building's key
+- F.4: Add missing Zerg tech buildings (RoachWarren, HydraliskDen, Spire, InfestationPit)
+- F.5: Gate production buttons by tech availability
 
-## Backlog
-Empty — all planned work complete.
+## Master Plan
+See `ITERATION_PLAN_2.md` for the full 104-sprint / ~120-day roadmap.
+Iterations A–AA cover: Selection UI, AI overhaul, Visual overhaul, Audio,
+Game systems, Multiplayer, Campaign, Map editor, Protoss faction,
+Spectator, PWA, Leaderboard, Modding, Ranked MMR, AI Director,
+Start menu redesign, and 7 new maps.
 
-## What's Next
-- Push to GitHub to trigger CI/CD deploy
-- Update README with real screenshot and GitHub username
-- Play test on different screen sizes
+## Architecture Notes (current state)
+- 29 units across 2 factions (Terran + Zerg), air/ground targeting
+- Input: command queue + frame-rate selection (zero click loss)
+- AI: build orders (12-pool, Roach push, Lair macro, Terran bio) + harassment + expansion
+- Deterministic seeded RNG + command recorder + replay save/load
+- 197 tests passing, 0 TypeScript errors
+- Mobile touch support (tap select, two-finger tap to move, portrait overlay)
+- Tech tree logic correct; UI does not communicate prerequisites

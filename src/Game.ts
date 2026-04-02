@@ -576,6 +576,7 @@ export class Game {
       if (result?.completed && this.scenarioResult && !this.scenarioResult.isVisible) {
         const scenario = this.scenarioManager.getScenario()!;
         this.scenarioResult.show({
+          scenarioId: scenario.id,
           scenarioTitle: scenario.title,
           won: result.won,
           score: result.score,

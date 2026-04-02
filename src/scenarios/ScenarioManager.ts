@@ -88,6 +88,15 @@ export class ScenarioManager {
         }
         break;
 
+      case 'time_attack':
+        // Same as kill_all but objective explicitly requires clearing within time limit
+        if (enemyUnitsAlive === 0) {
+          this.objectiveComplete = true;
+          const timePct = Math.max(0, 1 - elapsed / (s.setup.timeLimit ?? 60));
+          return { completed: true, won: true, score: Math.round(timePct * 100), maxScore: 100 };
+        }
+        break;
+
       case 'survive':
         // Handled by time limit above
         break;

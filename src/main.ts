@@ -3,6 +3,7 @@ import { Difficulty, Faction } from './constants';
 import type { MapType } from './map/MapData';
 import { SCENARIOS } from './scenarios/scenarios';
 import type { Scenario } from './scenarios/ScenarioTypes';
+import { TERRAN_CAMPAIGN, ZERG_CAMPAIGN, getCampaignProgress, isMissionUnlocked } from './scenarios/campaign';
 
 const startScreen = document.getElementById('start-screen');
 const playBtn = document.getElementById('play-btn');
@@ -129,6 +130,102 @@ practiceBtn?.addEventListener('click', () => {
 });
 
 backBtn?.addEventListener('click', () => {
+  window.location.reload();
+});
+
+// ── Campaign browser ──
+const campaignBtn = document.getElementById('campaign-btn');
+const campaignBrowser = document.getElementById('campaign-browser');
+const campaignList = document.getElementById('campaign-list');
+const campaignBack = document.getElementById('campaign-back');
+const campaignTabTerran = document.getElementById('campaign-tab-terran');
+const campaignTabZerg = document.getElementById('campaign-tab-zerg');
+
+let activeCampaignTab: 'terran' | 'zerg' = 'terran';
+
+function renderCampaignMissions(faction: 'terran' | 'zerg'): void {
+  if (!campaignList) return;
+  campaignList.innerHTML = '';
+  const missions = faction === 'terran' ? TERRAN_CAMPAIGN : ZERG_CAMPAIGN;
+  const progress = getCampaignProgress();
+  const prefix = faction === 'terran' ? 'T' : 'Z';
+
+  for (let i = 0; i < missions.length; i++) {
+    const m = missions[i];
+    const unlocked = isMissionUnlocked(missions, i, progress);
+    const completed = progress.includes(m.id);
+
+    const card = document.createElement('div');
+    card.style.cssText = `
+      background: rgba(20,40,60,0.8); border: 1px solid rgba(60,100,160,0.4);
+      padding: 10px 14px; border-radius: 4px;
+      transition: border-color 0.15s;
+      ${unlocked ? 'cursor: pointer;' : 'cursor: not-allowed; opacity: 0.45;'}
+    `;
+    const stars = '\u2605'.repeat(m.difficulty) + '\u2606'.repeat(3 - m.difficulty);
+    const statusIcon = completed ? '<span style="color:#44ff88;margin-left:8px;">&#10003;</span>'
+      : !unlocked ? '<span style="color:#ff6644;margin-left:8px;">&#128274;</span>'
+      : '';
+
+    card.innerHTML = `
+      <div style="color:#cce0ff;font-size:13px;font-weight:bold">
+        ${prefix}${i + 1}: ${m.title}
+        <span style="color:#667;font-size:11px;margin-left:8px">${stars}</span>
+        ${statusIcon}
+      </div>
+      <div style="color:#8899aa;font-size:11px;margin-top:4px">${m.description}</div>
+      <div style="color:#557799;font-size:10px;margin-top:4px">SC2 concept: ${m.sc2Concept}</div>
+    `;
+
+    if (unlocked) {
+      card.addEventListener('mouseenter', () => { card.style.borderColor = 'rgba(60,140,255,0.7)'; });
+      card.addEventListener('mouseleave', () => { card.style.borderColor = 'rgba(60,100,160,0.4)'; });
+      card.addEventListener('click', () => { startScenario(m); });
+    }
+
+    campaignList.appendChild(card);
+  }
+}
+
+function setActiveCampaignTab(tab: 'terran' | 'zerg'): void {
+  activeCampaignTab = tab;
+  if (campaignTabTerran && campaignTabZerg) {
+    if (tab === 'terran') {
+      campaignTabTerran.style.background = '#1a3a5a';
+      campaignTabTerran.style.color = '#88ccff';
+      campaignTabTerran.style.borderColor = '#3a6a9a';
+      campaignTabZerg.style.background = '#0a0a0a';
+      campaignTabZerg.style.color = '#884466';
+      campaignTabZerg.style.borderColor = '#3a1a2a';
+    } else {
+      campaignTabZerg.style.background = '#3a1a2a';
+      campaignTabZerg.style.color = '#ff88cc';
+      campaignTabZerg.style.borderColor = '#aa4466';
+      campaignTabTerran.style.background = '#0a0a0a';
+      campaignTabTerran.style.color = '#446688';
+      campaignTabTerran.style.borderColor = '#1a2a3a';
+    }
+  }
+  renderCampaignMissions(tab);
+}
+
+campaignBtn?.addEventListener('click', () => {
+  // Hide main menu elements, show campaign browser
+  document.querySelectorAll('#start-screen .controls, #start-screen .play-btn, #start-screen select, #start-screen details').forEach(el => {
+    (el as HTMLElement).style.display = 'none';
+  });
+  document.querySelectorAll('#start-screen > div[style*="margin"]').forEach(el => {
+    (el as HTMLElement).style.display = 'none';
+  });
+  if (campaignBtn) campaignBtn.style.display = 'none';
+  if (campaignBrowser) campaignBrowser.style.display = 'block';
+  setActiveCampaignTab('terran');
+});
+
+campaignTabTerran?.addEventListener('click', () => setActiveCampaignTab('terran'));
+campaignTabZerg?.addEventListener('click', () => setActiveCampaignTab('zerg'));
+
+campaignBack?.addEventListener('click', () => {
   window.location.reload();
 });
 

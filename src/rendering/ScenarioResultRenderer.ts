@@ -1,5 +1,6 @@
 import type { ScenarioGrade } from '../scenarios/ScenarioTypes';
 import { gradeFromScore } from '../scenarios/ScenarioTypes';
+import { isCampaignMission, saveCampaignProgress } from '../scenarios/campaign';
 
 export class ScenarioResultRenderer {
   private overlay: HTMLDivElement;
@@ -17,6 +18,7 @@ export class ScenarioResultRenderer {
   }
 
   show(result: {
+    scenarioId: string;
     scenarioTitle: string;
     won: boolean;
     score: number;
@@ -26,6 +28,11 @@ export class ScenarioResultRenderer {
     tips: string[];
   }): void {
     this.visible = true;
+
+    // Save campaign progress on win
+    if (result.won && isCampaignMission(result.scenarioId)) {
+      saveCampaignProgress(result.scenarioId);
+    }
     const grade = gradeFromScore(result.score, result.maxScore);
     const gradeColor = this.getGradeColor(grade);
     const timeStr = `${Math.floor(result.timeElapsed)}s`;

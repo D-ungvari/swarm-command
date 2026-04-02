@@ -84,11 +84,23 @@ type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
 type SpawnBuildingFn = (type: number, fac: number, col: number, row: number) => number;
 
 // ─────────────────────────────────────────
+// B.1 — Defense tuning constants
+// ─────────────────────────────────────────
+const DEFENSE_DETECTION_RANGE = 12;
+const DEFENSE_CLEAR_RANGE = 15;
+const DEFENSE_CLEAR_DURATION = 10;
+const DEFENSE_PEEL_MAX = 8;
+const DEFENSE_PEEL_MIN = 3;
+const DEFENSE_PEEL_RATIO = 0.4;
+const EMERGENCY_SPAWN_THRESHOLD = 3;
+const EMERGENCY_SPAWN_COUNT = 2;
+
+// ─────────────────────────────────────────
 // Tuning constants
 // ─────────────────────────────────────────
 const INITIAL_DELAYS: Record<Difficulty, number> = {
   [Difficulty.Easy]: 20,
-  [Difficulty.Normal]: 15,
+  [Difficulty.Normal]: 10,
   [Difficulty.Hard]: 5,
   [Difficulty.Brutal]: 0,
 };
@@ -98,11 +110,21 @@ const GAS_INCOME_RATIO = 0.35;
 const INCOME_GROWTH_PER_WAVE = 0.25;
 const MAX_SPAWNS_PER_DECISION = 3;
 
-const FIRST_WAVE_SIZE = 4;
+const FIRST_WAVE_SIZES: Record<Difficulty, number> = {
+  [Difficulty.Easy]: 6,
+  [Difficulty.Normal]: 4,
+  [Difficulty.Hard]: 4,
+  [Difficulty.Brutal]: 3,
+};
 const WAVE_SIZE_GROWTH = 4;
 const MAX_WAVE_SIZE = 30;
 const WAVE_COOLDOWN = 8;
-const HARASSMENT_INTERVAL = 45;
+const HARASSMENT_INTERVALS: Record<Difficulty, number> = {
+  [Difficulty.Easy]: 45,
+  [Difficulty.Normal]: 45,
+  [Difficulty.Hard]: 20,
+  [Difficulty.Brutal]: 10,
+};
 const SCOUT_INTERVAL = 25;        // seconds between scout sends
 const RETREAT_HP_RATIO = 0.35;    // retreat if army HP drops below 35% of max
 const RETREAT_MIN_REGROUP_TIME = 15; // seconds before re-attacking after retreat
@@ -200,6 +222,7 @@ const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
 let defenseEids: Set<number> = new Set();
 let lastDefenseTime = 0;
+let defenseAreaClearSince = 0;
 
 // ─────────────────────────────────────────
 // B.4 — Expanded AI Base (Living Base)
@@ -260,6 +283,7 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   hasExpanded = false;
   defenseEids = new Set();
   lastDefenseTime = 0;
+  defenseAreaClearSince = 0;
   aiBuildingsPlaced = new Set();
   lastBuildingWaveCheck = -1;
   harassSquad1 = new Set();
@@ -296,7 +320,7 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
 }
 
 export function getAIState() {
-  return { aiMinerals, aiGas, waveCount, isAttacking, armySize: armyEids.size };
+  return { aiMinerals, aiGas, waveCount, isAttacking, armySize: armyEids.size, defenseSize: defenseEids.size };
 }
 
 export function setAIMinerals(m: number, g: number = 0): void {
@@ -382,10 +406,10 @@ function executeBuildOrder(
 // ─────────────────────────────────────────
 // Base Defense (B.1)
 // ─────────────────────────────────────────
-function checkBaseUnderAttack(world: World, gameTime: number, map: MapData): void {
+function checkBaseUnderAttack(world: World, gameTime: number, map: MapData, spawnFn: SpawnFn): void {
   if (gameTime - lastDefenseTime < 15) return; // 15s cooldown between defense activations
 
-  // Find if any enemy units are within 12 tiles of any AI building
+  // Find if any enemy units are within DEFENSE_DETECTION_RANGE tiles of any AI building
   let threatX = 0, threatY = 0;
   let threatFound = false;
 
@@ -400,7 +424,7 @@ function checkBaseUnderAttack(world: World, gameTime: number, map: MapData): voi
       if (faction[other] === currentAIFaction || faction[other] === 0) continue;
       if (hpCurrent[other] <= 0) continue;
       const dx = posX[other] - bx, dy = posY[other] - by;
-      if (dx * dx + dy * dy < (12 * TILE_SIZE) * (12 * TILE_SIZE)) {
+      if (dx * dx + dy * dy < (DEFENSE_DETECTION_RANGE * TILE_SIZE) * (DEFENSE_DETECTION_RANGE * TILE_SIZE)) {
         threatX = posX[other];
         threatY = posY[other];
         threatFound = true;
@@ -416,8 +440,28 @@ function checkBaseUnderAttack(world: World, gameTime: number, map: MapData): voi
   // Determine which army set to peel from
   const armySet = currentAIFaction === Faction.Terran ? terranArmyEids : armyEids;
 
-  // Peel off 40% of army to defend (minimum 3, max 10)
-  const peelCount = Math.min(10, Math.max(3, Math.floor(armySet.size * 0.4)));
+  // Emergency spawn if army too small
+  if (armySet.size < EMERGENCY_SPAWN_THRESHOLD && world.nextEid < MAX_ENTITIES - 50) {
+    // Find a production building
+    let prodBuildingEid = 0;
+    const targetBuildingType = currentAIFaction === Faction.Zerg ? BuildingType.Hatchery : BuildingType.Barracks;
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, BUILDING)) continue;
+      if (faction[eid] !== currentAIFaction) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      if (buildingType[eid] === targetBuildingType) { prodBuildingEid = eid; break; }
+    }
+    if (prodBuildingEid > 0) {
+      const spawnType = currentAIFaction === Faction.Zerg ? UnitType.Zergling : UnitType.Marine;
+      for (let i = 0; i < EMERGENCY_SPAWN_COUNT; i++) {
+        const eid = spawnFn(spawnType, currentAIFaction, posX[prodBuildingEid] + (rng.next() - 0.5) * 48, posY[prodBuildingEid] + (rng.next() - 0.5) * 48);
+        if (eid > 0) armySet.add(eid);
+      }
+    }
+  }
+
+  // Peel off 40% of army to defend (minimum DEFENSE_PEEL_MIN, max DEFENSE_PEEL_MAX)
+  const peelCount = Math.min(DEFENSE_PEEL_MAX, Math.max(DEFENSE_PEEL_MIN, Math.floor(armySet.size * DEFENSE_PEEL_RATIO)));
   let peeled = 0;
   for (const eid of armySet) {
     if (peeled >= peelCount) break;
@@ -434,7 +478,59 @@ function checkBaseUnderAttack(world: World, gameTime: number, map: MapData): voi
       }));
     }
     defenseEids.add(eid);
+    armySet.delete(eid);
     peeled++;
+  }
+}
+
+function updateDefenseGroup(world: World, gameTime: number): void {
+  if (defenseEids.size === 0) {
+    defenseAreaClearSince = 0;
+    return;
+  }
+
+  // Check if any enemy unit is within DEFENSE_CLEAR_RANGE tiles of any AI building
+  let enemyNearBase = false;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, BUILDING)) continue;
+    if (faction[eid] !== currentAIFaction) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    const bx = posX[eid], by = posY[eid];
+    for (let other = 1; other < world.nextEid; other++) {
+      if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+      if (faction[other] === currentAIFaction || faction[other] === 0) continue;
+      if (hpCurrent[other] <= 0) continue;
+      const dx = posX[other] - bx, dy = posY[other] - by;
+      if (dx * dx + dy * dy < (DEFENSE_CLEAR_RANGE * TILE_SIZE) * (DEFENSE_CLEAR_RANGE * TILE_SIZE)) {
+        enemyNearBase = true;
+        break;
+      }
+    }
+    if (enemyNearBase) break;
+  }
+
+  if (enemyNearBase) {
+    defenseAreaClearSince = 0;
+    return;
+  }
+
+  // Area is clear — start or continue timer
+  if (defenseAreaClearSince === 0) {
+    defenseAreaClearSince = gameTime;
+    return;
+  }
+
+  // If clear for DEFENSE_CLEAR_DURATION seconds, rejoin army
+  if (gameTime - defenseAreaClearSince >= DEFENSE_CLEAR_DURATION) {
+    const armySet = currentAIFaction === Faction.Terran ? terranArmyEids : armyEids;
+    for (const eid of defenseEids) {
+      if (entityExists(world, eid) && hpCurrent[eid] > 0) {
+        armySet.add(eid);
+      }
+    }
+    defenseEids.clear();
+    defenseAreaClearSince = 0;
   }
 }
 
@@ -554,7 +650,7 @@ function updateVanguard(world: World, map: MapData): void {
 
   const armySizeCap = Math.floor(MAX_WAVE_SIZE * DIFFICULTY_CONFIGS[currentDifficulty].armySizeCapMultiplier);
   const threshold = Math.min(
-    Math.floor((FIRST_WAVE_SIZE + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
+    Math.floor((FIRST_WAVE_SIZES[currentDifficulty] + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
     armySizeCap,
   );
 
@@ -650,7 +746,8 @@ function runTerranAI(
   executeBuildOrder(world, resources, gameTime, spawnUnit);
 
   // Base defense check (B.1)
-  checkBaseUnderAttack(world, gameTime, map);
+  checkBaseUnderAttack(world, gameTime, map, spawnUnit);
+  updateDefenseGroup(world, gameTime);
 
   // Income
   terranAIMinerals += 3 * diffConfig.incomeMultiplier;
@@ -771,6 +868,9 @@ export function aiSystem(
 
   if (gameTime < INITIAL_DELAYS[currentDifficulty] + personality.timingOffset) return;
 
+  // B.1 — Defense group runs every tick for accurate timing
+  updateDefenseGroup(world, gameTime);
+
   tickCounter++;
   if (tickCounter < DECISION_INTERVAL) return;
   tickCounter = 0;
@@ -783,7 +883,7 @@ export function aiSystem(
   gatherIntelFromUnits(world);
 
   // Base defense check (B.1)
-  checkBaseUnderAttack(world, gameTime, map);
+  checkBaseUnderAttack(world, gameTime, map, spawnFn);
 
   const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
 
@@ -838,7 +938,7 @@ export function aiSystem(
   const prevWave = waveCount;
   if (!retreating) {
     decideAttack(world, map, gameTime, diffConfig);
-    if (gameTime - lastHarassTime > HARASSMENT_INTERVAL * personality.aggressionMult && !isAttacking && armyEids.size >= 3) {
+    if (gameTime - lastHarassTime > HARASSMENT_INTERVALS[currentDifficulty] * personality.aggressionMult && !isAttacking && armyEids.size >= 3) {
       sendHarassment(world, map, gameTime);
     }
   }
@@ -1069,7 +1169,7 @@ function checkRegroupComplete(world: World, gameTime: number, waveIntervalBase: 
 
   // Also require army is at least 50% rebuilt (measured by count vs wave size target)
   const targetSize = Math.min(
-    Math.floor((FIRST_WAVE_SIZE + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
+    Math.floor((FIRST_WAVE_SIZES[currentDifficulty] + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
     MAX_WAVE_SIZE,
   );
   const rebuiltRatio = total > 0 ? armyEids.size / Math.max(1, targetSize) : 0;
@@ -1214,6 +1314,10 @@ function pruneDeadUnits(world: World): void {
   }
   for (const eid of harassSquad2) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) harassSquad2.delete(eid);
+  }
+  // B.1 — Prune defense group
+  for (const eid of defenseEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) defenseEids.delete(eid);
   }
   // B.2 — Prune vanguard
   for (const eid of vanguardEids) {
@@ -1383,7 +1487,7 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
   const effectiveMaxWaveSize = waveCount >= 8 ? Math.floor(MAX_WAVE_SIZE * 1.5) : MAX_WAVE_SIZE;
   const armySizeCap = Math.floor(effectiveMaxWaveSize * diffConfig.armySizeCapMultiplier);
   const threshold = Math.min(
-    Math.floor((FIRST_WAVE_SIZE + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
+    Math.floor((FIRST_WAVE_SIZES[currentDifficulty] + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
     armySizeCap,
   );
 

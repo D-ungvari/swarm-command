@@ -507,3 +507,519 @@ Total: ~1.5 days
 - A.4: Subgroup ability panel
 - A.6: Hotkey panel
 - B.8: Escalating late game
+
+---
+
+---
+
+# Iteration C — Major Visual Overhaul
+
+## Current State Assessment
+
+The game uses PixiJS `Graphics` throughout — no sprite sheets, no pixel art. Every visual is geometry: full programmatic control over shape, colour, animation, and dynamic state.
+
+**What is already good:**
+- Zergling: elongated body, spine ridge, mandibles, legs, tail — clear organic silhouette
+- Baneling: pulsing glow, vein cracks, inner glow — feels explosive
+- Siege Tank (sieged): stabilizer legs, ultra-long barrel, muzzle pulse — very readable
+- Marauder: shoulder pads, grenade launchers, chest plate — clear heavy armour
+- Siege Tank (mobile): tread links, turret, cannon — distinct vehicle look
+
+**What needs the most work:**
+1. Marine — body proportions too small, visor is a single line, shoulder pauldrons entirely missing
+2. Buildings — functional but flat. No volumetric depth. Too similar to each other.
+3. Resource nodes — mineral patches are simple diamonds. Could feel more crystalline and alive.
+4. Tile environment — ground is flat colour. Water animation exists but is basic.
+5. Effects — deaths are shrink+fade. No unit-type-specific particles, no directional explosions.
+6. UI panels — HUD and info panel use default browser styling. No cohesive visual language.
+
+---
+
+## C.1 — The Marine: A Complete Redesign
+
+The Marine is SC2's mascot. It must immediately communicate "CMC powered combat armour, Terran military, dangerous". The current rendering has 8 draw calls. The redesign uses 22 layered draw calls — every layer adds character without affecting performance (all simple shapes).
+
+### The 5 iconic SC2 Marine features (in visual priority order)
+
+1. **Massive pauldrons (shoulder armour)** — extend nearly to the width of the torso on each side. The #1 most recognisable feature. Currently missing entirely.
+2. **T-shaped visor** — NOT a horizontal slit. Two strokes: a wide horizontal bar + a narrow vertical drop from center. Glowing cyan. Currently just a horizontal line.
+3. **Barrel chest** — the chest plate bows outward with a visible division line down the center. Currently a flat trapezoid.
+4. **Gauss Rifle** — 5 elements: stock, action, magazine box, barrel, muzzle. Currently 2 lines.
+5. **Heavy boots** — wide, square, armoured feet. Currently absent.
+
+### Draw order (bottom to top, 22 draw calls)
+
+**Layer 1 — Drop shadow**
+Soft ellipse beneath the feet (y offset +h*0.55):
+```
+g.ellipse(x, y + h*0.55, w*0.7, h*0.2)  fill: 0x000000 alpha:0.35
+```
+
+**Layer 2 — Boots (two wide rects)**
+```
+Left:  rect(x - w*0.28, y + h*0.32, w*0.22, h*0.25)  fill: bodyColor darken 0x222222
+Right: rect(x + w*0.06, y + h*0.32, w*0.22, h*0.25)
+Both:  stroke 0x334466 width:1
+```
+
+**Layer 3 — Shin guards**
+```
+Left:  rect(x - w*0.26, y + h*0.05, w*0.18, h*0.3)   fill: bodyColor
+Right: rect(x + w*0.08, y + h*0.05, w*0.18, h*0.3)
+Both:  stroke 0x4466aa width:1
+```
+
+**Layer 4 — Torso trapezoid (barrel chest shape)**
+```
+moveTo(x - w*0.38, y - h*0.08)
+lineTo(x + w*0.38, y - h*0.08)   // wide at shoulders
+lineTo(x + w*0.28, y + h*0.12)
+lineTo(x - w*0.28, y + h*0.12)   // narrower at waist
+closePath
+fill: bodyColor   stroke: 0x5588cc width:1.2 alpha:0.8
+```
+
+**Layer 5 — Chest plate (slightly raised, slightly brighter)**
+```
+rect(x - w*0.22, y - h*0.06, w*0.44, h*0.16)
+fill: bodyColor + 0x111111 (lighter)   stroke: 0x6699cc width:0.8
+```
+
+**Layer 6 — Chest division seam (vertical center line)**
+```
+moveTo(x, y - h*0.07)   lineTo(x, y + h*0.1)
+stroke: 0x3355aa width:1 alpha:0.6
+```
+
+**Layer 7 — Waist band (darker, narrower)**
+```
+rect(x - w*0.24, y + h*0.1, w*0.48, h*0.06)
+fill: bodyColor - 0x222222 (darker)
+```
+
+**Layer 8 — LEFT PAULDRON (the iconic big shoulder pad)**
+```
+// Extends to x - w*0.62 — significantly wider than torso!
+moveTo(x - w*0.35, y - h*0.18)
+lineTo(x - w*0.62, y - h*0.18)
+lineTo(x - w*0.65, y + h*0.0)
+lineTo(x - w*0.38, y + h*0.04)
+closePath
+fill: bodyColor slightly blue   stroke: 0x5577bb width:1
+// Ridge line on top edge:
+moveTo(x - w*0.35, y - h*0.18)  lineTo(x - w*0.62, y - h*0.18)
+stroke: 0x7799cc width:1
+```
+
+**Layer 9 — RIGHT PAULDRON (mirror)**
+```
+moveTo(x + w*0.35, y - h*0.18)
+lineTo(x + w*0.62, y - h*0.18)
+lineTo(x + w*0.65, y + h*0.0)
+lineTo(x + w*0.38, y + h*0.04)
+closePath  fill: bodyColor   stroke: 0x5577bb width:1
+```
+
+**Layer 10 — Elbow joints**
+```
+Left:  circle(x - w*0.3, y + h*0.04, w*0.06)  fill: 0x223355  stroke: 0x445577
+Right: circle(x + w*0.3, y + h*0.04, w*0.06)
+```
+
+**Layer 11 — Helmet dome (wider than torso)**
+```
+moveTo(x - w*0.34, y - h*0.13)
+lineTo(x - w*0.34, y - h*0.42)
+arc(x, y - h*0.42, w*0.34, Math.PI, 0)   // semicircle top
+lineTo(x + w*0.34, y - h*0.13)
+closePath   fill: bodyColor   stroke: 0x5588cc width:1
+```
+
+**Layer 12 — Helmet antenna/ridge**
+```
+rect(x - w*0.18, y - h*0.57, w*0.08, h*0.1)
+fill: bodyColor   stroke: 0x4466aa width:0.8
+```
+
+**Layer 13 — Chin guard**
+```
+moveTo(x - w*0.28, y - h*0.13)  lineTo(x - w*0.18, y - h*0.05)
+lineTo(x + w*0.18, y - h*0.05)  lineTo(x + w*0.28, y - h*0.13)
+fill: bodyColor darken   stroke: 0x4466aa width:0.8
+```
+
+**Layer 14 — Visor dark interior (behind the glow)**
+```
+rect(x - w*0.22, y - h*0.43, w*0.44, h*0.18)
+fill: 0x001122 alpha:0.85
+```
+
+**Layer 15 — T-VISOR (the iconic feature, two strokes)**
+```
+// Horizontal bar:
+moveTo(x - w*0.24, y - h*0.36)  lineTo(x + w*0.24, y - h*0.36)
+stroke: 0x00eeff width:2.5
+
+// Vertical drop from center:
+moveTo(x, y - h*0.36)  lineTo(x, y - h*0.22)
+stroke: 0x00eeff width:1.5
+
+// Soft outer glow (wider, lower alpha):
+moveTo(x - w*0.24, y - h*0.36)  lineTo(x + w*0.24, y - h*0.36)
+stroke: 0x44ffff width:5 alpha:0.25
+```
+
+**Layer 16 — Gauss Rifle (5 elements)**
+```
+// Stock at right hip:
+rect(x + w*0.26, y + h*0.0, w*0.12, h*0.14)   fill: 0x334455
+
+// Receiver/action (main body):
+rect(x + w*0.3, y - h*0.06, w*0.32, h*0.1)    fill: 0x445566   stroke: 0x556677 width:0.8
+
+// Magazine box (distinctive box below):
+rect(x + w*0.36, y + h*0.04, w*0.14, h*0.12)  fill: 0x2a3a4a   stroke: 0x445566 width:0.8
+
+// Barrel (slight downward angle):
+moveTo(x + w*0.62, y - h*0.02)  lineTo(x + w*0.95, y + h*0.1)
+stroke: 0x778899 width:2.5
+
+// Muzzle:
+circle(x + w*0.95, y + h*0.1, 2)  fill: 0x556677
+```
+
+**Layer 17 — Muzzle flash (when atkFlashTimer > 0)**
+```
+const fa = atkFlashTimer[eid] / FLASH_DURATION
+circle(x + w*0.95, y + h*0.1, 4 + fa*3)   fill: 0xffdd44 alpha: fa*0.9
+circle(x + w*0.95, y + h*0.1, 2 + fa*2)   fill: 0xffffff alpha: fa
+```
+
+**Layer 18 — Support arm (left arm bracing rifle)**
+```
+// Thick line from left body toward rifle
+moveTo(x - w*0.22, y + h*0.06)  lineTo(x + w*0.28, y + h*0.0)
+stroke: bodyColor width:4
+```
+
+**Layer 19 — Stim Pack ring (when active)**
+```
+if (stimEndTime[eid] > gameTime):
+  const p = 0.55 + Math.sin(gameTime * 8) * 0.3
+  circle(x, y, max(w,h) * 0.85)   stroke: 0xff8800 width:2.5 alpha:p
+  circle(x, y, max(w,h) * 0.65)   stroke: 0xffaa44 width:1   alpha:p*0.5
+```
+
+**Layer 20 — Idle breathing (micro-animation)**
+```
+// Very subtle: apply sin(gameTime * 1.2 + eid * 2.3) * 0.4 as Y offset to all layers
+// Units desync because eid differs. Makes the army feel alive.
+const breathY = Math.sin(gameTime * 1.2 + eid * 2.3) * 0.4
+// Add breathY to all layer y-coordinates above
+```
+
+### What this achieves
+- **Pauldrons at ±0.62×width** — they visibly dominate the silhouette
+- **T-visor** — 3 strokes (H bar + V drop + soft glow) = unmistakably SC2
+- **Rifle has 5 named elements** — readable at normal zoom, impressive up close
+- **22 draw calls** vs 7 currently — but all simple rects/lines/circles, negligible GPU cost
+- **Breathing animation** desync'd by EID — the army has organic life
+
+---
+
+## C.2 — Terran Unit Visual Pass
+
+### SCV
+- Cockpit canopy dome (small circle, glass-blue fill) on top
+- Two hover/thruster circles at the rear
+- Mining arm: L-shaped articulated arm (2 segments with joint circle) instead of single line
+- Treads/hover pads at the bottom as parallel dark rects
+- Construction welding: orange spark dot at arm tip when `workerState === Mining`
+
+### Marauder
+- Grenade launcher tubes: two short side-by-side rects per shoulder (not circles)
+- Heavy foot pods: wider rectangular feet
+- Chin strap: line from helmet base to shoulder plates
+- Visor: red-orange horizontal slit (distinguishes from Marine cyan at a glance)
+- Extra wrist detail: small circle on right wrist (grenade release mechanism)
+
+### Medivac
+- Complete rethink: rear-swept dropship profile (wider than tall)
+- Engine pods: two side rectangles with orange thruster-glow circles
+- Medical cross: larger, raised, with subtle inner fill
+- Landing lights: 3 pulsing circles on underside
+- Air elevation shadow: shadow offset slightly below and to side, suggesting altitude
+
+### Ghost
+- Cloaked shimmer: 3 vertical shimmer lines at random x offsets using sin waves (more visible shimmer)
+- Sniper scope ring: small circle on rifle barrel
+- Visor: narrow horizontal green line (distinct from Marine cyan)
+
+### Hellion
+- Flame trail when moving fast: 3 orange-to-transparent arcs behind the vehicle
+- Wheel rotation animation based on travel distance
+- Driver cockpit: small dark rect with tiny circle windshield
+
+### Viking
+- **Assault mode**: completely different silhouette — two leg struts with flat foot plates, cannon arms extending forward
+- **Fighter mode**: existing delta wing (already good)
+- Engine glow in fighter mode: blue circle at rear
+- Transformation pulse: yellow flash during state transition
+
+### Battlecruiser
+- Bridge superstructure: raised rect on top center
+- Side weapons: 3 small rects per side
+- Engine array: 3 blue-glow circles at rear (not 1)
+- Hull plating lines: 4 horizontal lines across the triangle body
+- Running lights: 2 tiny red/green dots blinking slowly (port/starboard)
+
+---
+
+## C.3 — Zerg Unit Visual Pass
+
+### Zergling
+- Speed lines: 3 short trailing lines when moving fast
+- Clawed legs: each leg ends in 2-3 short diverging lines
+- Eye glow: small red dot near front, pulsing with sin wave
+
+### Baneling
+- Acid drip: teardrop shape hanging from bottom
+- Pre-explosion warning: when HP < 25%, faster pulse + red tinge to inner glow
+
+### Hydralisk
+- Scale texture: overlapping arc shapes along body
+- Attack lunge: neck extends forward 3px when atkFlashTimer > 0
+- Back spines: 2-3 small triangular spines along dorsal line
+
+### Roach
+- Regen glow: subtle green inner glow when regenerating (lastCombatTime > 3s)
+- Armour segments: 3 vertical lines across carapace
+- Eye stalks: 2 small circles with red dots above body
+
+### Mutalisk
+- Banking animation: slight roll based on velocity direction
+- Glaive attack trail: brief green arc from beak to target when attacking
+- Eye: single orange circle with pupil slit
+
+### Queen
+Currently falls through to default rendering. Full redesign:
+- Tall upright body (taller than wide)
+- Long scythe arms: two long curved lines extending upward from mid-body
+- Crown of spines: 5-6 short triangular spines at top
+- Egg sac abdomen: lower body is bulbous circle blending into rect
+- Single large glowing purple eye at center
+
+### Ultralisk
+- Kaiser blades: proper blade shapes (wide base, tapering point, slight inward curve) replacing simple arc
+- Four legs: 2 front + 2 rear, each ending in claw
+- Dorsal spine ridge: raised fin along top
+- Two bright red eyes near front
+
+### Infestor
+- Pulsing body: 0.5Hz sine wave on radius
+- 4 tentacles in different directions, varying lengths
+- Floating spore particles: 3-4 small circles drifting outward
+- Dark arc mouth on front
+
+---
+
+## C.4 — Building Visual Pass
+
+### Universal depth system for all buildings
+Every building gets 3 layers:
+1. Drop shadow (dark ellipse below, slight offset)
+2. Wall face (base faction color)
+3. Roof/upper face (base color + 0x111111 lighter, suggesting top surface)
+4. Window/port details (small dark rects or circles)
+
+### Terran buildings
+
+**Command Center**: Orbital ring (thin ellipse around upper portion); landing pad guide lines on roof; antenna array (3-4 vertical lines of varying height); vents on sides.
+
+**Barracks**: Door arch at base center; window row (3-4 dark rects along upper wall); production glow (subtle blue pulse at door when unit training).
+
+**Factory**: Exposed gear shape on one side; smoke stack (thin rect with rising circle particles); loading dock at base.
+
+**Starport**: Runway lights (alternating small circles on landing strip); control tower (thin vertical rect from center); radar dish on tower.
+
+### Zerg buildings
+
+**Hatchery** (biggest change needed):
+- Organic mound: irregular polygon instead of rectangle
+- Pulsing membrane top: animated ellipse with wavy outline
+- Larva eggs: 1-3 small ellipses clustered near base when larvaCount > 0
+- Creep veins: 3-4 branching thin lines extending from base
+
+**Spawning Pool**:
+- Bubbling liquid: 3-4 rising circle particles at different sizes
+- Organic walls: wavy polygon outline
+- Dark red inner fluid glow
+
+---
+
+## C.5 — Resource Node Visual Pass
+
+### Mineral Patches
+- Crystal cluster: 3-5 overlapping diamonds of varying heights instead of single shape
+- Refraction shimmer: thin white highlight line on one edge
+- Soft blue glow beneath cluster
+- Depletion stages: crystal cluster loses height as `resourceRemaining` decreases (above 50% = full cluster, 25-50% = medium, <25% = stubby remnants)
+
+### Vespene Geyser
+- Irregular polygon mouth (not perfect circle)
+- Gas jets: 3-4 small circles rising from mouth, alpha fading upward
+- Larger ambient green halo
+
+---
+
+## C.6 — Environmental Visual Pass
+
+### Ground tiles
+- Subtle tile brightness variation (±5% random per tile, computed once at map gen, stored in tileVariation array)
+- Very subtle dot pattern overlay at 0.04 alpha
+- Darker edge shading on tiles adjacent to water
+
+### Water
+- Foam edges at water-ground boundaries
+- Depth variation: tiles further from land are slightly darker
+- Faint terrain color reflection at 0.15 alpha
+
+### Creep
+- Organic edge blending: tiles at creep boundary are lighter, deep creep is darker
+- Vein network: thin branching lines connecting creep patches
+- Very slow pulse (0.3Hz sine on overall alpha)
+
+---
+
+## C.7 — Effects Pass
+
+### Death effects (unit-type specific)
+
+**Mechanical** (SCV, Tank, Hellion, Cyclone, Thor, BC, Widow Mine, Viking):
+- Expansion flash: large orange circle expanding to 2x unit size over 0.2s then fading
+- Debris: 4-6 small dark rectangles flying outward at random angles, decelerating
+- Smoke cloud: 2-3 expanding circles decreasing in opacity after flash
+
+**Biological Terran** (Marine, Ghost, Reaper, Marauder, Medivac):
+- Blood splatter: 4-6 small dark red circles at random offsets
+- Forward collapse: slight forward translation while shrinking
+
+**Zerg**:
+- Acid splatter: 3-4 yellow-green dots around death position
+- Dissolve: unit darkens and flattens (squish then fade)
+
+**Baneling** (upgrade the existing explosion):
+- Larger initial flash
+- More debris (8-10 particles)
+- Green acid circles radiating outward
+
+### Explosion effects (Siege Tank, Baneling AoE)
+- Screen-space shockwave ring: expanding circle from impact, fading over 0.3s
+- Debris cloud at impact center
+- Brief tile brightening within splash radius (0.1s)
+
+### Ability effects
+- **Fungal Growth**: pulsing green concentric rings from center with spike protrusions at ring edges
+- **Corrosive Bile**: visible glowing green sphere in flight (use ProjectileRenderer extension)
+- **Yamato Cannon**: thick orange beam (width 6) with bright white core (width 2), flashes and fades over 0.5s
+- **Stim activation**: brief white flash before the orange ring settles
+
+---
+
+## C.8 — UI Visual Pass
+
+### Health bars
+- Segmented into 5 equal sections with thin gaps — losing a full segment is visually dramatic
+- Brief white pulse when unit takes damage (damage flash on the bar itself)
+- Upward arrow icon next to bar for regenerating units (Roach, Medivac-healed)
+
+### Selection indicator
+Replace the circle ring with SC2-style corner brackets (4 L-shapes at compass points):
+```
+Top-left:    moveTo(x - hw, y - hh + 4)  lineTo(x - hw, y - hh)  lineTo(x - hw + 4, y - hh)
+Top-right:   symmetric
+Bottom-left: symmetric
+Bottom-right:symmetric
+```
+- Active subgroup (after Tab cycle): brighter color, slightly larger brackets
+
+### Info panel
+- Left border accent: changes color to faction primary (TERRAN_PRIMARY or ZERG_PRIMARY)
+- Ability cooldown arc: pie-chart wedge on ability buttons showing remaining cooldown
+- Stat icons: small geometric shapes instead of text labels (sword = dmg, shield = armor)
+- Panel fade-in: content fades in over 0.15s on selection change (CSS transition)
+
+### HUD resource bar
+- Mineral icon: small blue diamond shape (Canvas 2D drawn once)
+- Gas icon: small green hexagon
+- Supply bar: visual fill bar showing percentage to supply cap
+- Low supply warning: supply bar turns red + pulses when >= 85% full
+
+---
+
+## C.9 — Colour Palette Codification
+
+Add these constants to `src/constants.ts` and use throughout (replace inline hex values):
+
+```typescript
+// Terran
+export const TERRAN_PRIMARY   = 0x2266aa; // armour base
+export const TERRAN_LIGHT     = 0x4488cc; // highlights
+export const TERRAN_DARK      = 0x112244; // shadows
+export const TERRAN_VISOR     = 0x00eeff; // Marine visor, energy effects
+export const TERRAN_WARNING   = 0xff6622; // damage, alerts
+export const TERRAN_METAL     = 0x445566; // weapons, machinery
+
+// Zerg
+export const ZERG_FLESH       = 0x882244; // unit base
+export const ZERG_LIGHT       = 0xaa4466; // highlights
+export const ZERG_SHADOW      = 0x330011; // deep shadow
+export const ZERG_ACID        = 0x88ff22; // Baneling, Bile, Fungal effects
+export const ZERG_CREEP_COLOR = 0x6600aa; // creep overlay
+export const ZERG_EYE_COLOR   = 0xff2200; // eye glow
+
+// Resources / neutral
+export const MINERAL_CRYSTAL  = 0x44aaff;
+export const GAS_GREEN        = 0x44ff88;
+export const NEUTRAL_STONE    = 0x888888;
+```
+
+---
+
+## Iteration C — Sprint Order
+
+| # | Item | Effort | Visual Impact |
+|---|------|--------|--------------|
+| C.9 | Colour palette codification | 1h | ★★★★ (cohesion throughout) |
+| C.1 | Marine complete redesign (22-layer) | 4h | ★★★★★ |
+| C.8 | Health bar segments + selection brackets | 2h | ★★★★ |
+| C.2 | Terran unit pass (SCV, Marauder, Medivac, Viking, BC) | 3h | ★★★★ |
+| C.3 | Zerg unit pass (Queen, Ultralisk, Infestor priority) | 3h | ★★★★ |
+| C.4 | Building visual pass | 3h | ★★★ |
+| C.7 | Effects (death particles, explosions, ability visuals) | 3h | ★★★★ |
+| C.5 | Resource node visual pass | 1h | ★★★ |
+| C.6 | Environmental pass (tiles, water, creep) | 2h | ★★★ |
+| C.8 | Info panel + HUD icons | 2h | ★★★ |
+
+**Total: ~2.5 days**
+
+---
+
+## Combined 3-Iteration Roadmap (5 days)
+
+```
+Day 1: B.1 base defense + B.3 faster pressure + B.9 cross-map routing
+       + A.2 control group UI strip + A.1 Ctrl+click type-select
+
+Day 2: B.6 persistent harassment + B.4 expanded AI base + B.2 vanguard
+       + C.9 colour palette + C.1 Marine redesign (22-layer)
+
+Day 3: A.3 portraits + A.5 Tab count display + A.4 subgroup ability panel
+       + C.8 health bar segments + selection brackets
+
+Day 4: B.5 reactive intel + B.7 AI abilities + B.8 escalating late-game
+       + C.2 Terran visual pass + C.3 Zerg visual pass
+
+Day 5: C.4 buildings + C.7 effects + C.5 resources + C.6 environment
+       + C.8 UI polish + A.6 hotkey panel
+```

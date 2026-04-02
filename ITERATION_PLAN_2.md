@@ -1022,4 +1022,267 @@ Day 4: B.5 reactive intel + B.7 AI abilities + B.8 escalating late-game
 
 Day 5: C.4 buildings + C.7 effects + C.5 resources + C.6 environment
        + C.8 UI polish + A.6 hotkey panel
+
+---
+
+---
+
+# Iteration D — Sound Design & Audio Depth
+
+## D.1 — Unit Voice Lines (Web Speech API)
+
+The game has procedural audio but no voice feedback. SC2's unit voices ("Hell, it's about time!", "Nuclear launch detected") are a core part of feel.
+
+Use the browser's `speechSynthesis` API to generate unit acknowledgment lines. No audio assets needed.
+
+**Per-unit acknowledgment lines (on selection):**
+
+| Unit | Lines (cycle randomly) |
+|------|----------------------|
+| Marine | "Sir, yes sir." / "Ready to rock." / "Need something?" |
+| Marauder | "That all you got?" / "Locked and loaded." |
+| SiegeTank | "Tank online." / "Locked in position." |
+| Ghost | "Orders received." / "Silent and deadly." |
+| Medivac | "Medical support standing by." / "All hands, report." |
+| SCV | "Yes? What?" / "I'm on it." |
+| Zergling | (chittering sound via oscillator — no speech) |
+| Hydralisk | (hissing breath — no speech) |
+| Queen | "The brood calls." / "By the Swarm." |
+| Overlord | (low rumble — no speech) |
+
+**On command (RMB move):**
+- Marine: "Move it!" / "Affirmative." / "Roger that."
+- SCV: "You got it." / "Right away."
+- Ghost: "Acknowledged." (whispered, low volume)
+
+**Implementation:**
+Add `voiceSystem(unitTypeId: number, eventType: 'select' | 'command'): void` to `SoundManager.ts`. Use `speechSynthesis.speak(new SpeechSynthesisUtterance(line))` with rate 1.1, pitch 0.9, volume 0.6. Throttle to 1 utterance per 1.5s to prevent overlap. Pick random line from the unit's pool each call.
+
+**Files:** `src/audio/SoundManager.ts`, `src/systems/SelectionSystem.ts`, `src/input/CommandQueue.ts` (CommandSystem move handling)
+
+---
+
+## D.2 — Ambient Battlefield Sounds
+
+The map should feel alive even when nothing is happening.
+
+**Ambient tracks (Web Audio API, generated procedurally):**
+
+- **Terran base ambient**: low industrial hum (50Hz sine + slight noise, volume 0.03). Plays when camera is near CC.
+- **Zerg base ambient**: organic breathing pulse (0.4Hz LFO on noise, 80-200Hz band-pass). Plays near Hatchery.
+- **Combat ambient**: when any unit within 15 tiles is in combat, layer a bass rumble (layered sine waves 40-80Hz, random amplitude modulation).
+- **Mineral mining loop**: faint rhythmic tap when workers are active (short noise burst every 2.2s).
+
+**Implementation:** Add `ambientAudioSystem(world, gameTime)` to `SoundManager.ts`. Uses `AudioContext.createOscillator` and `createBufferSource` with looping noise buffers. Called from `Game.render()` — ambient is render-rate, not tick-rate.
+
+---
+
+## D.3 — Positional Audio Fade
+
+Currently sounds play at constant volume regardless of camera position. Real positional audio would use `PannerNode` but that requires knowing screen position — complex.
+
+**Simplified solution:** For attack sounds, scale volume by proximity of the attack to the camera center:
+```
+distance = sqrt((posX - cameraX)^2 + (posY - cameraY)^2)
+volume = max(0, 1 - distance / (15 * TILE_SIZE))
+```
+Pass this as a volume multiplier to `soundManager.playAttack()`. Attacks far off-screen are barely audible; nearby fights are full volume.
+
+**Files:** `src/audio/SoundManager.ts`, `src/systems/CombatSystem.ts`
+
+---
+
+## D.4 — Ability Sound Effects
+
+Most abilities are silent. Add:
+
+| Ability | Sound |
+|---------|-------|
+| Stim Pack | Sharp rising hiss (filtered noise, 0.15s) |
+| Siege Mode | Heavy clunk + hydraulic hiss (two tones, 0.4s) |
+| Yamato Cannon | Deep bass boom + high-pitched zap (0.8s) |
+| Corrosive Bile (impact) | Wet splat + sizzle (noise burst, 0.3s) |
+| Fungal Growth | Rising organic tone + root sound (0.6s) |
+| Inject Larva | Soft wet thud (0.15s) |
+| Ghost Cloak | Phase-shift shimmer (short chorus effect, 0.2s) |
+| Abduct | Wind rush + thud (0.4s) |
+
+**Files:** `src/audio/SoundManager.ts`, `src/systems/AbilitySystem.ts`, `src/systems/CommandSystem.ts`
+
+---
+
+## D.5 — Music System (Adaptive Layer Approach)
+
+SC2's music intensifies during combat. Implement a 3-layer adaptive system:
+
+**Layer 1 — Base layer (always playing):** Slow, atmospheric drone. 3 sustained oscillators at 80Hz, 120Hz, 160Hz with very slight detuning and slow LFO (0.05Hz). Volume 0.06.
+
+**Layer 2 — Tension layer (when enemy spotted or wave approaching):** Rhythmic percussive element. Short noise bursts at 2.5 beats/sec with high-pass filter. Fades in over 3s when `aiState.isAttacking || distanceToEnemy < 20 tiles`. Volume 0.04.
+
+**Layer 3 — Combat layer (active fighting):** Higher-frequency saw wave (200Hz), rhythmically gated with `combatIntensity > 0`. Fades in as `damageEvents.length` increases. Volume 0.03.
+
+**Smooth crossfading:** Each layer uses a `GainNode` with `gain.linearRampToValueAtTime()` for smooth 2-3s transitions. No abrupt changes.
+
+**Files:** `src/audio/SoundManager.ts`, `src/Game.ts`
+
+---
+
+---
+
+# Iteration E — Game Systems Depth
+
+## E.1 — Camera System Improvements
+
+### Smart Camera Framing
+When a unit is attacked and the player is not looking at it, the current system shows a text alert. Add:
+- **Soft nudge**: if the alert point is within 15 tiles of current camera center, gently pan toward it (not a jump) over 0.8s
+- **Combat zoom-out**: when 10+ units are in combat within the current view, gradually zoom out to show more of the battle (reduce zoom to max(currentZoom - 0.2, MIN_ZOOM) over 1s)
+- **Idle zoom-in**: when camera is stationary with nothing happening nearby, slowly creep toward normal zoom over 3s
+
+### Camera Shake Improvements
+Current camera shake applies to `app.stage`. Extend:
+- **Directional shake**: nuclear explosion at top-right → camera shakes more up-right
+- **Decay curve**: instead of linear decay, use a smooth exponential decay
+- **Screen-edge vignette**: when camera shake > 2px, darken the screen edges slightly (CSS vignette on overlay div)
+
+**Files:** `src/Game.ts`, `src/rendering/CameraShake.ts`
+
+---
+
+## E.2 — Unit Interaction Depth
+
+### Medivac Load/Unload
+Currently Medivacs can "follow" units. Add proper load/unload:
+- `CommandType.Load = 26`: target-click on a biological unit while Medivac selected → unit enters Medivac, invisible, Medivac carries capacity up to 8 supply
+- `CommandType.Unload = 27`: press U key while Medivac selected → drops all cargo at current position
+- Medivac shows cargo count on its unit icon
+
+**Files:** `src/ecs/components.ts` (cargoEids array), `src/systems/CommandSystem.ts`, `src/rendering/UnitRenderer.ts`
+
+### Unit Stacking Prevention
+Currently separation physics prevents units from stacking but it's reactive. Add:
+- When a move order is issued to a position occupied by friendly units, automatically offset the destination by 1-2 tiles for each unit in the group (already partially done via formation spacing in CommandSystem — improve the formation algorithm)
+- **Concave formation**: when attacking, units form a semi-circle facing the target (not a square grid), maximising the number of units that can fire simultaneously
+
+### Friendly Fire Toggle
+A `ffEnabled: boolean` game option — when true, splash damage (Siege Tank, Baneling) also damages friendly units. Off by default. This adds a strategic layer: friendly banelings can kill friendly marines. Already partially works since splash doesn't check faction.
+
+---
+
+## E.3 — Fog of War Improvements
+
+### Last Known Position
+When an enemy unit was visible but moves into fog, leave a ghost (semi-transparent, frozen) at its last known position for 3s. This is how SC2 handles it.
+
+**Implementation:**
+- New array: `lastKnownX: Float32Array`, `lastKnownY: Float32Array`, `lastKnownTime: Float32Array`
+- In `FogSystem`, when a unit transitions from visible → not visible: record `lastKnownX/Y/Time[eid] = current position/gameTime`
+- In `UnitRenderer`, render "ghost" units at `lastKnownX/Y` at 20% alpha when `!isTileVisible` and `gameTime - lastKnownTime < 3`
+
+**Files:** `src/ecs/components.ts`, `src/systems/FogSystem.ts`, `src/rendering/UnitRenderer.ts`
+
+### Vision Blockers
+Cliffs and rock formations should block line of sight, not just limit range. This is complex to implement fully, but a simplified version:
+- Tiles adjacent to rocks have 50% reduced vision range (pass through the blocker check in FogSystem)
+- Units standing ON a high-ground tile (if elevation system were added) see further
+
+---
+
+## E.4 — Game Modes
+
+### Sudden Death Mode
+When enabled: mineral and gas income is doubled but all buildings are destructible in 2 hits (HP reduced 80%). Creates fast, explosive games. Toggle in Advanced Settings.
+
+### Fog of War Off
+Already implemented (`fogEnabled` flag). Make it more prominent in the UI with a label "Fog: ON/OFF" in the game HUD and a toggle key (`F9`).
+
+### Turbo Mode
+Game speed locked to 2x (no player adjustment). Banner at top: "TURBO". Useful for quick AI testing. Accessible from Advanced Settings.
+
+### Mirror Match
+Force both factions to be the same race (both Terran or both Zerg). The AI plays the same faction as the player, making it a true skill test against the same unit set.
+
+---
+
+## E.5 — Minimap Intelligence
+
+The minimap currently shows unit dots and buildings. Add:
+
+**Threat overlay:** When AI units are visible to the player, draw their projected attack path as a faint arrow on the minimap pointing from AI base toward player base. Updates when AI army moves.
+
+**Economic overlay toggle (Tab on minimap):** Cycle through minimap display modes:
+1. Normal (unit dots + buildings)
+2. Economy (mineral income per patch, worker coverage)
+3. Military (army value indicators, control zone circles)
+
+**Ping system:** Teammate-style pings (for future multiplayer). Press `G` while hovering over minimap to place a ping at that location. Pings appear as expanding circles on both minimap and main viewport.
+
+---
+
+## E.6 — Unit Veterancy System
+
+Units that survive and accumulate kills should become more powerful. This already partially works (`killCount` is tracked) but nothing uses it.
+
+**Veterancy levels:**
+| Level | Kills required | Bonus |
+|-------|---------------|-------|
+| Novice | 0 | base stats |
+| Veteran | 4 | +10% HP, damage +1 |
+| Elite | 10 | +20% HP, damage +2, +1 armor |
+| Hero | 20 | +30% HP, damage +3, +2 armor, speed +10% |
+
+**Visual indicator:** A small star badge next to the unit's health bar (1-3 stars based on level). In the info panel: "Elite Marine ★★★".
+
+**Implementation:**
+- `veterancyLevel: Uint8Array` computed from `killCount` in a new system or lazily in `InfoPanelRenderer`
+- Bonuses applied in `spawnUnitAt` are base stats — veterancy applies on-top via multipliers checked in `CombatSystem` damage calculation
+- The star badges are simple 5-pointed star paths drawn in `UnitRenderer`
+
+**Files:** `src/ecs/components.ts` (veterancyLevel), `src/systems/CombatSystem.ts`, `src/rendering/UnitRenderer.ts`, `src/rendering/InfoPanelRenderer.ts`
+
+---
+
+## E.7 — Creep Highway System (Zerg QoL)
+
+Zerg units on creep get +30% speed (already implemented). But creep only spreads from buildings slowly. Add a **Creep Highway** mechanic:
+
+The Queen can place **Creep Tumors** (C key while Queen selected, click target):
+- Cost: 25 energy
+- A Creep Tumor entity spawns at the target
+- After 11s it becomes active and starts spreading creep (6-tile radius)
+- Active tumors can spawn additional tumors within their creep radius (C key on the tumor)
+
+This creates an expanding Zerg creep network that the player can build intentionally as a movement highway, which also reveals terrain (tumors have 2-tile vision).
+
+**Files:** `src/input/CommandQueue.ts` (`CreepTumor = 28`), `src/input/InputProcessor.ts`, `src/systems/CommandSystem.ts`, `src/systems/CreepSystem.ts`, `src/rendering/UnitRenderer.ts`
+
+---
+
+## Combined 5-Iteration Roadmap (8 days)
+
+```
+Day 1: B.1-B.3-B.9 (AI critical: defense, pressure, cross-map routing)
+       + A.2 (control group UI) + A.1 (Ctrl+click)
+
+Day 2: B.6-B.4-B.2 (persistent harassment, expanded base, vanguard)
+       + C.9 (palette) + C.1 (Marine redesign)
+
+Day 3: A.3-A.5-A.4 (portraits, tab display, subgroup abilities)
+       + C.8 (health bars, selection brackets)
+
+Day 4: B.5-B.7-B.8 (reactive AI, ability usage, escalation)
+       + C.2-C.3 (Terran + Zerg unit passes)
+
+Day 5: C.4-C.7-C.5-C.6 (buildings, effects, resources, environment)
+       + C.8-A.6 (UI polish, hotkeys)
+
+Day 6: D.1-D.2-D.3 (voice lines, ambient, positional audio)
+       + D.4-D.5 (ability sounds, adaptive music)
+
+Day 7: E.1-E.2-E.3 (camera, unit depth, fog improvements)
+       + E.6 (veterancy system)
+
+Day 8: E.4-E.5-E.7 (game modes, minimap intelligence, creep highway)
+       + Final QA pass + push
+```
 ```

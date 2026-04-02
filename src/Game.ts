@@ -439,11 +439,11 @@ export class Game {
       // Normal game: spawn resource nodes + bases
       this.spawnResourceNodes();
       if (this.playerFaction === Faction.Zerg) {
-        this.spawnZergBase();        // player's Zerg base at (15, 15)
-        this.spawnTerranAIBase();    // AI's Terran base at (112, 112)
+        this.spawnZergBase(15, 15, true);   // player's Zerg base with 12 Drones
+        this.spawnTerranAIBase();            // AI's Terran base at (112, 112)
       } else {
-        this.spawnStartingBase();    // player's Terran base at (15, 15)
-        this.spawnZergBase();        // AI's Zerg base at (117, 117)
+        this.spawnStartingBase();            // player's Terran base with 12 SCVs
+        this.spawnZergBase(117, 117, false); // AI's Zerg base (AI spawns its own units)
       }
       spawnRockEntities(this.world, this.map);
     }
@@ -1291,22 +1291,41 @@ export class Game {
     buildProgress[ccEid] = 1.0;
     hpCurrent[ccEid] = hpMax[ccEid];
     supplyProvided[ccEid] = BUILDING_DEFS[BuildingType.CommandCenter].supplyProvided;
-    // Starting supply already set in resources init
+
+    // LotV: 12 starting workers
+    const ccPos = tileToWorld(15, 15);
+    for (let i = 0; i < 12; i++) {
+      const col = i % 4;
+      const row = Math.floor(i / 4);
+      const sEid = this.spawnUnitAt(UnitType.SCV, Faction.Terran, ccPos.x + (col - 1.5) * TILE_SIZE, ccPos.y - TILE_SIZE * (2 + row));
+      workerBaseX[sEid] = ccPos.x;
+      workerBaseY[sEid] = ccPos.y;
+    }
   }
 
-  private spawnZergBase(): void {
-    // Spawn a completed Hatchery at AI spawn location
-    const hatchEid = this.spawnBuilding(BuildingType.Hatchery, Faction.Zerg, 117, 117);
+  private spawnZergBase(col = 117, row = 117, spawnWorkers = false): void {
+    const hatchEid = this.spawnBuilding(BuildingType.Hatchery, Faction.Zerg, col, row);
     buildState[hatchEid] = BuildState.Complete;
     buildProgress[hatchEid] = 1.0;
     hpCurrent[hatchEid] = hpMax[hatchEid];
     supplyProvided[hatchEid] = BUILDING_DEFS[BuildingType.Hatchery].supplyProvided;
 
-    // Spawn a completed Spawning Pool nearby
-    const poolEid = this.spawnBuilding(BuildingType.SpawningPool, Faction.Zerg, 114, 117);
+    const poolEid = this.spawnBuilding(BuildingType.SpawningPool, Faction.Zerg, col - 3, row);
     buildState[poolEid] = BuildState.Complete;
     buildProgress[poolEid] = 1.0;
     hpCurrent[poolEid] = hpMax[poolEid];
+
+    // LotV: 12 starting workers
+    if (spawnWorkers) {
+      const hatchPos = tileToWorld(col, row);
+      for (let i = 0; i < 12; i++) {
+        const c = i % 4;
+        const r = Math.floor(i / 4);
+        const dEid = this.spawnUnitAt(UnitType.Drone, Faction.Zerg, hatchPos.x + (c - 1.5) * TILE_SIZE, hatchPos.y - TILE_SIZE * (2 + r));
+        workerBaseX[dEid] = hatchPos.x;
+        workerBaseY[dEid] = hatchPos.y;
+      }
+    }
   }
 
   private spawnTerranAIBase(): void {
@@ -1327,13 +1346,15 @@ export class Game {
     buildState[bEid] = BuildState.Complete;
     buildProgress[bEid] = 1.0;
     hpCurrent[bEid] = hpMax[bEid];
-    // Spawn 4 Marines near the Barracks
+    // Spawn 4 Marines near the Barracks (starting army for AI)
     for (let i = 0; i < 4; i++) {
       this.spawnUnitAt(UnitType.Marine, Faction.Terran, ccPos.x + (i - 2) * TILE_SIZE, ccPos.y + TILE_SIZE * 3);
     }
-    // Spawn 4 SCVs near the CC
-    for (let i = 0; i < 4; i++) {
-      const sEid = this.spawnUnitAt(UnitType.SCV, Faction.Terran, ccPos.x + (i - 2) * TILE_SIZE, ccPos.y - TILE_SIZE * 2);
+    // LotV: 12 starting SCVs near the CC
+    for (let i = 0; i < 12; i++) {
+      const col = i % 4;
+      const row = Math.floor(i / 4);
+      const sEid = this.spawnUnitAt(UnitType.SCV, Faction.Terran, ccPos.x + (col - 1.5) * TILE_SIZE, ccPos.y - TILE_SIZE * (2 + row));
       workerBaseX[sEid] = ccPos.x;
       workerBaseY[sEid] = ccPos.y;
     }

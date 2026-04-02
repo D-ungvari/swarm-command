@@ -169,6 +169,7 @@ export class Game {
   private startingMinerals = STARTING_MINERALS;
   private fogEnabled = true;
   private survivalMode = false;
+  private turboMode = false;
 
   // Fixed timestep accumulator
   private accumulator = 0;
@@ -226,6 +227,11 @@ export class Game {
 
   setSurvivalMode(v: boolean): void {
     this.survivalMode = v;
+  }
+
+  setTurboMode(v: boolean): void {
+    this.turboMode = v;
+    if (v) this.gameSpeedIndex = 3; // lock to 2x
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -678,12 +684,32 @@ export class Game {
       this.minimapRenderer.showAttackPing(hit.x, hit.y, this.gameTime);
     }
 
-    // Game speed: + / -
-    if (this.input.state.keysJustPressed.has('Equal')) {
-      this.gameSpeedIndex = Math.min(3, this.gameSpeedIndex + 1);
+    // Game speed: + / - (disabled in turbo mode)
+    if (!this.turboMode) {
+      if (this.input.state.keysJustPressed.has('Equal')) {
+        this.gameSpeedIndex = Math.min(3, this.gameSpeedIndex + 1);
+      }
+      if (this.input.state.keysJustPressed.has('Minus')) {
+        this.gameSpeedIndex = Math.max(0, this.gameSpeedIndex - 1);
+      }
     }
-    if (this.input.state.keysJustPressed.has('Minus')) {
-      this.gameSpeedIndex = Math.max(0, this.gameSpeedIndex - 1);
+
+    // F9 = toggle fog of war
+    if (this.input.state.keysJustPressed.has('F9')) {
+      this.fogEnabled = !this.fogEnabled;
+    }
+
+    // Soft camera nudge toward combat (not a hard jump)
+    if (hit.time > 0 && this.gameTime - hit.time < 0.5) {
+      const camX = this.viewport.center.x;
+      const camY = this.viewport.center.y;
+      const ndx = hit.x - camX;
+      const ndy = hit.y - camY;
+      const dist = Math.sqrt(ndx * ndx + ndy * ndy);
+      if (dist > 10 * TILE_SIZE && dist < 40 * TILE_SIZE) {
+        // Nudge 2% toward the attack each frame
+        this.viewport.moveCenter(camX + ndx * 0.02, camY + ndy * 0.02);
+      }
     }
 
     // Spacebar = jump camera to base

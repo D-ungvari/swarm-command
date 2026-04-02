@@ -51,6 +51,11 @@ function startGame(): void {
     game.setSurvivalMode(survivalSelect.value === '1');
   }
 
+  const turboSelect = document.getElementById('turbo-mode') as HTMLSelectElement | null;
+  if (turboSelect) {
+    game.setTurboMode(turboSelect.value === '1');
+  }
+
   // Read faction selection
   const factionZergBtn = document.getElementById('faction-zerg') as HTMLButtonElement | null;
   const isZerg = factionZergBtn?.dataset.selected === 'true';

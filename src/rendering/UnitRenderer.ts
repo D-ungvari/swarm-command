@@ -13,6 +13,7 @@ import {
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   velX, velY, commandMode,
   cloaked, energy, isAir,
+  veterancyLevel,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -1756,6 +1757,24 @@ export class UnitRenderer {
             g.rect(segX, barY, segFill, barH);
             g.fill({ color: hpColor });
           }
+        }
+      }
+
+      // Veterancy stars — drawn above the health bar
+      const vet = veterancyLevel[eid];
+      if (vet > 0 && hpCurrent[eid] > 0) {
+        const starBarX = x - (w + 4) / 2;
+        const starBarY = y - h / 2 - 6;
+        for (let s = 0; s < vet; s++) {
+          const sx = starBarX + s * 5 + 2;
+          const sy = starBarY - 4;
+          // Small filled diamond shape as a star indicator
+          g.moveTo(sx, sy - 3);
+          g.lineTo(sx + 2, sy);
+          g.lineTo(sx, sy + 3);
+          g.lineTo(sx - 2, sy);
+          g.closePath();
+          g.fill({ color: vet === 3 ? 0xffdd00 : vet === 2 ? 0x44ffaa : 0xaaaaff });
         }
       }
 

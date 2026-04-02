@@ -5,7 +5,7 @@ import {
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   resourceRemaining, resourceType, unitType,
-  selected, hpCurrent, hpMax, faction, renderTint, killCount,
+  selected, hpCurrent, hpMax, faction, renderTint, killCount, veterancyLevel,
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
   energy, cloaked, stimEndTime,
   larvaCount, addonType,
@@ -455,7 +455,13 @@ export class InfoPanelRenderer {
       const fac = faction[eid] as Faction;
       const facName = fac === Faction.Terran ? 'Terran' : fac === Faction.Zerg ? 'Zerg' : '';
       const kills = killCount[eid];
-      this.detailEl.textContent = kills > 0 ? `${facName}  Kills: ${kills}` : facName;
+      const vet = veterancyLevel[eid];
+      let detailText = kills > 0 ? `${facName}  Kills: ${kills}` : facName;
+      if (vet > 0) {
+        const vetNames = ['', 'Veteran', 'Elite', 'Hero'];
+        detailText += `  ${vetNames[vet]} ${'\u2605'.repeat(vet)}`;
+      }
+      this.detailEl.textContent = detailText;
 
       // Ghost: show energy and cloak status
       if (ut === UnitType.Ghost) {

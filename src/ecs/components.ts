@@ -86,6 +86,8 @@ export const baseArmor = new Float32Array(MAX_ENTITIES);
 export const pendingDamage = new Float32Array(MAX_ENTITIES);
 /** Lifetime kill count for this entity */
 export const killCount = new Uint16Array(MAX_ENTITIES);
+/** Veterancy level: 0=Novice, 1=Veteran, 2=Elite, 3=Hero */
+export const veterancyLevel = new Uint8Array(MAX_ENTITIES);
 
 // ── Ability: Stim Pack ──
 /** gameTime when stim expires, 0 = not stimmed */
@@ -274,7 +276,7 @@ export function resetComponents(eid: number): void {
   atkDamage[eid] = 0; atkRange[eid] = 0; atkCooldown[eid] = 0;
   atkLastTime[eid] = 0; atkSplash[eid] = 0;
   atkDamageType[eid] = 0; armorClass[eid] = 0; baseArmor[eid] = 0;
-  pendingDamage[eid] = 0; killCount[eid] = 0;
+  pendingDamage[eid] = 0; killCount[eid] = 0; veterancyLevel[eid] = 0;
   moveSpeed[eid] = 0; moveTargetX[eid] = -1; moveTargetY[eid] = -1;
   movePathIndex[eid] = -1;
   selected[eid] = 0; faction[eid] = 0;

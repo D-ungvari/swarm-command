@@ -7,7 +7,7 @@ import {
   movePathIndex, setPath,
   unitType,
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
-  atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
+  atkDamageType, armorClass, baseArmor, pendingDamage, killCount, veterancyLevel,
   cloaked,
   isAir, canTargetGround, canTargetAir,
 } from '../ecs/components';
@@ -52,6 +52,14 @@ const chaseTargetX = new Float32Array(MAX_ENTITIES);
 const chaseTargetY = new Float32Array(MAX_ENTITIES);
 
 const FLASH_DURATION = 0.12; // seconds
+
+/** Recompute veterancy level from kill count (called after each kill) */
+function updateVeterancy(eid: number): void {
+  const kills = killCount[eid];
+  if (kills >= 20) veterancyLevel[eid] = 3;      // Hero
+  else if (kills >= 10) veterancyLevel[eid] = 2;  // Elite
+  else if (kills >= 4) veterancyLevel[eid] = 1;   // Veteran
+}
 
 // ── Damage events for floating damage indicators ──
 export interface DamageEvent {
@@ -238,7 +246,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     const mult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[tgt] as ArmorClass);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
     const armorBonus = getArmorBonus(resources, faction[tgt]);
-    const rawDmg = Math.max(1, ((atkDamage[eid] + weaponBonus) * mult) - (baseArmor[tgt] + armorBonus));
+    const vetBonus = veterancyLevel[eid]; // 0-3 extra damage
+    const vetArmor = veterancyLevel[tgt]; // 0-3 extra armor
+    const rawDmg = Math.max(1, ((atkDamage[eid] + weaponBonus + vetBonus) * mult) - (baseArmor[tgt] + armorBonus + vetArmor));
 
     // Commit damage to pending (overkill prevention tracks this)
     pendingDamage[tgt] += rawDmg;
@@ -263,6 +273,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     if (hpCurrent[tgt] <= 0) {
       killCount[eid]++;
+      updateVeterancy(eid);
       pendingDamage[tgt] = 0; // prevent stale pending on entity recycling
     }
 
@@ -326,6 +337,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
         if (hpCurrent[nearestEid] <= 0) {
           killCount[eid]++;
+          updateVeterancy(eid);
           pendingDamage[nearestEid] = 0;
         }
       }
@@ -366,7 +378,8 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         if (sdx * sdx + sdy * sdy <= splashRangeSq) {
           const sMult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[other] as ArmorClass);
           const sArmorBonus = getArmorBonus(resources, faction[other]);
-          const sDmg = Math.max(1, ((atkDamage[eid] + weaponBonus) * sMult) - (baseArmor[other] + sArmorBonus));
+          const sVetArmor = veterancyLevel[other];
+          const sDmg = Math.max(1, ((atkDamage[eid] + weaponBonus + vetBonus) * sMult) - (baseArmor[other] + sArmorBonus + sVetArmor));
           hpCurrent[other] -= sDmg;
           lastCombatTime[other] = gameTime;
 
@@ -385,6 +398,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
           if (hpCurrent[other] <= 0) {
             killCount[eid]++;
+            updateVeterancy(eid);
             pendingDamage[other] = 0;
           }
         }

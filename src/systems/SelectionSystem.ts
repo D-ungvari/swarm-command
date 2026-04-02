@@ -16,6 +16,20 @@ const controlGroups: Set<number>[] = Array.from({ length: 10 }, () => new Set())
 // Subgroup cycling state
 let subgroupIndex = 0;
 
+// Last recalled control group (for active highlight in UI)
+let lastActiveGroup = -1;
+
+/** Get entity counts for all 10 control groups (0-9). */
+export function getControlGroupInfo(): Array<{ count: number }> {
+  return controlGroups.map(group => ({ count: group.size }));
+}
+
+/** Get the last recalled control group number, or -1 if none. */
+export function getLastActiveGroup(): number { return lastActiveGroup; }
+
+/** Get the current subgroup cycling index (for Tab breadcrumb display). */
+export function getActiveSubgroupIndex(): number { return subgroupIndex; }
+
 /**
  * Handles click and drag-box unit selection.
  * Selects player (Terran) units/buildings. Single-click can also select neutral resources.
@@ -44,6 +58,7 @@ export function selectionSystem(
         if (cmd.data !== undefined) {
           const group = controlGroups[cmd.data];
           if (group.size > 0) {
+            lastActiveGroup = cmd.data;
             clearSelection(world);
             for (const eid of group) {
               if (entityExists(world, eid) && hasComponents(world, eid, SELECTABLE)) {
@@ -57,6 +72,21 @@ export function selectionSystem(
         break;
 
       case CommandType.Select: {
+        // Ctrl+click: filter current selection to clicked unit's type
+        if (cmd.data === 1) {
+          const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
+          const closest = findUnitAt(world, worldPos.x, worldPos.y, extraTolerance);
+          if (closest > 0 && hasComponents(world, closest, UNIT_TYPE)) {
+            const clickedType = unitType[closest];
+            for (let eid = 1; eid < world.nextEid; eid++) {
+              if (selected[eid] !== 1) continue;
+              if (!hasComponents(world, eid, UNIT_TYPE) || unitType[eid] !== clickedType) {
+                selected[eid] = 0;
+              }
+            }
+          }
+          break;
+        }
         // Single click — sx/sy are screen coords
         if (!cmd.shiftHeld) clearSelection(world);
         const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);

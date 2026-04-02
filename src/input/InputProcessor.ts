@@ -216,6 +216,7 @@ export class InputProcessor {
             type,
             sx: evt.x, sy: evt.y,
             shiftHeld: state.shiftHeld,
+            data: (state.ctrlHeld && type === CommandType.Select) ? 1 : undefined,
           });
         }
       } else if (evt.type === 'rightdown') {

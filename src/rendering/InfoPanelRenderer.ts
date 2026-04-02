@@ -14,6 +14,7 @@ import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
 import { encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from '../systems/UpgradeSystem';
+import { getActiveSubgroupIndex } from '../systems/SelectionSystem';
 import type { PlayerResources } from '../types';
 
 /** Callback type for production button clicks */
@@ -265,7 +266,20 @@ export class InfoPanelRenderer {
         if (detailHtml) detailHtml += '&nbsp;&nbsp;';
         detailHtml += `<span style="color:rgb(${r},${g},${b})">${typeCounts[uType]}x ${name}</span>`;
       }
-      this.detailEl.innerHTML = detailHtml;
+      // Subgroup breadcrumb: show tab-cycling indicator when multiple types
+      const typeKeys = Object.keys(typeCounts).map(Number);
+      if (typeKeys.length > 1) {
+        const activeIdx = getActiveSubgroupIndex();
+        const breadcrumb = typeKeys.map((ut, idx) => {
+          const name = UNIT_DEFS[ut]?.name ?? 'Unit';
+          const count = typeCounts[ut];
+          const isActive = idx === (activeIdx % typeKeys.length);
+          return `<span style="color:${isActive ? '#cce0ff' : '#557799'};${isActive ? 'font-weight:bold;' : ''}">${name} \u00d7${count}</span>`;
+        }).join(' <span style="color:#334">|</span> ');
+        this.detailEl.innerHTML = breadcrumb;
+      } else {
+        this.detailEl.innerHTML = detailHtml;
+      }
 
       // Show total HP bar
       this.barContainer.style.display = 'block';

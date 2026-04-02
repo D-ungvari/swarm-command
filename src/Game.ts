@@ -53,6 +53,7 @@ import { SelectionRenderer } from './rendering/SelectionRenderer';
 import { HudRenderer } from './rendering/HudRenderer';
 import { BuildMenuRenderer } from './rendering/BuildMenuRenderer';
 import { InfoPanelRenderer } from './rendering/InfoPanelRenderer';
+import { ControlGroupRenderer } from './rendering/ControlGroupRenderer';
 import { ModeIndicatorRenderer } from './rendering/ModeIndicatorRenderer';
 import { HotkeyPanelRenderer } from './rendering/HotkeyPanelRenderer';
 import { MinimapRenderer } from './rendering/MinimapRenderer';
@@ -61,7 +62,7 @@ import { AlertRenderer } from './rendering/AlertRenderer';
 import { DebugOverlay } from './rendering/DebugOverlay';
 import { movementSystem } from './systems/MovementSystem';
 import { spatialHash } from './ecs/SpatialHash';
-import { selectionSystem } from './systems/SelectionSystem';
+import { selectionSystem, getControlGroupInfo, getLastActiveGroup } from './systems/SelectionSystem';
 import { commandSystem } from './systems/CommandSystem';
 import { GameCommandQueue } from './input/CommandQueue';
 import { InputProcessor } from './input/InputProcessor';
@@ -141,6 +142,7 @@ export class Game {
   private hudRenderer!: HudRenderer;
   private buildMenuRenderer!: BuildMenuRenderer;
   private infoPanelRenderer!: InfoPanelRenderer;
+  private controlGroupRenderer!: ControlGroupRenderer;
   private modeIndicatorRenderer!: ModeIndicatorRenderer;
   private hotkeyPanelRenderer!: HotkeyPanelRenderer;
   private minimapRenderer!: MinimapRenderer;
@@ -321,6 +323,7 @@ export class Game {
     this.buildMenuRenderer = new BuildMenuRenderer(container);
     this.buildMenuRenderer.setFaction(this.playerFaction);
     this.infoPanelRenderer = new InfoPanelRenderer(container);
+    this.controlGroupRenderer = new ControlGroupRenderer(container);
     this.modeIndicatorRenderer = new ModeIndicatorRenderer(container);
     this.hotkeyPanelRenderer = new HotkeyPanelRenderer(container);
 
@@ -609,6 +612,7 @@ export class Game {
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated, this.mineralIncomeRate, this.gasIncomeRate);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
+    this.controlGroupRenderer.update(getControlGroupInfo(), getLastActiveGroup());
     // Touch command bar update
     if (this.touchCommandBar) {
       const selectedTypes = new Set<number>();

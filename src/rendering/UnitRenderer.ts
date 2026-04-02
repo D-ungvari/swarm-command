@@ -1313,31 +1313,99 @@ export class UnitRenderer {
           g.fill({ color: ZERG_EYE, alpha: 0.9 });
 
         } else if (uType === UnitType.Corruptor) {
-          // ── Corruptor: floating crab-like air unit ──
-          // Faint ground shadow (elevated)
-          g.ellipse(x, y + 4, w * 0.35, h * 0.15);
+          // ── Corruptor: floating crab-like air parasite ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Ground shadow (air unit, offset below)
+          g.ellipse(x, y + 6, hw * 0.7, hh * 0.25);
           g.fill({ color: 0x000000, alpha: 0.2 });
-          // Body
-          g.ellipse(x, y, w / 2, h * 0.4);
+          // Membrane wings (translucent spread)
+          g.moveTo(x - hw * 1.2, y - hh * 0.3);
+          g.lineTo(x - hw * 0.3, y - hh * 0.1);
+          g.lineTo(x - hw * 0.8, y + hh * 0.4);
+          g.closePath();
+          g.fill({ color: 0x553366, alpha: 0.4 });
+          g.moveTo(x + hw * 1.2, y - hh * 0.3);
+          g.lineTo(x + hw * 0.3, y - hh * 0.1);
+          g.lineTo(x + hw * 0.8, y + hh * 0.4);
+          g.closePath();
+          g.fill({ color: 0x553366, alpha: 0.4 });
+          // Main body (segmented ellipse)
+          g.ellipse(x, y, hw * 0.6, hh * 0.5);
           g.fill({ color: bodyColor, alpha: 0.9 });
-          // Two claws
-          g.moveTo(x - w / 2, y);
-          g.lineTo(x - w / 2 - 5, y - 5);
-          g.moveTo(x + w / 2, y);
-          g.lineTo(x + w / 2 + 5, y - 5);
-          g.stroke({ color: 0xaa55aa, width: 1.5, alpha: 0.8 });
+          g.ellipse(x, y, hw * 0.6, hh * 0.5);
+          g.stroke({ color: lighten(bodyColor, 20), width: 1, alpha: 0.5 });
+          // Carapace segment lines
+          for (let s = -1; s <= 1; s++) {
+            g.moveTo(x - hw * 0.4, y + s * hh * 0.15);
+            g.lineTo(x + hw * 0.4, y + s * hh * 0.15);
+            g.stroke({ color: 0x442255, width: 0.8, alpha: 0.4 });
+          }
+          // Front claws (pincers)
+          g.moveTo(x - hw * 0.5, y - hh * 0.2);
+          g.lineTo(x - hw * 0.9, y - hh * 0.6);
+          g.lineTo(x - hw * 0.7, y - hh * 0.35);
+          g.stroke({ color: 0xaa66aa, width: 2, alpha: 0.8 });
+          g.moveTo(x + hw * 0.5, y - hh * 0.2);
+          g.lineTo(x + hw * 0.9, y - hh * 0.6);
+          g.lineTo(x + hw * 0.7, y - hh * 0.35);
+          g.stroke({ color: 0xaa66aa, width: 2, alpha: 0.8 });
+          // Eye
+          g.circle(x, y - hh * 0.2, 2);
+          g.fill({ color: ZERG_EYE, alpha: 0.8 });
+          // Corruption aura (faint purple glow)
+          const corruptPulse = 0.15 + Math.sin(gameTime * 2 + eid) * 0.05;
+          g.circle(x, y, hw * 0.8);
+          g.fill({ color: 0x8844aa, alpha: corruptPulse });
 
         } else if (uType === UnitType.Viper) {
-          // ── Viper: snake with a wide hood ──
-          // Faint ground shadow (elevated)
-          g.ellipse(x, y + 4, w * 0.35, h * 0.15);
+          // ── Viper: serpentine flyer with wide cobra hood ──
+          const hw = w / 2;
+          const hh = h / 2;
+          // Ground shadow (air unit)
+          g.ellipse(x, y + 6, hw * 0.5, hh * 0.15);
           g.fill({ color: 0x000000, alpha: 0.2 });
-          // Hood (triangle)
-          g.moveTo(x, y - h / 2 - 4);
-          g.lineTo(x - 7, y + 2);
-          g.lineTo(x + 7, y + 2);
+          // Tail (curving behind)
+          g.moveTo(x, y + hh * 0.3);
+          g.lineTo(x + 2, y + hh * 0.7);
+          g.lineTo(x - 1, y + hh * 1.0);
+          g.stroke({ color: darken(bodyColor, 15), width: 2.5, alpha: 0.7 });
+          // Tail tip
+          g.circle(x - 1, y + hh * 1.0, 1.5);
+          g.fill({ color: ZERG_ACID, alpha: 0.5 });
+          // Body (elongated vertical ellipse)
+          g.ellipse(x, y, hw * 0.35, hh * 0.5);
+          g.fill({ color: bodyColor, alpha: 0.9 });
+          g.ellipse(x, y, hw * 0.35, hh * 0.5);
+          g.stroke({ color: lighten(bodyColor, 15), width: 0.8, alpha: 0.4 });
+          // Cobra hood (wide V-shape)
+          g.moveTo(x, y - hh * 0.3);
+          g.lineTo(x - hw * 0.8, y - hh * 0.1);
+          g.lineTo(x - hw * 0.6, y + hh * 0.1);
+          g.lineTo(x, y);
           g.closePath();
-          g.fill({ color: bodyColor, alpha: 0.8 });
+          g.fill({ color: lighten(bodyColor, 10), alpha: 0.7 });
+          g.moveTo(x, y - hh * 0.3);
+          g.lineTo(x + hw * 0.8, y - hh * 0.1);
+          g.lineTo(x + hw * 0.6, y + hh * 0.1);
+          g.lineTo(x, y);
+          g.closePath();
+          g.fill({ color: lighten(bodyColor, 10), alpha: 0.7 });
+          // Hood membrane pattern
+          g.moveTo(x - hw * 0.2, y - hh * 0.25);
+          g.lineTo(x - hw * 0.5, y - hh * 0.05);
+          g.stroke({ color: 0x662244, width: 0.8, alpha: 0.5 });
+          g.moveTo(x + hw * 0.2, y - hh * 0.25);
+          g.lineTo(x + hw * 0.5, y - hh * 0.05);
+          g.stroke({ color: 0x662244, width: 0.8, alpha: 0.5 });
+          // Head
+          g.circle(x, y - hh * 0.35, hw * 0.2);
+          g.fill({ color: bodyColor });
+          // Eyes (glowing)
+          g.circle(x - 2, y - hh * 0.38, 1.5);
+          g.fill({ color: ZERG_EYE, alpha: 0.9 });
+          g.circle(x + 2, y - hh * 0.38, 1.5);
+          g.fill({ color: ZERG_EYE, alpha: 0.9 });
 
         } else if (uType === UnitType.Queen) {
           // ── Queen: tall upright matriarch with scythe arms and crown spines ──
@@ -2154,20 +2222,56 @@ export class UnitRenderer {
           // ── Thor: massive quad-cannon walker ──
           const hw = w / 2;
           const hh = h / 2;
-          // Shadow
-          g.rect(x - hw - 3, y - hh - 3, w + 6, h + 6);
-          g.fill({ color: 0x000000, alpha: 0.5 });
-          // Main body
-          g.rect(x - hw, y - hh, w, h);
+          // Shadow (larger for massive unit)
+          g.ellipse(x, y + 2, hw + 4, hh * 0.5);
+          g.fill({ color: 0x000000, alpha: 0.45 });
+          // Legs (wide stance)
+          g.rect(x - hw * 0.8, y + hh * 0.2, hw * 0.35, hh * 0.7);
+          g.fill({ color: darken(bodyColor, 30) });
+          g.rect(x + hw * 0.45, y + hh * 0.2, hw * 0.35, hh * 0.7);
+          g.fill({ color: darken(bodyColor, 30) });
+          // Feet
+          g.rect(x - hw * 0.9, y + hh * 0.8, hw * 0.5, hh * 0.15);
+          g.fill({ color: 0x334455 });
+          g.rect(x + hw * 0.4, y + hh * 0.8, hw * 0.5, hh * 0.15);
+          g.fill({ color: 0x334455 });
+          // Main body (wide torso)
+          g.rect(x - hw * 0.7, y - hh * 0.4, hw * 1.4, hh * 0.7);
           g.fill({ color: bodyColor });
-          g.rect(x - hw, y - hh, w, h);
-          g.stroke({ color: 0x667788, width: 2, alpha: 0.8 });
-          // Four gun barrels pointing up
-          for (let i = -1; i <= 1; i += 2 / 3) {
-            g.moveTo(posX[eid] + i * 8, posY[eid] - hh);
-            g.lineTo(posX[eid] + i * 8, posY[eid] - hh - 7);
+          g.rect(x - hw * 0.7, y - hh * 0.4, hw * 1.4, hh * 0.7);
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 1.5, alpha: 0.6 });
+          // Chest plate
+          g.rect(x - hw * 0.35, y - hh * 0.3, hw * 0.7, hh * 0.45);
+          g.fill({ color: lighten(bodyColor, 15) });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 0.8, alpha: 0.4 });
+          // Shoulder cannon mounts (wide shoulders)
+          g.rect(x - hw - 2, y - hh * 0.5, hw * 0.4, hh * 0.4);
+          g.fill({ color: bodyColor });
+          g.stroke({ color: 0x556677, width: 1, alpha: 0.6 });
+          g.rect(x + hw * 0.6 + 2, y - hh * 0.5, hw * 0.4, hh * 0.4);
+          g.fill({ color: bodyColor });
+          g.stroke({ color: 0x556677, width: 1, alpha: 0.6 });
+          // Four gun barrels (2 per shoulder, clean positions)
+          const barrelOffsets = [-hw - 1, -hw * 0.7, hw * 0.7, hw + 1];
+          for (const bx of barrelOffsets) {
+            g.moveTo(x + bx, y - hh * 0.5);
+            g.lineTo(x + bx, y - hh * 0.5 - 8);
+            g.stroke({ color: 0x8899aa, width: 2.5, alpha: 0.9 });
+            // Muzzle cap
+            g.circle(x + bx, y - hh * 0.5 - 8, 1.5);
+            g.fill({ color: 0x667788 });
           }
-          g.stroke({ color: 0x8899aa, width: 2.5, alpha: 0.9 });
+          // Head/cockpit
+          g.rect(x - hw * 0.2, y - hh * 0.65, hw * 0.4, hh * 0.25);
+          g.fill({ color: darken(bodyColor, 10) });
+          // Visor
+          g.moveTo(x - hw * 0.15, y - hh * 0.55);
+          g.lineTo(x + hw * 0.15, y - hh * 0.55);
+          g.stroke({ color: TERRAN_VISOR, width: 1.5 });
+          // Power core glow
+          const thorPulse = 0.3 + Math.sin(gameTime * 1.5 + eid) * 0.1;
+          g.circle(x, y - hh * 0.1, 3);
+          g.fill({ color: 0x4488ff, alpha: thorPulse });
 
         } else if (uType === UnitType.Battlecruiser) {
           // ── Battlecruiser: massive capital ship ──
@@ -2389,10 +2493,35 @@ export class UnitRenderer {
         }
       }
 
-      // Worker carrying indicator — bright blue dot when carrying minerals
+      // Worker carrying indicator — resource glow when hauling
       if (hasComponents(world, eid, WORKER) && workerCarrying[eid] > 0) {
-        g.circle(x, y - h / 2 - 2, 4);
-        g.fill({ color: 0x44bbff, alpha: 0.9 });
+        // Check if carrying gas (target is a Refinery/gas entity)
+        const tgtEid = targetEntity[eid];
+        const isGas = tgtEid >= 1 && hasComponents(world, tgtEid, BUILDING) &&
+          buildingType[tgtEid] === BuildingType.Refinery;
+        const carryColor = isGas ? 0x44ff66 : 0x44bbff;
+        const glowColor = isGas ? 0x22aa44 : 0x2288cc;
+
+        // Glow behind
+        g.circle(x, y - h / 2 - 2, 5);
+        g.fill({ color: glowColor, alpha: 0.3 });
+        // Resource crystal/droplet
+        if (isGas) {
+          // Gas: green droplet shape
+          g.circle(x, y - h / 2 - 2, 3);
+          g.fill({ color: carryColor, alpha: 0.85 });
+        } else {
+          // Minerals: blue diamond
+          g.moveTo(x, y - h / 2 - 5);
+          g.lineTo(x + 3, y - h / 2 - 2);
+          g.lineTo(x, y - h / 2 + 1);
+          g.lineTo(x - 3, y - h / 2 - 2);
+          g.closePath();
+          g.fill({ color: carryColor, alpha: 0.85 });
+        }
+        // Bright center
+        g.circle(x, y - h / 2 - 2, 1);
+        g.fill({ color: 0xffffff, alpha: 0.5 });
       }
     }
 

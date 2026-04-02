@@ -212,7 +212,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // Fire!
     atkLastTime[eid] = gameTime;
     atkFlashTimer[eid] = FLASH_DURATION;
-    soundManager.playAttack();
+    soundManager.playAttackAt(posX[eid], posY[eid]);
 
     // Camera shake for splash-damage units (Siege Tank, Baneling)
     if (atkSplash[eid] > 0) {

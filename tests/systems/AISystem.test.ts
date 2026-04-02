@@ -226,7 +226,8 @@ describe('AISystem', () => {
   describe('initAI', () => {
     it('resets all state', () => {
       setAIMinerals(5000, 5000);
-      runOneDecision(150, vi.fn(() => track(spawnUnit(world, { factionId: Faction.Zerg, hp: 100 }))));
+      const spawnFn = vi.fn(() => track(spawnUnit(world, { factionId: Faction.Zerg, hp: 100 })));
+      for (let i = 0; i < 20; i++) runOneDecision(150 + i * 0.5, spawnFn);
       expect(getAIState().armySize).toBeGreaterThan(0);
       initAI();
       const s = getAIState();

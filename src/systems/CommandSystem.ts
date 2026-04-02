@@ -35,6 +35,7 @@ import type { Viewport } from 'pixi-viewport';
 import { addCommandPing } from '../rendering/UnitRenderer';
 import { emitProjectile } from '../rendering/ProjectileRenderer';
 import { damageEvents } from './CombatSystem';
+import { soundManager } from '../audio/SoundManager';
 
 /**
  * Translates queued game commands into move/attack/attack-move commands for selected units.
@@ -73,13 +74,17 @@ export function commandSystem(
       }
 
       case CommandType.Stim:
-        if (cmd.units) applyStim(world, cmd.units, gameTime);
+        if (cmd.units) {
+          applyStim(world, cmd.units, gameTime);
+          soundManager.playStimActivation();
+        }
         break;
 
       case CommandType.SiegeToggle:
         if (cmd.units) {
           toggleSiegeMode(world, cmd.units, gameTime);
           vikingTransform(world, cmd.units);
+          soundManager.playSiegeMode();
         }
         break;
 
@@ -89,6 +94,7 @@ export function commandSystem(
             if (unitType[eid] !== UnitType.Ghost) continue;
             cloaked[eid] = cloaked[eid] === 1 ? 0 : 1; // toggle
           }
+          soundManager.playCloakToggle();
         }
         break;
 
@@ -166,6 +172,7 @@ export function commandSystem(
             color: 0xff6600,
           });
           addCommandPing(posX[bestTgt], posY[bestTgt], 0xff6600, gameTime);
+          soundManager.playYamato();
         }
         break;
       }
@@ -365,6 +372,7 @@ export function commandSystem(
         // Plain move
         issuePathCommand(world, units, wx, wy, map, CommandMode.Move, cmd.shiftHeld ?? false);
         addCommandPing(wx, wy, cmd.shiftHeld ? 0xffff44 : 0x44ff44, gameTime);
+        if (units.length > 0) soundManager.playVoiceLine(unitType[units[0]], 'command');
         break;
       }
     }

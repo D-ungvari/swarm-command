@@ -105,8 +105,12 @@ export function selectionSystem(
             break;
           }
         }
-        if (firstType > 0) soundManager.playSelectUnit(firstType);
-        else soundManager.playSelect();
+        if (firstType > 0) {
+          soundManager.playSelectUnit(firstType);
+          soundManager.playVoiceLine(firstType, 'select');
+        } else {
+          soundManager.playSelect();
+        }
         break;
       }
 

@@ -22,6 +22,7 @@ import {
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
   BuildingType, BuildState,
 } from '../constants';
+import { soundManager } from '../audio/SoundManager';
 
 /**
  * Processes all unit abilities each tick.
@@ -248,6 +249,8 @@ function processCorrosiveBile(world: World, gameTime: number): void {
       }
     }
 
+    soundManager.playBileImpact();
+
     // Reset bile state
     bileLandTime[eid] = 0;
     bileLandX[eid] = 0;
@@ -283,6 +286,8 @@ function processFungalGrowth(world: World, gameTime: number): void {
         slowEndTime[other] = gameTime + FUNGAL_ROOT_DURATION;
       }
     }
+
+    soundManager.playFungalGrowth();
 
     // Reset fungal state
     fungalLandTime[eid] = 0;

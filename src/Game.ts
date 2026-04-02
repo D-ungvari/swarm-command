@@ -427,6 +427,7 @@ export class Game {
     });
 
     this.lastTime = performance.now();
+    soundManager.startMusic();
     this.app.ticker.add(() => this.loop());
   }
 
@@ -584,6 +585,12 @@ export class Game {
   }
 
   private render(): void {
+    // Update positional audio and adaptive music
+    soundManager.setCameraPosition(this.viewport.center.x, this.viewport.center.y);
+    const recentDamage = damageEvents.filter(e => this.gameTime - e.time < 2).length;
+    const intensity = Math.min(1, recentDamage / 10);
+    soundManager.setCombatIntensity(intensity);
+
     this.tilemapRenderer.updateWater(this.gameTime);
     this.tilemapRenderer.updateCreep(this.map, this.gameTime);
     this.unitRenderer.render(this.world, this.gameTime, this.viewport.scale.x);

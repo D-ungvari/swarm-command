@@ -28,7 +28,6 @@ import {
   hpCurrent,
   armorClass,
   baseArmor,
-  atkDamageType,
 } from '../../src/ecs/components';
 import type { World } from '../../src/ecs/world';
 import type { PlayerResources } from '../../src/types';
@@ -237,7 +236,7 @@ describe('upgrade combat bonus', () => {
       damage: 6,
       range: 160,
       cooldown: 600,
-      damageTypeId: 0,   // DamageType.Normal
+      bonusDamage: 0, bonusVsTag: -1,
       armorClassId: 0,   // ArmorClass.Light
     }));
     baseArmor[eid] = 0;

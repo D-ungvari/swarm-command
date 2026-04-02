@@ -7,18 +7,18 @@ import {
   Faction,
   UnitType,
   CommandMode,
-  DamageType,
   ArmorClass,
 } from '../helpers';
 import { combatSystem } from '../../src/systems/CombatSystem';
 import { findBestTarget } from '../../src/ecs/queries';
-import { getDamageMultiplier } from '../../src/combat/damageCalc';
+import { getBonusDamage } from '../../src/combat/damageCalc';
 import {
   hpCurrent,
   atkLastTime,
   armorClass,
   baseArmor,
-  atkDamageType,
+  bonusDmg,
+  bonusVsTag,
   atkDamage,
   atkRange,
   commandMode,
@@ -56,47 +56,43 @@ function unit(opts: Parameters<typeof spawnUnit>[1] = {}): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Group 1: getDamageMultiplier
+// Group 1: getBonusDamage
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('getDamageMultiplier', () => {
-  it('Normal vs Light → 1.0', () => {
-    expect(getDamageMultiplier(DamageType.Normal, ArmorClass.Light)).toBe(1.0);
+describe('getBonusDamage', () => {
+  it('bonus vs matching tag returns bonus damage', () => {
+    expect(getBonusDamage(10, ArmorClass.Armored, ArmorClass.Armored)).toBe(10);
   });
 
-  it('Normal vs Armored → 1.0', () => {
-    expect(getDamageMultiplier(DamageType.Normal, ArmorClass.Armored)).toBe(1.0);
+  it('bonus vs non-matching tag returns 0', () => {
+    expect(getBonusDamage(10, ArmorClass.Armored, ArmorClass.Light)).toBe(0);
   });
 
-  it('Concussive vs Light → 1.0', () => {
-    expect(getDamageMultiplier(DamageType.Concussive, ArmorClass.Light)).toBe(1.0);
+  it('Baneling bonus vs Light returns 19', () => {
+    expect(getBonusDamage(19, ArmorClass.Light, ArmorClass.Light)).toBe(19);
   });
 
-  it('Concussive vs Armored → 0.5', () => {
-    expect(getDamageMultiplier(DamageType.Concussive, ArmorClass.Armored)).toBe(0.5);
+  it('no bonus unit (bonusDamage=0) returns 0', () => {
+    expect(getBonusDamage(0, -1, ArmorClass.Light)).toBe(0);
   });
 
-  it('Explosive vs Light → 0.5', () => {
-    expect(getDamageMultiplier(DamageType.Explosive, ArmorClass.Light)).toBe(0.5);
-  });
-
-  it('Explosive vs Armored → 1.0', () => {
-    expect(getDamageMultiplier(DamageType.Explosive, ArmorClass.Armored)).toBe(1.0);
+  it('bonusTag -1 always returns 0 even with positive bonus', () => {
+    expect(getBonusDamage(10, -1, ArmorClass.Armored)).toBe(0);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Group 2: base armor formula
+// Group 2: SC2 bonus-damage combat formula
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('base armor formula', () => {
-  it('Marine (Normal) vs Marine (Light, 0 armor): drops by 6', () => {
+describe('SC2 bonus-damage combat formula', () => {
+  it('Marine (6, no bonus) vs Marine (Light, 0 armor): drops by 6', () => {
     const attacker = unit({
       x: 100, y: 100,
       factionId: Faction.Terran,
       unitTypeId: UnitType.Marine,
       damage: 6, range: 160, cooldown: 600,
-      damageTypeId: DamageType.Normal,
+      bonusDamage: 0, bonusVsTag: -1,
       armorClassId: ArmorClass.Light,
     });
     const target = unit({
@@ -110,65 +106,17 @@ describe('base armor formula', () => {
 
     combatSystem(world, 1 / 60, 1, map);
 
-    // 6 * 1.0 - 0 = 6
+    // 6 + 0 - 0 = 6
     expect(hpCurrent[target]).toBe(39);
   });
 
-  it('Marauder (Concussive, 10) vs Armored (1 armor): drops by 4', () => {
+  it('Marauder (10 base + 10 bonus) vs Roach (Armored, 1 armor): drops by 19', () => {
     const attacker = unit({
       x: 100, y: 100,
       factionId: Faction.Terran,
       unitTypeId: UnitType.Marauder,
       damage: 10, range: 160, cooldown: 1200,
-      damageTypeId: DamageType.Concussive,
-      armorClassId: ArmorClass.Armored,
-    });
-    const target = unit({
-      x: 100, y: 100,
-      factionId: Faction.Zerg,
-      hp: 125,
-      armorClassId: ArmorClass.Armored,
-    });
-    baseArmor[target] = 1;
-    atkLastTime[attacker] = -999;
-
-    combatSystem(world, 1 / 60, 1, map);
-
-    // 10 * 0.5 - 1 = 4
-    expect(hpCurrent[target]).toBe(121);
-  });
-
-  it('Marauder (Concussive, 10) vs Light (0 armor): drops by 10', () => {
-    const attacker = unit({
-      x: 100, y: 100,
-      factionId: Faction.Terran,
-      unitTypeId: UnitType.Marauder,
-      damage: 10, range: 160, cooldown: 1200,
-      damageTypeId: DamageType.Concussive,
-      armorClassId: ArmorClass.Armored,
-    });
-    const target = unit({
-      x: 100, y: 100,
-      factionId: Faction.Zerg,
-      hp: 35,
-      armorClassId: ArmorClass.Light,
-    });
-    baseArmor[target] = 0;
-    atkLastTime[attacker] = -999;
-
-    combatSystem(world, 1 / 60, 1, map);
-
-    // 10 * 1.0 - 0 = 10
-    expect(hpCurrent[target]).toBe(25);
-  });
-
-  it('SiegeTank (Explosive, 35) vs Armored (1 armor): drops by 34', () => {
-    const attacker = unit({
-      x: 100, y: 100,
-      factionId: Faction.Terran,
-      unitTypeId: UnitType.SiegeTank,
-      damage: 35, range: 160, cooldown: 2000,
-      damageTypeId: DamageType.Explosive,
+      bonusDamage: 10, bonusVsTag: ArmorClass.Armored,
       armorClassId: ArmorClass.Armored,
     });
     const target = unit({
@@ -182,17 +130,113 @@ describe('base armor formula', () => {
 
     combatSystem(world, 1 / 60, 1, map);
 
-    // 35 * 1.0 - 1 = 34
-    expect(hpCurrent[target]).toBe(111);
+    // max(1, 10 + 10 - 1) = 19
+    expect(hpCurrent[target]).toBe(126);
   });
 
-  it('SiegeTank (Explosive, 35) vs Light (0 armor): drops by 17.5', () => {
+  it('Marauder (10 base + 10 bonus) vs Light (0 armor): drops by 10 (no bonus)', () => {
+    const attacker = unit({
+      x: 100, y: 100,
+      factionId: Faction.Terran,
+      unitTypeId: UnitType.Marauder,
+      damage: 10, range: 160, cooldown: 1200,
+      bonusDamage: 10, bonusVsTag: ArmorClass.Armored,
+      armorClassId: ArmorClass.Armored,
+    });
+    const target = unit({
+      x: 100, y: 100,
+      factionId: Faction.Zerg,
+      hp: 35,
+      armorClassId: ArmorClass.Light,
+    });
+    baseArmor[target] = 0;
+    atkLastTime[attacker] = -999;
+
+    combatSystem(world, 1 / 60, 1, map);
+
+    // 10 + 0 - 0 = 10
+    expect(hpCurrent[target]).toBe(25);
+  });
+
+  it('Baneling (16 base + 19 bonus) vs Marine (Light, 0 armor): drops by 35', () => {
+    const attacker = unit({
+      x: 100, y: 100,
+      factionId: Faction.Zerg,
+      unitTypeId: UnitType.Baneling,
+      damage: 16, range: 10, cooldown: 0,
+      bonusDamage: 19, bonusVsTag: ArmorClass.Light,
+      armorClassId: ArmorClass.Light,
+    });
+    const target = unit({
+      x: 100, y: 100,
+      factionId: Faction.Terran,
+      hp: 45,
+      armorClassId: ArmorClass.Light,
+    });
+    baseArmor[target] = 0;
+    atkLastTime[attacker] = -999;
+
+    combatSystem(world, 1 / 60, 1, map);
+
+    // max(1, 16 + 19 - 0) = 35
+    expect(hpCurrent[target]).toBe(10);
+  });
+
+  it('Hellion (8 base + 6 bonus) vs Zergling (Light, 0 armor): drops by 14', () => {
+    const attacker = unit({
+      x: 100, y: 100,
+      factionId: Faction.Terran,
+      unitTypeId: UnitType.Hellion,
+      damage: 8, range: 160, cooldown: 1800,
+      bonusDamage: 6, bonusVsTag: ArmorClass.Light,
+      armorClassId: ArmorClass.Light,
+    });
+    const target = unit({
+      x: 100, y: 100,
+      factionId: Faction.Zerg,
+      hp: 35,
+      armorClassId: ArmorClass.Light,
+    });
+    baseArmor[target] = 0;
+    atkLastTime[attacker] = -999;
+
+    combatSystem(world, 1 / 60, 1, map);
+
+    // max(1, 8 + 6 - 0) = 14
+    expect(hpCurrent[target]).toBe(21);
+  });
+
+  it('SiegeTank (15 base + 10 bonus) vs Armored (1 armor): drops by 24', () => {
     const attacker = unit({
       x: 100, y: 100,
       factionId: Faction.Terran,
       unitTypeId: UnitType.SiegeTank,
-      damage: 35, range: 160, cooldown: 2000,
-      damageTypeId: DamageType.Explosive,
+      damage: 15, range: 160, cooldown: 2000,
+      bonusDamage: 10, bonusVsTag: ArmorClass.Armored,
+      armorClassId: ArmorClass.Armored,
+    });
+    const target = unit({
+      x: 100, y: 100,
+      factionId: Faction.Zerg,
+      hp: 145,
+      armorClassId: ArmorClass.Armored,
+    });
+    baseArmor[target] = 1;
+    atkLastTime[attacker] = -999;
+
+    combatSystem(world, 1 / 60, 1, map);
+
+    // max(1, 15 + 10 - 1) = 24
+    expect(hpCurrent[target]).toBe(121);
+  });
+
+  it('SiegeTank (15 base + 10 bonus) vs Light (0 armor): drops by 15 (no bonus)', () => {
+    const attacker = unit({
+      x: 100, y: 100,
+      factionId: Faction.Terran,
+      unitTypeId: UnitType.SiegeTank,
+      damage: 15, range: 160, cooldown: 2000,
+      bonusDamage: 10, bonusVsTag: ArmorClass.Armored,
       armorClassId: ArmorClass.Armored,
     });
     const target = unit({
@@ -206,30 +250,30 @@ describe('base armor formula', () => {
 
     combatSystem(world, 1 / 60, 1, map);
 
-    // Math.max(1, 35 * 0.5 - 0) = 17.5
-    expect(hpCurrent[target]).toBeCloseTo(100 - 17.5);
+    // max(1, 15 + 0 - 0) = 15
+    expect(hpCurrent[target]).toBe(85);
   });
 
-  it('min 1 damage floor: Explosive 1 damage vs Light → 1 damage dealt', () => {
+  it('min 1 damage floor: 1 base damage vs 5 armor → 1 damage dealt', () => {
     const attacker = unit({
       x: 100, y: 100,
       factionId: Faction.Terran,
       damage: 1, range: 160, cooldown: 500,
-      damageTypeId: DamageType.Explosive,
+      bonusDamage: 0, bonusVsTag: -1,
       armorClassId: ArmorClass.Light,
     });
     const target = unit({
       x: 100, y: 100,
       factionId: Faction.Zerg,
       hp: 50,
-      armorClassId: ArmorClass.Light,
+      armorClassId: ArmorClass.Armored,
     });
-    baseArmor[target] = 0;
+    baseArmor[target] = 5;
     atkLastTime[attacker] = -999;
 
     combatSystem(world, 1 / 60, 1, map);
 
-    // Math.max(1, 1 * 0.5 - 0) = Math.max(1, 0.5) = 1
+    // max(1, 1 + 0 - 5) = max(1, -4) = 1
     expect(hpCurrent[target]).toBe(49);
   });
 });

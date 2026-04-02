@@ -19,7 +19,7 @@ import {
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
   atkDamage, atkRange, atkCooldown, atkLastTime, movePathIndex,
-  atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
+  bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount,
   targetEntity, commandMode,
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd, lastCombatTime,
@@ -1446,7 +1446,8 @@ export class Game {
     atkRange[eid] = def.range * TILE_SIZE;
     atkCooldown[eid] = def.attackCooldown;
     atkLastTime[eid] = 0;
-    atkDamageType[eid] = def.damageType;
+    bonusDmg[eid] = def.bonusDamage;
+    bonusVsTag[eid] = def.bonusVsTag;
     armorClass[eid] = def.armorClass;
     baseArmor[eid] = def.armorClass === ArmorClass.Armored ? 1 : 0;
     pendingDamage[eid] = 0;

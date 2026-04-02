@@ -34,7 +34,8 @@ export interface UnitDef {
   costMinerals: number;
   costGas: number;
   buildTime: number;
-  damageType: number;
+  bonusDamage: number;    // extra damage vs specific armor class (0 = no bonus)
+  bonusVsTag: number;     // ArmorClass value that triggers bonus (-1 = none)
   armorClass: number;
   isAir: number;          // 1 = air unit (Medivac, Mutalisk)
   canTargetGround: number; // 1 = can attack ground units

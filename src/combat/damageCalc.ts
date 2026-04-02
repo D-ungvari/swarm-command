@@ -1,21 +1,10 @@
-import { DamageType, ArmorClass } from '../constants';
+import { ArmorClass } from '../constants';
 
 /**
- * Returns the damage multiplier for an attack based on damage type and target armor class.
- *
- * Multiplier table (matches StarCraft 2 BW hybrid model):
- * - Normal:     Light=1.0, Armored=1.0
- * - Concussive: Light=1.0, Armored=0.5
- * - Explosive:  Light=0.5, Armored=1.0
+ * SC2 damage model: base damage + bonus if target has matching armor tag.
+ * No multiplier types — just additive bonus.
  */
-export function getDamageMultiplier(dmgType: DamageType, armorCls: ArmorClass): number {
-  switch (dmgType) {
-    case DamageType.Concussive:
-      return armorCls === ArmorClass.Armored ? 0.5 : 1.0;
-    case DamageType.Explosive:
-      return armorCls === ArmorClass.Light ? 0.5 : 1.0;
-    case DamageType.Normal:
-    default:
-      return 1.0;
-  }
+export function getBonusDamage(bonusDamage: number, bonusTag: number, targetArmorClass: number): number {
+  if (bonusDamage <= 0 || bonusTag < 0) return 0;
+  return targetArmorClass === bonusTag ? bonusDamage : 0;
 }

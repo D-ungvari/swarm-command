@@ -7,13 +7,13 @@ import {
   movePathIndex, setPath,
   unitType,
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
-  atkDamageType, armorClass, baseArmor, pendingDamage, killCount, veterancyLevel,
+  bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount, veterancyLevel,
   cloaked,
   isAir, canTargetGround, canTargetAir,
 } from '../ecs/components';
 import { findBestTarget } from '../ecs/queries';
-import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, DamageType, ArmorClass, UpgradeType } from '../constants';
-import { getDamageMultiplier } from '../combat/damageCalc';
+import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, ArmorClass, UpgradeType } from '../constants';
+import { getBonusDamage } from '../combat/damageCalc';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
 import { isTileVisible } from './FogSystem';
@@ -242,13 +242,13 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // Stop moving while attacking
     movePathIndex[eid] = -1;
 
-    // Compute actual damage with type modifier and armor reduction
-    const mult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[tgt] as ArmorClass);
+    // Compute actual damage with SC2 bonus-damage model and armor reduction
+    const bonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[tgt]);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
     const armorBonus = getArmorBonus(resources, faction[tgt]);
     const vetBonus = veterancyLevel[eid]; // 0-3 extra damage
     const vetArmor = veterancyLevel[tgt]; // 0-3 extra armor
-    const rawDmg = Math.max(1, ((atkDamage[eid] + weaponBonus + vetBonus) * mult) - (baseArmor[tgt] + armorBonus + vetArmor));
+    const rawDmg = Math.max(1, (atkDamage[eid] + bonus + weaponBonus + vetBonus) - (baseArmor[tgt] + armorBonus + vetArmor));
 
     // Commit damage to pending (overkill prevention tracks this)
     pendingDamage[tgt] += rawDmg;
@@ -376,10 +376,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         const sdx = posX[other] - tx;
         const sdy = posY[other] - ty;
         if (sdx * sdx + sdy * sdy <= splashRangeSq) {
-          const sMult = getDamageMultiplier(atkDamageType[eid] as DamageType, armorClass[other] as ArmorClass);
+          const sBonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[other]);
           const sArmorBonus = getArmorBonus(resources, faction[other]);
-          const sVetArmor = veterancyLevel[other];
-          const sDmg = Math.max(1, ((atkDamage[eid] + weaponBonus + vetBonus) * sMult) - (baseArmor[other] + sArmorBonus + sVetArmor));
+          const sDmg = Math.max(1, (atkDamage[eid] + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
           hpCurrent[other] -= sDmg;
           lastCombatTime[other] = gameTime;
 

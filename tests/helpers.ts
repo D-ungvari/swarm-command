@@ -25,7 +25,7 @@ import {
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
   lastCombatTime,
-  atkDamageType, armorClass, baseArmor, pendingDamage, killCount,
+  bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount,
   resourceType, resourceRemaining,
   workerState, workerCarrying, workerTargetEid, workerMineTimer,
   workerBaseX, workerBaseY,
@@ -80,7 +80,6 @@ export const CommandType = {
   CycleSubgroup: 19, Cloak: 20, InjectLarva: 21,
   Yamato: 22, CorrosiveBile: 23, FungalGrowth: 24, Abduct: 25,
 } as const;
-export const DamageType = { Normal: 0, Concussive: 1, Explosive: 2 } as const;
 export const ArmorClass = { Light: 0, Armored: 1 } as const;
 
 export interface SpawnOpts {
@@ -96,7 +95,8 @@ export interface SpawnOpts {
   unitTypeId?: number;
   width?: number;
   height?: number;
-  damageTypeId?: number;  // DamageType value
+  bonusDamage?: number;   // extra damage vs specific armor class
+  bonusVsTag?: number;    // ArmorClass value that triggers bonus (-1 = none)
   armorClassId?: number;  // ArmorClass value
   isAirUnit?: boolean;
   canTargetGroundUnit?: boolean;
@@ -149,8 +149,9 @@ export function spawnUnit(world: World, opts: SpawnOpts = {}): number {
   canTargetGround[eid] = opts.canTargetGroundUnit !== false ? 1 : 0;
   canTargetAir[eid] = opts.canTargetAirUnit !== false ? 1 : 0;
 
-  // Damage type & armor
-  atkDamageType[eid] = opts.damageTypeId ?? 0;  // DamageType.Normal
+  // Bonus damage & armor
+  bonusDmg[eid] = opts.bonusDamage ?? 0;
+  bonusVsTag[eid] = opts.bonusVsTag ?? -1;
   armorClass[eid] = opts.armorClassId ?? 0;      // ArmorClass.Light
   baseArmor[eid] = opts.armorClassId === 1 ? 1 : 0;
   pendingDamage[eid] = 0;

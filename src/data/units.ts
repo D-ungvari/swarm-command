@@ -1,4 +1,4 @@
-import { Faction, UnitType, DamageType, ArmorClass, TERRAN_COLOR, ZERG_COLOR } from '../constants';
+import { Faction, UnitType, ArmorClass, TERRAN_COLOR, ZERG_COLOR } from '../constants';
 import type { UnitDef } from '../types';
 
 export const UNIT_DEFS: Record<number, UnitDef> = {
@@ -11,7 +11,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1000, splashRadius: 0,
     width: 14, height: 14, color: TERRAN_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 12,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Marine]: {
@@ -22,7 +22,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 610, splashRadius: 0,
     width: 12, height: 12, color: TERRAN_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 18,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Marauder]: {
@@ -33,7 +33,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1070, splashRadius: 0,
     width: 16, height: 16, color: TERRAN_COLOR,
     costMinerals: 100, costGas: 25, buildTime: 21,
-    damageType: DamageType.Concussive, armorClass: ArmorClass.Armored,
+    bonusDamage: 10, bonusVsTag: ArmorClass.Armored, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.SiegeTank]: {
@@ -44,7 +44,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 740, splashRadius: 0,
     width: 20, height: 20, color: TERRAN_COLOR,
     costMinerals: 150, costGas: 125, buildTime: 30,
-    damageType: DamageType.Explosive, armorClass: ArmorClass.Armored,
+    bonusDamage: 10, bonusVsTag: ArmorClass.Armored, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Medivac]: {
@@ -55,7 +55,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 0, splashRadius: 0,
     width: 18, height: 18, color: TERRAN_COLOR,
     costMinerals: 100, costGas: 100, buildTime: 30,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 1, canTargetGround: 0, canTargetAir: 0,
   },
   [UnitType.Ghost]: {
@@ -66,7 +66,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1500, splashRadius: 0,
     width: 10, height: 10, color: 0x4488cc,
     costMinerals: 150, costGas: 125, buildTime: 32,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 10, bonusVsTag: ArmorClass.Light, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Hellion]: {
@@ -77,7 +77,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1790, splashRadius: 1.5,
     width: 14, height: 10, color: 0xff6600,
     costMinerals: 100, costGas: 0, buildTime: 21,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 6, bonusVsTag: ArmorClass.Light, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Reaper]: {
@@ -88,7 +88,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 790, splashRadius: 0,
     width: 10, height: 10, color: 0x88aacc,
     costMinerals: 50, costGas: 50, buildTime: 32,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Viking]: {
@@ -99,7 +99,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1500, splashRadius: 0,
     width: 16, height: 14, color: 0x6699bb,
     costMinerals: 125, costGas: 75, buildTime: 30,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 4, bonusVsTag: ArmorClass.Armored, armorClass: ArmorClass.Armored,
     isAir: 1, canTargetGround: 0, canTargetAir: 1,
   },
   [UnitType.WidowMine]: {
@@ -110,7 +110,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 29000, splashRadius: 2.0,
     width: 10, height: 10, color: 0x443322,
     costMinerals: 75, costGas: 25, buildTime: 21,
-    damageType: DamageType.Explosive, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Cyclone]: {
@@ -121,7 +121,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 710, splashRadius: 0,
     width: 14, height: 12, color: 0x335577,
     costMinerals: 150, costGas: 100, buildTime: 32,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Thor]: {
@@ -132,7 +132,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 910, splashRadius: 0.5,
     width: 28, height: 28, color: 0x445566,
     costMinerals: 300, costGas: 200, buildTime: 43,
-    damageType: DamageType.Explosive, armorClass: ArmorClass.Armored,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Battlecruiser]: {
@@ -143,7 +143,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 160, splashRadius: 0,
     width: 32, height: 32, color: 0x334455,
     costMinerals: 400, costGas: 300, buildTime: 64,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored,
     isAir: 1, canTargetGround: 1, canTargetAir: 1,
   },
 
@@ -156,7 +156,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1000, splashRadius: 0,
     width: 12, height: 12, color: ZERG_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 12,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Zergling]: {
@@ -167,7 +167,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 497, splashRadius: 0,
     width: 10, height: 10, color: ZERG_COLOR,
     costMinerals: 50, costGas: 0, buildTime: 17,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Baneling]: {
@@ -178,7 +178,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 0, splashRadius: 2,
     width: 12, height: 12, color: 0x44cc44,
     costMinerals: 50, costGas: 25, buildTime: 14,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 19, bonusVsTag: ArmorClass.Light, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Hydralisk]: {
@@ -189,7 +189,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 590, splashRadius: 0,
     width: 14, height: 14, color: ZERG_COLOR,
     costMinerals: 100, costGas: 50, buildTime: 24,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Roach]: {
@@ -200,7 +200,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1430, splashRadius: 0,
     width: 16, height: 16, color: ZERG_COLOR,
     costMinerals: 75, costGas: 25, buildTime: 19,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Mutalisk]: {
@@ -211,7 +211,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1090, splashRadius: 0,
     width: 14, height: 14, color: 0xaa66dd,
     costMinerals: 100, costGas: 100, buildTime: 24,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 1, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Queen]: {
@@ -222,7 +222,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 860, splashRadius: 0,
     width: 14, height: 14, color: 0xbb44bb,
     costMinerals: 175, costGas: 0, buildTime: 36,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 1,
   },
   [UnitType.Overlord]: {
@@ -233,7 +233,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 0, splashRadius: 0,
     width: 16, height: 16, color: 0x886622,
     costMinerals: 100, costGas: 0, buildTime: 18,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 1, canTargetGround: 0, canTargetAir: 0,
   },
   [UnitType.Ravager]: {
@@ -244,7 +244,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1140, splashRadius: 0,
     width: 16, height: 16, color: 0xcc4422,
     costMinerals: 25, costGas: 75, buildTime: 12,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Lurker]: {
@@ -255,7 +255,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1430, splashRadius: 1.0,
     width: 18, height: 14, color: 0x664422,
     costMinerals: 50, costGas: 100, buildTime: 18,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 10, bonusVsTag: ArmorClass.Armored, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Infestor]: {
@@ -266,7 +266,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 0, splashRadius: 0,
     width: 12, height: 12, color: 0x446622,
     costMinerals: 100, costGas: 150, buildTime: 36,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 0, canTargetGround: 0, canTargetAir: 0,
   },
   [UnitType.Ultralisk]: {
@@ -277,7 +277,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 610, splashRadius: 1.5,
     width: 34, height: 34, color: 0x332211,
     costMinerals: 275, costGas: 200, buildTime: 39,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored,
     isAir: 0, canTargetGround: 1, canTargetAir: 0,
   },
   [UnitType.Corruptor]: {
@@ -288,7 +288,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 1360, splashRadius: 0,
     width: 18, height: 16, color: 0x884488,
     costMinerals: 150, costGas: 100, buildTime: 29,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Armored,
+    bonusDamage: 6, bonusVsTag: ArmorClass.Armored, armorClass: ArmorClass.Armored,
     isAir: 1, canTargetGround: 0, canTargetAir: 1,
   },
   [UnitType.Viper]: {
@@ -299,7 +299,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 0, splashRadius: 0,
     width: 14, height: 14, color: 0x669944,
     costMinerals: 100, costGas: 200, buildTime: 29,
-    damageType: DamageType.Normal, armorClass: ArmorClass.Light,
+    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Light,
     isAir: 1, canTargetGround: 0, canTargetAir: 0,
   },
 };

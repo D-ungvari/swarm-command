@@ -1422,5 +1422,430 @@ The check: define a `getUnitTechReq(uType: UnitType): BuildingType | null` looku
 | F.3 | Tech tree visual diagram | 2h | Nice-to-have — visual guide to the tree |
 
 **Total: ~7.5 hours (1 day)**
+
+---
+
+---
+
+# Iteration G — Multiplayer Foundation
+
+## G.1 — Deterministic Validation & Lockstep Harness
+
+The deterministic RNG (seeded LCG) and command recorder already exist from Phase 9. Before WebRTC, validate determinism locally with a split-screen test mode:
+
+- Start two `Game` instances in the same browser tab, side by side
+- Both seeded with the same value
+- Player 1 input → broadcast to both instances simultaneously
+- After 60s, compare `world.nextEid` and a hash of all `posX`/`posY`/`hpCurrent` arrays
+- If identical: determinism confirmed, safe to proceed to networking
+
+**New `DeterminismTestHarness.ts`:** Runs the comparison and displays a pass/fail overlay.
+
+## G.2 — WebRTC Signaling Server (Node.js)
+
+A minimal signaling server to exchange WebRTC offer/answer. Deployable to Railway or Render free tier.
+
+**`server/signaling.ts`** — ~80 lines:
 ```
+Express app + ws (WebSocket library)
+POST /room/:id/offer   → stores SDP offer
+GET  /room/:id/offer   → retrieves SDP offer
+POST /room/:id/answer  → stores SDP answer
+GET  /room/:id/answer  → retrieves SDP answer
+POST /room/:id/ice     → appends ICE candidate
+GET  /room/:id/ice     → returns all ICE candidates
+```
+
+**Client-side `src/network/WebRTCClient.ts`:**
+- `createRoom()` → generates 6-char alphanumeric code, creates RTCPeerConnection, posts offer
+- `joinRoom(code)` → fetches offer, creates answer, posts it
+- Once data channel is open: `send(GameCommand[])` / `onReceive(callback)`
+
+## G.3 — Lockstep Game Loop Integration
+
+Replace the single-player input loop with a lockstep loop:
+
+```
+Frame:
+  1. Collect local commands this frame (already in simulationQueue)
+  2. Serialize + send to remote peer via data channel
+  3. Wait for remote commands (with 2-tick input delay buffer)
+  4. Execute both players' commands deterministically (sorted by type+eid for consistency)
+  5. Advance simulation
+```
+
+**`src/network/LockstepManager.ts`:**
+- `INPUT_DELAY = 2` ticks (33ms at 60 UPS — imperceptible)
+- `pendingLocal[][]` and `pendingRemote[][]` ring buffers (8 slots each)
+- `update(tick)` returns merged command set for this tick or `null` if remote not arrived (freeze simulation)
+- Handles desync detection: hash world state every 30 ticks, compare with peer
+
+## G.4 — Lobby UI
+
+**Start screen additions:**
+- "Multiplayer" section below single-player options
+- "Create Game" button → shows 6-char room code + "Waiting for opponent..."
+- "Join Game" input → enter code, click Join
+- Faction/map selection before both players ready
+- "Ready" button → both must click before game starts
+- Connection status indicator (pulsing dot: yellow=connecting, green=connected)
+
+## G.5 — Reconnection & Desync Recovery
+
+- If connection drops mid-game: 10s reconnection window with countdown
+- On desync detection: request full state snapshot from peer, re-apply
+- Replay system already records all commands — desync recovery replays from last checkpoint
+
+---
+
+# Iteration H — Campaign Mode
+
+## H.1 — Campaign Framework
+
+**`src/scenarios/CampaignManager.ts`:**
+```typescript
+interface CampaignMission {
+  id: string;
+  faction: Faction;
+  mapType: MapType;
+  objectives: MissionObjective[];
+  startingUnits: { type: UnitType, col: number, row: number }[];
+  startingResources: { minerals: number, gas: number };
+  scriptedEvents: ScriptedEvent[];
+  dialogue: DialogueLine[];
+  rewards: { unlocks?: string[], story?: string };
+}
+```
+
+All missions defined in `src/scenarios/missions/` as data files (no code logic in mission files).
+
+## H.2 — Terran Campaign (5 missions)
+
+| # | Name | Premise | Key mechanic taught |
+|---|------|---------|-------------------|
+| T1 | First Contact | Defend 3 waves with a small squad — no build | Combat micro, hold position, attack-move |
+| T2 | Establish Base | Build a base under pressure; first Barracks | Economy, production, build order |
+| T3 | Break the Line | Enemy has a defended choke — use Siege Tanks | Siege positioning, slow push |
+| T4 | Air Superiority | Enemy has Mutalisks — must build Vikings/Thors | Air defense, mixed armies |
+| T5 | Total War | Full tech, full army — destroy all 3 Zerg bases | Everything |
+
+## H.3 — Zerg Campaign (5 missions)
+
+| # | Name | Premise | Key mechanic taught |
+|---|------|---------|-------------------|
+| Z1 | Hatching | 1 Hatchery, 4 Larva, survive first wave | Larva inject, Zergling flood |
+| Z2 | Consume | Destroy a Terran expansion before they fortify | Aggression timing, map control |
+| Z3 | The Swarm Rises | Build RoachWarren, mass Roach-Ravager push | Corrosive Bile, formation attack |
+| Z4 | Infestation | Use Infestors to capture Terran units | Fungal Growth, Neural Parasite |
+| Z5 | Final Evolution | Full tech, all unit types — total annihilation | Creep highways, Ultralisk, Viper |
+
+## H.4 — Scripted Events System
+
+**`src/scenarios/ScriptedEvent.ts`:**
+```typescript
+type EventTrigger =
+  | { type: 'time'; at: number }
+  | { type: 'unitDied'; unitType: UnitType; faction: Faction }
+  | { type: 'buildingBuilt'; buildingType: BuildingType }
+  | { type: 'allObjectivesComplete' };
+
+interface ScriptedEvent {
+  trigger: EventTrigger;
+  action: 'spawnUnits' | 'showDialogue' | 'panCamera' | 'lockControls' | 'winMission' | 'loseMission';
+  data: unknown;
+}
+```
+
+**Dialogue system:** Fullscreen-bottom text box with speaker portrait (geometric shape per character), character name, auto-advance after 4s or on click. 2-3 dialogue lines per mission at key moments.
+
+## H.5 — Mission Select Screen
+
+Branching mission tree (SC2-style):
+- Terran/Zerg campaign tabs
+- Missions unlock sequentially (complete T1 → T2 available)
+- Each mission shows: status (locked/available/completed), objectives preview, best time
+- Completion rewards shown: "Unlocks: Viking unit" for context
+
+---
+
+# Iteration I — Map Editor
+
+## I.1 — In-Game Map Editor Mode
+
+Accessible from the start screen: "Edit Map" button. Opens the game in editor mode.
+
+**Editor tools (keyboard shortcuts):**
+- `1-9`: paint tile type (ground, water, cliff, mineral, gas, destructible, creep)
+- `Shift+click`: place/remove unit spawn points
+- `Ctrl+S`: save map to `localStorage` as JSON
+- `Ctrl+L`: load map from `localStorage`
+- `E`: export map JSON to clipboard
+- `I`: import map JSON from clipboard
+- `R`: reset to blank map
+
+**Editor HUD overlay:**
+- Current tool indicator (top-left)
+- Tile coordinate display (cursor position)
+- Minimap showing current painted terrain
+- Undo/redo (Ctrl+Z / Ctrl+Y) — store up to 50 tile edits in history stack
+
+## I.2 — Custom Map Format
+
+```typescript
+interface CustomMap {
+  version: 1;
+  cols: number;
+  rows: number;
+  tiles: number[];           // flat Uint8Array serialized
+  mineralPatches: { col: number, row: number, amount: number }[];
+  gasGeysers: { col: number, row: number }[];
+  startPositions: { faction: number, col: number, row: number }[];
+  name: string;
+  author: string;
+  createdAt: string;
+}
+```
+
+Maps stored in `localStorage['swarm_maps']` as a JSON array. Up to 10 custom maps supported.
+
+## I.3 — Community Map Sharing
+
+Via URL hash: encode map JSON as base64, append to URL as `?map=<base64>`. Shareable link opens the game with that map loaded automatically. No server required.
+
+`src/map/MapSerializer.ts`: `toBase64(map) / fromBase64(b64)` using `btoa` / `atob`.
+
+---
+
+# Iteration J — Advanced Unit Mechanics
+
+## J.1 — Burrowing (Roach, Lurker, Widow Mine generalization)
+
+Currently Widow Mine and Lurker auto-burrow. Generalize into a proper burrowing system:
+
+- New `CommandType.Burrow = 30` / `CommandType.Unburrow = 31`
+- `burrowToggle: Uint8Array` component — 0=unburrowed, 1=burrowing, 2=burrowed
+- `burrowTimer: Float32Array` — time to complete burrow/unburrow (1s)
+- Burrowed units: invisible to enemies, cannot move, regenerate HP faster
+- `D` key → burrow/unburrow selected Zerg units
+
+**Units that can burrow:** Roach, Hydralisk, Zergling (with upgrade), Infestor, Lurker.
+
+## J.2 — Morph System (Zerg)
+
+Generalise Baneling morphing (Zergling → Baneling) and Ravager (Roach → Ravager) into a proper morph system:
+
+```typescript
+interface MorphDef {
+  fromType: UnitType;
+  toType: UnitType;
+  costMinerals: number;
+  costGas: number;
+  morphTime: number;  // seconds
+  requires?: BuildingType;
+}
+```
+
+New `CommandType.Morph = 32` — right-clicking a morph option on the info panel triggers it. During morphing, unit shows a construction-style animation (pulsing + partial transparency). Unit is immobile during morph.
+
+**Active morphs:** Zergling→Baneling (already works), Roach→Ravager (already works), Hydralisk→Lurker, Corruptor→Brood Lord (future).
+
+## J.3 — Flying Unit Landing
+
+Vikings switch between air/ground. Extend to allow Medivacs to "land" (transition to a stationary healing pad that heals faster but can't move). Toggle with `E` while Medivac selected.
+
+## J.4 — Unit Abilities: Second Pass
+
+Missing ability buttons for several units that have passive abilities but no active ones. Add actives:
+
+| Unit | New Ability | Key | Effect |
+|------|------------|-----|--------|
+| Reaper | KD8 Grenade | D | Throw grenade at target location: 10 dmg in 1.5 tile radius, 14s cooldown |
+| Thor | Strike Cannons | W | Switch between ground attack (30 dmg Explosive vs Armored) and anti-air (25 dmg splash to 6 air targets) |
+| Battlecruiser | Tactical Jump | T | Teleport to any visible location, 71s cooldown |
+| Hydralisk | Muscular Augments | (passive) | Upgrade at HydraliskDen: +0.7 speed on creep off-creep too |
+| Ultralisk | Chitinous Plating | (passive) | 2 extra armor on top of base |
+
+---
+
+# Iteration K — Economy Depth
+
+## K.1 — Orbital Command
+
+Terran Command Center upgrades to Orbital Command for 150m. This is Terran's equivalent of Queen inject — critical macro ability.
+
+**Orbital Command abilities:**
+- **MULE (Ctrl+Click mineral patch):** Drops a worker robot that mines 30 minerals/trip for 90s (total ~270 minerals). Costs 50 energy.
+- **Scanner Sweep (V):** Reveals a large area of fog for 12s. Costs 50 energy.
+- **Extra Supply (passive if not using other calldowns):** Saves energy for MULE spam.
+
+**Implementation:**
+- New `orbitalMode: Uint8Array` per building entity (0=CC, 1=Orbital)
+- New `CommandType.Upgrade = 33` for CC→Orbital
+- `orbitalEnergy: Float32Array` (same `energy[]` component reuse)
+- MULE spawns a temporary SCV entity with TTL timer (`muleExpiry: Float32Array`)
+
+## K.2 — Multiple Expansions
+
+The map has one natural expansion (close to player base). Add a proper expansion flow:
+
+- Natural expansion: (col 30, row 15) for Terran player — 6 mineral patches pre-placed
+- Third base: (col 50, row 50) — 8 patches, farther and more exposed
+- Game notifies "Expansion available" when player army is large enough to defend one
+
+**Expansion HUD indicator:** Small icon on minimap at expansion locations. Pulsing yellow when uncontested, green when player has a building there, red when AI has claimed it.
+
+## K.3 — Worker Efficiency Improvements
+
+Current: workers mine forever at constant rate. Add SC2-style saturation dynamics:
+
+- **Optimal saturation:** 2 workers per mineral patch = 16 per base (already tracked)
+- **Over-saturation penalty:** Already implemented. Make more visible: show "SATURATED" label in amber on the worker count HUD element.
+- **Auto-transfer:** New button in HUD — "Balance Workers" — redistributes workers between bases to optimal saturation
+- **Mining rate display:** Show actual minerals/min rate next to the mineral count (already partially implemented in income display)
+
+## K.4 — Vespene Gas Refineries
+
+Current: Refinery just provides gas. Add proper gas mechanics:
+
+- Maximum 3 workers per Refinery (currently uncapped for gas)
+- Show worker count on Refinery in info panel: "Workers: 2/3"
+- Add a hotkey to auto-assign workers to gas (right-click refinery with workers selected already works — polish the feedback)
+
+---
+
+# Iteration L — Competitive Features
+
+## L.1 — ELO / MMR System (Local)
+
+Single-player against AI earns "Skill Points" stored in localStorage:
+
+```typescript
+interface PlayerProfile {
+  skillPoints: number;
+  wins: Record<Difficulty, number>;
+  losses: Record<Difficulty, number>;
+  avgAPM: number;
+  totalGames: number;
+  bestWinTime: number;  // seconds
+  favoriteUnit: UnitType;  // most killed
+}
+```
+
+Display in a "Profile" panel accessible from the start screen. Skill Points increase on win (more on Hard/Brutal), decrease on loss.
+
+## L.2 — Win Conditions Variety
+
+Beyond "destroy all enemy buildings":
+
+- **Time Attack:** Destroy main base within N minutes (timed leaderboard)
+- **Economic Victory:** Reach 5000 total minerals gathered before opponent
+- **Survival:** Survive N waves without losing your Command Center
+- **Skirmish:** Preset armies, no building, micro-only — whoever kills all enemy units wins
+
+Selectable from Advanced Settings via a "Victory Condition" dropdown.
+
+## L.3 — Achievements
+
+25 in-game achievements stored in localStorage:
+
+| Achievement | Condition |
+|------------|-----------|
+| "Hell, it's about time!" | Win first game |
+| "Speed Runner" | Win in under 3 minutes |
+| "Fortress" | Survive 10 waves without losing a building |
+| "Stimmy" | Use Stim Pack 50 times in one game |
+| "Swarm" | Have 30 Zerglings alive at once |
+| "Tank Commander" | Kill 100 enemies with Siege Tanks |
+| "APM Machine" | Achieve 200+ APM in a game |
+| "Economic Miracle" | Gather 10,000 minerals in one game |
+| "No Mercy" | Win on Brutal difficulty |
+| "Micromanager" | Win without losing a single unit |
+
+Show unlock toast notification + persist to localStorage.
+
+---
+
+# Iteration M — Content Expansion (New Units)
+
+## M.1 — Terran: Banshee
+
+Cloaked air-to-ground attack aircraft.
+
+- **Stats:** HP 140, 12 dmg (Normal, air-to-ground only), range 6, speed 3.75, cooldown 800ms, isAir=1
+- **Ability — Cloak:** Same as Ghost, costs 1 energy/s while cloaked
+- **Produces from:** Starport (add to produces array)
+- **Tech requirement:** Starport + Tech Lab
+
+## M.2 — Terran: Liberator
+
+Anti-air fighter that transforms into an area-denial siege weapon.
+
+- **Fighter mode:** Air-to-air only, 75 dmg Normal, range 5
+- **Defender mode (E):** Becomes stationary, attacks a targeted circle on the ground with 85 dmg Explosive in a 1.5 tile radius. No-fly zone for AI.
+- **Produces from:** Starport
+
+## M.3 — Zerg: Brood Lord
+
+Corruptor morphs into Brood Lord (heavy siege flyer).
+
+- **Stats:** HP 225, 20 dmg Normal, range 9 (ranged air-to-ground), speed 1.875, isAir=1
+- **Broodlings:** Each attack spawns 2 Broodling units (small weak melee) at impact point
+- **Morph from:** Corruptor (costs 150m/150g, 34s)
+- **Requires:** Spire + Hive (late-game unit)
+
+## M.4 — Zerg: Swarm Host
+
+Stationary burrower that produces Locusts.
+
+- **Stats:** HP 160, no direct attack, speed 2.25, burrowing unit
+- **Ability — Spawn Locust (passive):** Every 30s while burrowed, spawns 2 Locust units (melee, last 25s, cost 0)
+- **Produces from:** Hatchery (requires Infestation Pit)
+
+## M.5 — Neutral: Xel'Naga Watchtower
+
+A map structure that grants vision. Already mentioned in ULTRAPLAN.md — implement now:
+
+- BuildingType.Watchtower = 42, neutral entity at map center
+- Any unit within 2 tiles → that faction gains 12-tile shared vision from watchtower
+- Visible on minimap as gold/yellow icon
+- AI scouts watchtower and sends 1 unit to hold it
+
+---
+
+# Master Sprint Calendar
+
+```
+Sprint 1  (1d): F.1-F.2-F.4-F.5     — Tech tree UI + Zerg buildings
+Sprint 2  (1d): A.1-A.2-A.5         — Ctrl+click, control group strip, Tab display
+Sprint 3  (2d): A.3-A.4             — Portraits, subgroup ability panel
+Sprint 4  (1d): B.1-B.3-B.9         — AI: base defense, faster pressure, cross-map
+Sprint 5  (1.5d): B.4-B.6-B.2       — AI: expanded base, harassment, vanguard
+Sprint 6  (1d): B.5-B.7-B.8         — AI: reactive intel, abilities, escalation
+Sprint 7  (2d): C.1-C.9             — Marine redesign + colour palette
+Sprint 8  (2d): C.2-C.3             — Terran + Zerg unit visual passes
+Sprint 9  (1.5d): C.4-C.5-C.6       — Buildings, resources, environment
+Sprint 10 (1.5d): C.7-C.8           — Effects, UI polish
+Sprint 11 (1d): D.1-D.2-D.3         — Voice lines, ambient, positional audio
+Sprint 12 (1d): D.4-D.5             — Ability sounds, adaptive music
+Sprint 13 (1d): E.1-E.2             — Camera, unit interaction
+Sprint 14 (1d): E.3-E.6-E.7         — Fog, veterancy, creep highway
+Sprint 15 (1d): F.3-E.4-E.5         — Tech diagram, game modes, minimap intel
+Sprint 16 (2d): G.1-G.2             — Determinism test + signaling server
+Sprint 17 (2d): G.3-G.4             — Lockstep loop + lobby UI
+Sprint 18 (1d): G.5                  — Reconnection + desync recovery
+Sprint 19 (2d): H.1-H.2             — Campaign framework + Terran missions
+Sprint 20 (2d): H.3-H.4-H.5         — Zerg missions + scripted events + select screen
+Sprint 21 (1d): I.1-I.2             — Map editor + custom format
+Sprint 22 (1d): I.3-J.1             — Map sharing + burrowing system
+Sprint 23 (1.5d): J.2-J.4           — Morph system + ability second pass
+Sprint 24 (1d): K.1-K.2             — Orbital Command + expansions
+Sprint 25 (1d): K.3-K.4             — Worker efficiency + gas refineries
+Sprint 26 (1d): L.1-L.2-L.3         — ELO profile + win conditions + achievements
+Sprint 27 (2d): M.1-M.2-M.3         — Banshee, Liberator, Brood Lord
+Sprint 28 (1d): M.4-M.5             — Swarm Host + Watchtower
+Sprint 29 (1d): Final polish + README + screenshots + portfolio sync
+```
+
+**Total: ~40 days / 8 weeks of focused development**
+**End result: A fully playable browser SC2 clone with campaign, multiplayer, map editor, 35+ units, and competitive features.**
 ```

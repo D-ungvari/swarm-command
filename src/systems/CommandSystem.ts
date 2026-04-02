@@ -36,6 +36,7 @@ import { addCommandPing } from '../rendering/UnitRenderer';
 import { emitProjectile } from '../rendering/ProjectileRenderer';
 import { damageEvents } from './CombatSystem';
 import { soundManager } from '../audio/SoundManager';
+import { triggerCameraShake } from '../rendering/CameraShake';
 
 /**
  * Translates queued game commands into move/attack/attack-move commands for selected units.
@@ -172,6 +173,7 @@ export function commandSystem(
             color: 0xff6600,
           });
           addCommandPing(posX[bestTgt], posY[bestTgt], 0xff6600, gameTime);
+          triggerCameraShake(8); // Yamato is the biggest gun — heavy shake
           soundManager.playYamato();
         }
         break;

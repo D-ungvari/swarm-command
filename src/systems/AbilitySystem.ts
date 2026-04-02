@@ -24,6 +24,7 @@ import {
   BuildingType, BuildState,
 } from '../constants';
 import { soundManager } from '../audio/SoundManager';
+import { triggerCameraShake } from '../rendering/CameraShake';
 
 /**
  * Processes all unit abilities each tick.
@@ -255,6 +256,7 @@ function processCorrosiveBile(world: World, gameTime: number): void {
     }
 
     soundManager.playBileImpact();
+    triggerCameraShake(5); // Bile impact — medium shake
 
     // Reset bile state
     bileLandTime[eid] = 0;
@@ -293,6 +295,7 @@ function processFungalGrowth(world: World, gameTime: number): void {
     }
 
     soundManager.playFungalGrowth();
+    triggerCameraShake(3); // Fungal — light shake
 
     // Reset fungal state
     fungalLandTime[eid] = 0;

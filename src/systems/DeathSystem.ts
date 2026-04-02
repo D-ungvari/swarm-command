@@ -13,6 +13,7 @@ import { BuildingType, CommandMode, WorkerState } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { soundManager } from '../audio/SoundManager';
+import { triggerCameraShake } from '../rendering/CameraShake';
 
 export interface DeathEvent {
   x: number;
@@ -65,6 +66,14 @@ export function deathSystem(
         });
       }
       soundManager.playDeath();
+
+      // Camera shake on large unit/building deaths
+      const unitSize = Math.max(renderWidth[eid] || 12, renderHeight[eid] || 12);
+      if (hasComponents(world, eid, BUILDING)) {
+        triggerCameraShake(6); // buildings always shake hard
+      } else if (unitSize >= 24) {
+        triggerCameraShake(unitSize * 0.15); // large units: Ultralisk, BC, Thor
+      }
     }
 
     // --- Pass 2: Remove entities whose death animation has finished ---

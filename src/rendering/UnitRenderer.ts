@@ -5,7 +5,7 @@ import {
   posX, posY, renderWidth, renderHeight, renderTint,
   selected, faction, hpCurrent, hpMax, unitType,
   atkFlashTimer, atkRange, atkDamage, targetEntity,
-  stimEndTime, slowEndTime, slowFactor, siegeMode, lastCombatTime, deathTime,
+  stimEndTime, slowEndTime, slowFactor, siegeMode, siegeTransitionEnd, lastCombatTime, deathTime,
   resourceType, resourceRemaining,
   buildState, buildProgress, buildingType, rallyX, rallyY,
   workerCarrying, workerState,
@@ -2181,18 +2181,85 @@ export class UnitRenderer {
         }
       }
 
-      // Cloak visual: shimmer ring + reduced alpha overlay
+      // Cloak visual: shimmer ring + phase distortion effect
       if (cloaked[eid] === 1) {
-        const pulse = 0.4 + Math.sin(gameTime * 4 + eid) * 0.3;
-        g.circle(posX[eid], posY[eid], renderWidth[eid] / 2 + 4);
-        g.stroke({ color: 0x88aaff, width: 1, alpha: pulse });
-        // Faded overlay to visually indicate reduced visibility
+        const pulse = 0.3 + Math.sin(gameTime * 4 + eid) * 0.2;
+        const shimmer = Math.sin(gameTime * 6 + eid * 1.7) * 0.15;
+        const rw = renderWidth[eid] / 2;
+        const rh = renderHeight[eid] / 2;
+
+        // Outer shimmer ring (pulsing)
+        g.circle(posX[eid], posY[eid], Math.max(rw, rh) + 4);
+        g.stroke({ color: 0x88aaff, width: 1.5, alpha: pulse });
+
+        // Phase distortion — offset duplicate outline
+        const distortX = Math.sin(gameTime * 3 + eid) * 2;
+        const distortY = Math.cos(gameTime * 2.5 + eid) * 1.5;
         if (fac === Faction.Zerg) {
-          g.ellipse(posX[eid], posY[eid], renderWidth[eid] / 2, renderHeight[eid] / 2);
+          g.ellipse(posX[eid] + distortX, posY[eid] + distortY, rw, rh);
+          g.stroke({ color: 0x6688cc, width: 0.8, alpha: 0.2 + shimmer });
         } else {
-          g.rect(posX[eid] - renderWidth[eid] / 2, posY[eid] - renderHeight[eid] / 2, renderWidth[eid], renderHeight[eid]);
+          g.rect(posX[eid] - rw + distortX, posY[eid] - rh + distortY, renderWidth[eid], renderHeight[eid]);
+          g.stroke({ color: 0x6688cc, width: 0.8, alpha: 0.2 + shimmer });
         }
-        g.fill({ color: 0x000033, alpha: 0.55 }); // dark overlay to dim the unit to ~30% visible
+
+        // Dark overlay to dim the unit
+        if (fac === Faction.Zerg) {
+          g.ellipse(posX[eid], posY[eid], rw, rh);
+        } else {
+          g.rect(posX[eid] - rw, posY[eid] - rh, renderWidth[eid], renderHeight[eid]);
+        }
+        g.fill({ color: 0x000033, alpha: 0.5 });
+      }
+
+      // ── Universal status effect overlays (all unit types) ──
+
+      // Stim Pack aura — pulsing orange ring (applies to any stimmed unit)
+      if (isStimmed && uType !== UnitType.Marine) {
+        // Marine has its own stim ring in layer 19; all others get this one
+        const sp = 0.5 + Math.sin(gameTime * 8) * 0.3;
+        const maxDim = Math.max(w, h);
+        g.circle(x, y, maxDim * 0.8);
+        g.stroke({ color: 0xff8800, width: 2, alpha: sp });
+        g.circle(x, y, maxDim * 0.55);
+        g.stroke({ color: 0xffaa44, width: 1, alpha: sp * 0.4 });
+      }
+
+      // Slow debuff aura — icy blue shimmer
+      if (slowEndTime[eid] > gameTime) {
+        const slowPulse = 0.4 + Math.sin(gameTime * 3 + eid) * 0.2;
+        const maxDim = Math.max(w, h);
+        g.circle(x, y, maxDim * 0.7);
+        g.fill({ color: 0x4488cc, alpha: slowPulse * 0.15 });
+        g.circle(x, y, maxDim * 0.7);
+        g.stroke({ color: 0x88ccff, width: 1.5, alpha: slowPulse * 0.5 });
+        // Icy sparkle dots
+        for (let i = 0; i < 3; i++) {
+          const angle = gameTime * 1.5 + i * 2.1 + eid * 0.5;
+          const dist = maxDim * 0.5;
+          const sx = x + Math.cos(angle) * dist;
+          const sy = y + Math.sin(angle) * dist;
+          g.circle(sx, sy, 1);
+          g.fill({ color: 0xcceeFF, alpha: slowPulse * 0.6 });
+        }
+      }
+
+      // Siege mode transition — sparks and glow during pack/unpack
+      if (uType === UnitType.SiegeTank && siegeTransitionEnd[eid] > gameTime) {
+        const transProgress = 1 - Math.max(0, (siegeTransitionEnd[eid] - gameTime) / 2);
+        const sparkAlpha = 0.4 + Math.sin(gameTime * 12) * 0.3;
+        // Transition glow ring
+        g.circle(x, y, Math.max(w, h) * 0.7);
+        g.stroke({ color: 0xffaa22, width: 2, alpha: sparkAlpha * transProgress });
+        // Spark dots around the tank
+        for (let i = 0; i < 4; i++) {
+          const angle = gameTime * 4 + i * Math.PI / 2;
+          const dist = Math.max(w, h) * 0.5 * transProgress;
+          const sx = x + Math.cos(angle) * dist;
+          const sy = y + Math.sin(angle) * dist;
+          g.circle(sx, sy, 1.5);
+          g.fill({ color: 0xffdd44, alpha: sparkAlpha });
+        }
       }
 
       // Weapon fire line + muzzle flash for ranged units when attacking

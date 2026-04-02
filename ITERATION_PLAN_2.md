@@ -4448,11 +4448,13 @@ v6.0  Sprints 201–250: Game feel mastery. Cloud saves. Coach AI. Full unit par
 
 ---
 
-## Priority Tiers (for focus when context is limited)
+## Active Scope
+
+**Tier 0, 1, and 2 are in scope. Tier 3 and 4 are explicitly out of scope for the foreseeable future.**
 
 ```
-TIER 0 — Ship today (bugs blocking play):
-  Sprint 1:  Tech tree UI labels
+TIER 0 — Fix now (bugs blocking play):
+  Sprint 1:  Tech tree UI labels          ← START HERE
   Sprint 4:  AI base defense
   Sprint 7:  Marine redesign
 
@@ -4462,10 +4464,14 @@ TIER 1 — Core game loop polish (next 2 weeks):
 TIER 2 — Depth features (next 2 months):
   Sprints 11–55: Audio, campaign, multiplayer, map editor, 3rd faction
 
-TIER 3 — Platform & live service (3–6 months):
-  Sprints 56–104: AI Director, ranked, modding, procedural content
-
-TIER 4 — Mastery & legacy (6–15 months):
-  Sprints 105–250: Team modes, ML AI, game feel, engine OSS, full unit parity
+─────────────────────────────────────────
+  TIER 3 and TIER 4: OUT OF SCOPE
+  Everything from Sprint 56 onward is
+  archived for future reference only.
+  Do not plan or implement these.
+─────────────────────────────────────────
 ```
+
+**Working sprints: 1–55 only.**
+All planning and implementation work stays within Sprints 1–55 (Iterations A–M and AA) until explicitly re-scoped.
 ```

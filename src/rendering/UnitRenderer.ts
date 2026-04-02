@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, CommandMode, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR } from '../constants';
+import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, CommandMode, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR, TERRAN_VISOR, TERRAN_METAL, TERRAN_DARK, TERRAN_HIGHLIGHT } from '../constants';
 import {
   POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING, WORKER,
   posX, posY, renderWidth, renderHeight, renderTint,
@@ -52,6 +52,20 @@ function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: num
     d += seg;
     drawing = !drawing;
   }
+}
+
+function darken(color: number, amount: number): number {
+  const r = Math.max(0, ((color >> 16) & 0xff) - amount);
+  const g = Math.max(0, ((color >> 8) & 0xff) - amount);
+  const b = Math.max(0, (color & 0xff) - amount);
+  return (r << 16) | (g << 8) | b;
+}
+
+function lighten(color: number, amount: number): number {
+  const r = Math.min(255, ((color >> 16) & 0xff) + amount);
+  const g = Math.min(255, ((color >> 8) & 0xff) + amount);
+  const b = Math.min(255, (color & 0xff) + amount);
+  return (r << 16) | (g << 8) | b;
 }
 
 /**
@@ -929,47 +943,162 @@ export class UnitRenderer {
           g.fill({ color: 0x888888 });
 
         } else if (uType === UnitType.Marine) {
-          // ── Marine: armored infantry with visor and rifle ──
-          // Shadow
-          g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body — trapezoid shape (wider at shoulders, narrower at feet)
-          g.moveTo(x - w * 0.5, y - h * 0.4);
-          g.lineTo(x + w * 0.5, y - h * 0.4);
-          g.lineTo(x + w * 0.35, y + h * 0.5);
-          g.lineTo(x - w * 0.35, y + h * 0.5);
-          g.closePath();
-          g.fill({ color: bodyColor });
-          // Armor plate outline
-          g.moveTo(x - w * 0.5, y - h * 0.4);
-          g.lineTo(x + w * 0.5, y - h * 0.4);
-          g.lineTo(x + w * 0.35, y + h * 0.5);
-          g.lineTo(x - w * 0.35, y + h * 0.5);
-          g.closePath();
-          g.stroke({ color: 0x5588bb, width: 1, alpha: 0.6 });
-          // Helmet — small rect on top
-          g.rect(x - w * 0.3, y - h * 0.55, w * 0.6, h * 0.2);
-          g.fill({ color: bodyColor });
-          g.rect(x - w * 0.3, y - h * 0.55, w * 0.6, h * 0.2);
-          g.stroke({ color: 0x6699cc, width: 1, alpha: 0.7 });
-          // Visor slit — bright cyan horizontal line
-          g.moveTo(x - w * 0.22, y - h * 0.46);
-          g.lineTo(x + w * 0.22, y - h * 0.46);
-          g.stroke({ color: 0x44ffff, width: 1.5 });
-          // Rifle — thin angled line from right shoulder going down-right
-          g.moveTo(x + w * 0.4, y - h * 0.3);
-          g.lineTo(x + w * 0.75, y + h * 0.15);
-          g.stroke({ color: 0x778899, width: 1.5 });
-          // Rifle muzzle — small horizontal line at end
-          g.moveTo(x + w * 0.7, y + h * 0.15);
-          g.lineTo(x + w * 0.85, y + h * 0.15);
-          g.stroke({ color: 0x556677, width: 1.5 });
+          // ── Marine: CMC Powered Combat Armour — 22-layer SC2 iconic design ──
+          const hw = w / 2;
+          const hh = h / 2;
 
-          // Stim Pack ring — pulsing orange ring when stimmed
+          // Idle breathing micro-animation (desync per unit)
+          const breathY = Math.sin(gameTime * 1.2 + eid * 2.3) * 0.4;
+          const bx = x;
+          const by = y + breathY;
+
+          // Layer 1: Drop shadow
+          g.ellipse(bx, by + hh + 4, hw * 1.4, hh * 0.35);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+
+          // Layer 2-3: Boots (heavy, wide)
+          g.rect(bx - hw * 0.3, by + hh * 0.3, hw * 0.24, hh * 0.3);
+          g.fill({ color: darken(bodyColor, 40) });
+          g.rect(bx + hw * 0.06, by + hh * 0.3, hw * 0.24, hh * 0.3);
+          g.fill({ color: darken(bodyColor, 40) });
+
+          // Layer 4: Torso (barrel chest trapezoid)
+          g.moveTo(bx - hw * 0.4, by - hh * 0.1);
+          g.lineTo(bx + hw * 0.4, by - hh * 0.1);
+          g.lineTo(bx + hw * 0.3, by + hh * 0.15);
+          g.lineTo(bx - hw * 0.3, by + hh * 0.15);
+          g.closePath();
+          g.fill({ color: bodyColor });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 1, alpha: 0.7 });
+
+          // Layer 5: Chest plate (raised, slightly brighter)
+          g.rect(bx - hw * 0.24, by - hh * 0.08, hw * 0.48, hh * 0.18);
+          g.fill({ color: lighten(bodyColor, 20) });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 0.8, alpha: 0.5 });
+
+          // Layer 6: Chest division seam
+          g.moveTo(bx, by - hh * 0.08);
+          g.lineTo(bx, by + hh * 0.12);
+          g.stroke({ color: TERRAN_DARK, width: 1, alpha: 0.5 });
+
+          // Layer 7: Waist band
+          g.rect(bx - hw * 0.26, by + hh * 0.12, hw * 0.52, hh * 0.06);
+          g.fill({ color: darken(bodyColor, 30) });
+
+          // Layer 8: LEFT PAULDRON (massive shoulder pad — the iconic feature)
+          g.moveTo(bx - hw * 0.38, by - hh * 0.2);
+          g.lineTo(bx - hw * 0.7, by - hh * 0.2);
+          g.lineTo(bx - hw * 0.72, by + hh * 0.02);
+          g.lineTo(bx - hw * 0.4, by + hh * 0.06);
+          g.closePath();
+          g.fill({ color: bodyColor });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 1, alpha: 0.6 });
+          // Pauldron top ridge
+          g.moveTo(bx - hw * 0.38, by - hh * 0.2);
+          g.lineTo(bx - hw * 0.7, by - hh * 0.2);
+          g.stroke({ color: 0x7799cc, width: 1 });
+
+          // Layer 9: RIGHT PAULDRON (mirror)
+          g.moveTo(bx + hw * 0.38, by - hh * 0.2);
+          g.lineTo(bx + hw * 0.7, by - hh * 0.2);
+          g.lineTo(bx + hw * 0.72, by + hh * 0.02);
+          g.lineTo(bx + hw * 0.4, by + hh * 0.06);
+          g.closePath();
+          g.fill({ color: bodyColor });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 1, alpha: 0.6 });
+          // Pauldron top ridge
+          g.moveTo(bx + hw * 0.38, by - hh * 0.2);
+          g.lineTo(bx + hw * 0.7, by - hh * 0.2);
+          g.stroke({ color: 0x7799cc, width: 1 });
+
+          // Layer 10: Elbow joints
+          g.circle(bx - hw * 0.32, by + hh * 0.05, hw * 0.07);
+          g.fill({ color: TERRAN_DARK });
+          g.circle(bx + hw * 0.32, by + hh * 0.05, hw * 0.07);
+          g.fill({ color: TERRAN_DARK });
+
+          // Layer 11: Helmet dome (slightly wider than torso)
+          g.moveTo(bx - hw * 0.36, by - hh * 0.15);
+          g.lineTo(bx - hw * 0.36, by - hh * 0.45);
+          g.arc(bx, by - hh * 0.45, hw * 0.36, Math.PI, 0);
+          g.lineTo(bx + hw * 0.36, by - hh * 0.15);
+          g.closePath();
+          g.fill({ color: bodyColor });
+          g.stroke({ color: TERRAN_HIGHLIGHT, width: 1, alpha: 0.7 });
+
+          // Layer 12: Helmet antenna/ridge
+          g.rect(bx - hw * 0.2, by - hh * 0.62, hw * 0.1, hh * 0.12);
+          g.fill({ color: bodyColor });
+          g.stroke({ color: TERRAN_DARK, width: 0.8 });
+
+          // Layer 13: Chin guard
+          g.moveTo(bx - hw * 0.3, by - hh * 0.15);
+          g.lineTo(bx - hw * 0.2, by - hh * 0.06);
+          g.lineTo(bx + hw * 0.2, by - hh * 0.06);
+          g.lineTo(bx + hw * 0.3, by - hh * 0.15);
+          g.closePath();
+          g.fill({ color: darken(bodyColor, 25) });
+          g.stroke({ color: TERRAN_DARK, width: 0.8, alpha: 0.6 });
+
+          // Layer 14: Visor dark interior
+          g.rect(bx - hw * 0.24, by - hh * 0.47, hw * 0.48, hh * 0.2);
+          g.fill({ color: 0x001122, alpha: 0.85 });
+
+          // Layer 15: T-VISOR (the iconic feature — horizontal bar + vertical drop)
+          // Horizontal bar
+          g.moveTo(bx - hw * 0.26, by - hh * 0.38);
+          g.lineTo(bx + hw * 0.26, by - hh * 0.38);
+          g.stroke({ color: TERRAN_VISOR, width: 2.5 });
+          // Vertical drop
+          g.moveTo(bx, by - hh * 0.38);
+          g.lineTo(bx, by - hh * 0.24);
+          g.stroke({ color: TERRAN_VISOR, width: 1.5 });
+          // Soft glow
+          g.moveTo(bx - hw * 0.26, by - hh * 0.38);
+          g.lineTo(bx + hw * 0.26, by - hh * 0.38);
+          g.stroke({ color: 0x44ffff, width: 5, alpha: 0.2 });
+
+          // Layer 16: Gauss Rifle (5 elements)
+          // Stock
+          g.rect(bx + hw * 0.28, by + hh * 0.0, hw * 0.14, hh * 0.16);
+          g.fill({ color: TERRAN_METAL });
+          // Receiver
+          g.rect(bx + hw * 0.32, by - hh * 0.08, hw * 0.34, hh * 0.12);
+          g.fill({ color: 0x556677 });
+          g.stroke({ color: 0x667788, width: 0.8 });
+          // Magazine
+          g.rect(bx + hw * 0.38, by + hh * 0.04, hw * 0.16, hh * 0.14);
+          g.fill({ color: 0x2a3a4a });
+          g.stroke({ color: TERRAN_METAL, width: 0.8 });
+          // Barrel
+          g.moveTo(bx + hw * 0.66, by - hh * 0.02);
+          g.lineTo(bx + hw * 1.0, by + hh * 0.12);
+          g.stroke({ color: 0x778899, width: 2.5 });
+          // Muzzle
+          g.circle(bx + hw * 1.0, by + hh * 0.12, 2);
+          g.fill({ color: TERRAN_METAL });
+
+          // Layer 17: Muzzle flash (when attacking)
+          if (atkFlashTimer[eid] > 0) {
+            const fa = atkFlashTimer[eid] / 0.12;
+            g.circle(bx + hw * 1.0, by + hh * 0.12, 4 + fa * 3);
+            g.fill({ color: 0xffdd44, alpha: fa * 0.9 });
+            g.circle(bx + hw * 1.0, by + hh * 0.12, 2 + fa * 2);
+            g.fill({ color: 0xffffff, alpha: fa });
+          }
+
+          // Layer 18: Left arm (bracing rifle)
+          g.moveTo(bx - hw * 0.24, by + hh * 0.08);
+          g.lineTo(bx + hw * 0.3, by + hh * 0.02);
+          g.stroke({ color: bodyColor, width: 4 });
+
+          // Layer 19: Stim Pack ring (when active)
           if (isStimmed) {
-            const stimPulse = 0.5 + Math.sin(gameTime * 8) * 0.3;
-            g.circle(x, y, Math.max(w, h) * 0.7 + 4);
-            g.stroke({ color: 0xffaa00, width: 2, alpha: stimPulse });
+            const sp = 0.55 + Math.sin(gameTime * 8) * 0.3;
+            g.circle(bx, by, Math.max(w, h) * 0.85);
+            g.stroke({ color: 0xff8800, width: 2.5, alpha: sp });
+            g.circle(bx, by, Math.max(w, h) * 0.65);
+            g.stroke({ color: 0xffaa44, width: 1, alpha: sp * 0.5 });
           }
 
         } else if (uType === UnitType.Marauder) {

@@ -253,3 +253,16 @@ export const UNBUILDABLE_COLOR = 0x1a1a12;
 export const WATER_COLOR = 0x0a2244;
 export const ROCK_COLOR = 0x666055;
 export const SELECTION_COLOR = 0x00ff00;
+
+// ── Unified Colour Palette ──
+export const TERRAN_VISOR     = 0x00eeff;
+export const TERRAN_METAL     = 0x445566;
+export const TERRAN_DARK      = 0x112244;
+export const TERRAN_HIGHLIGHT = 0x6699cc;
+export const TERRAN_WARNING   = 0xff6622;
+export const ZERG_ACID        = 0x88ff22;
+export const ZERG_EYE         = 0xff2200;
+export const ZERG_FLESH       = 0x882244;
+export const MINERAL_CRYSTAL  = 0x44aaff;
+export const GAS_GREEN        = 0x44ff88;
+export const NEUTRAL_STONE    = 0x888888;

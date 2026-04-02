@@ -140,12 +140,13 @@ describe('AISystem', () => {
         return eid;
       });
       setAIMinerals(500, 500);
-      runOneDecision(50, spawnFn);
+      // Run enough decisions at a late-enough gameTime to guarantee spawning
+      for (let i = 0; i < 20; i++) runOneDecision(100 + i * 0.5, spawnFn);
       expect(getAIState().armySize).toBeGreaterThanOrEqual(1);
 
       for (const eid of spawnedEids) hpCurrent[eid] = 0;
       setAIMinerals(0, 0);
-      runOneDecision(50.1, vi.fn(() => 0));
+      runOneDecision(120, vi.fn(() => 0));
       expect(getAIState().armySize).toBe(0);
     });
   });

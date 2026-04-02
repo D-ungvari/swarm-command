@@ -674,11 +674,28 @@ export class UnitRenderer {
         // Production progress ring (visible without selecting)
         if (bs === BuildState.Complete && prodUnitType[eid] > 0 && prodTimeTotal[eid] > 0) {
           const prodRatio = 1 - (prodProgress[eid] / prodTimeTotal[eid]);
-          const arcRadius = Math.max(w, h) / 2 + 4;
+          const arcRadius = Math.max(w, h) / 2 + 5;
           const startAngle = -Math.PI / 2; // 12 o'clock
           const endAngle = startAngle + prodRatio * Math.PI * 2;
+          const prodPulse = 0.6 + Math.sin(gameTime * 3) * 0.15;
+
+          // Outer glow ring (full circle, dim)
+          g.circle(x, y, arcRadius + 1);
+          g.stroke({ color: 0xff8800, width: 1, alpha: 0.15 * prodPulse });
+
+          // Progress arc (bright, thicker)
           g.arc(x, y, arcRadius, startAngle, endAngle, false);
-          g.stroke({ color: 0xffaa22, width: 2, alpha: 0.7 });
+          g.stroke({ color: 0xffaa22, width: 2.5, alpha: prodPulse });
+
+          // Leading dot at the arc's tip
+          const tipX = x + Math.cos(endAngle) * arcRadius;
+          const tipY = y + Math.sin(endAngle) * arcRadius;
+          g.circle(tipX, tipY, 2.5);
+          g.fill({ color: 0xffdd66, alpha: prodPulse });
+
+          // Inner activity glow (shows building is working)
+          g.circle(x, y, Math.max(w, h) * 0.25);
+          g.fill({ color: 0xffaa22, alpha: 0.06 + Math.sin(gameTime * 5) * 0.03 });
         }
         continue;
       }
@@ -2516,33 +2533,60 @@ export class UnitRenderer {
       }
     }
 
-    // Floating damage indicators — colored markers that drift upward and fade
+    // Floating damage indicators — severity-scaled markers with impact bars
     for (let i = damageEvents.length - 1; i >= 0; i--) {
       const evt = damageEvents[i];
       const age = gameTime - evt.time;
-      const duration = 0.8;
+      const duration = 1.0;
       if (age >= duration) continue;
 
       const t = age / duration;
-      const alpha = Math.max(0, 1 - t);
-      const floatY = age * 30; // drift upward
+      const alpha = Math.max(0, 1 - t * t); // quadratic fade — stays visible longer
+      const floatY = age * 35; // drift upward
+      // Slight horizontal spread based on event index for readability
+      const spreadX = Math.sin(evt.time * 7 + i) * 6;
 
-      const dx = evt.x;
+      const dx = evt.x + spreadX;
       const dy = evt.y - floatY;
 
-      // Small colored diamond marker that shrinks as it fades
-      const size = Math.max(1, 3 - t * 2);
-      g.moveTo(dx, dy - size);
-      g.lineTo(dx + size, dy);
-      g.lineTo(dx, dy + size);
-      g.lineTo(dx - size, dy);
-      g.closePath();
-      g.fill({ color: evt.color, alpha: alpha * 0.9 });
+      // Scale by damage amount: small hits = small marker, big hits = big marker
+      const dmg = evt.amount;
+      const severity = Math.min(1, dmg / 50); // normalize: 50+ damage = max size
+      const baseSize = 2 + severity * 4; // 2-6px
+      const size = baseSize * (1 - t * 0.3); // slight shrink over time
 
-      // Thin dash line above the diamond to indicate "damage"
-      g.moveTo(dx - 2, dy - size - 2);
-      g.lineTo(dx + 2, dy - size - 2);
-      g.stroke({ color: evt.color, width: 1.5, alpha: alpha * 0.7 });
+      // Color shifts with severity: low = base color, high = brighter/whiter
+      const isHeavy = dmg >= 30;
+      const isCrit = dmg >= 80;
+      const glowColor = isCrit ? 0xffffff : isHeavy ? 0xffddaa : evt.color;
+
+      // Background glow for heavy hits
+      if (isHeavy) {
+        g.circle(dx, dy, size + 3);
+        g.fill({ color: evt.color, alpha: alpha * 0.15 });
+      }
+
+      // Damage bar — horizontal line whose width = damage magnitude
+      const barWidth = 2 + Math.min(14, dmg * 0.2);
+      const barHeight = Math.max(1.5, 1 + severity);
+      g.rect(dx - barWidth / 2, dy - barHeight / 2, barWidth, barHeight);
+      g.fill({ color: glowColor, alpha: alpha * 0.85 });
+
+      // Bright core dot
+      g.circle(dx, dy, size * 0.4);
+      g.fill({ color: 0xffffff, alpha: alpha * 0.6 });
+
+      // Critical hit burst — extra sparkle lines for 80+ damage
+      if (isCrit && t < 0.3) {
+        const burstAlpha = (1 - t / 0.3) * alpha;
+        for (let s = 0; s < 4; s++) {
+          const angle = s * Math.PI / 2 + 0.4;
+          const len = 4 + severity * 3;
+          g.moveTo(dx + Math.cos(angle) * 2, dy + Math.sin(angle) * 2);
+          g.lineTo(dx + Math.cos(angle) * len, dy + Math.sin(angle) * len);
+          g.stroke({ color: 0xffff88, width: 1, alpha: burstAlpha * 0.7 });
+        }
+      }
     }
   }
 

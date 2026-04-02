@@ -111,13 +111,13 @@ export class GameOverRenderer {
     return this.shown;
   }
 
-  update(world: World, gameTime: number): void {
+  update(world: World, gameTime: number, winCondition: string = 'destroy', totalResourcesGathered: number = 0): void {
     if (this.shown) return;
     if (gameTime < 45) return; // Don't check too early
 
     // Check defeat: player has no Command Centers
     let playerHasCC = false;
-    let zergBuildingCount = 0;
+    let enemyBuildingCount = 0;
 
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (hpCurrent[eid] <= 0) continue;
@@ -133,7 +133,7 @@ export class GameOverRenderer {
       // Count enemy buildings (Zerg buildings with hp > 0)
       if (hasComponents(world, eid, POSITION | HEALTH | BUILDING) &&
           faction[eid] === Faction.Zerg) {
-        zergBuildingCount++;
+        enemyBuildingCount++;
       }
     }
 
@@ -142,10 +142,21 @@ export class GameOverRenderer {
       return;
     }
 
-    // Victory: all Zerg BUILDINGS destroyed AND AI has sent at least 1 wave
-    const aiState = getAIState();
-    if (zergBuildingCount === 0 && aiState.waveCount >= 1) {
-      this.show('VICTORY', 'The Zerg base has been destroyed.', '#44ff44');
+    // Check win condition
+    if (winCondition === 'timed') {
+      if (gameTime >= 600) {
+        this.show('VICTORY', 'Survived 10 minutes!', '#44ff44');
+      }
+    } else if (winCondition === 'economy') {
+      if (totalResourcesGathered >= 5000) {
+        this.show('VICTORY', 'Gathered 5000 resources!', '#44ff44');
+      }
+    } else {
+      // Default: destroy all enemy buildings AND AI has sent at least 1 wave
+      const aiState = getAIState();
+      if (enemyBuildingCount === 0 && aiState.waveCount >= 1) {
+        this.show('VICTORY', 'The Zerg base has been destroyed.', '#44ff44');
+      }
     }
   }
 

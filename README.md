@@ -1,12 +1,31 @@
-# Swarm Command
+# Swarm Command — SC2 Mechanics Practice Tool
 
-A StarCraft-inspired real-time strategy game running entirely in the browser. Command Terran forces against a Zerg AI across a procedurally generated map.
+Practice StarCraft 2 mechanics in your browser. True unit stats. No install.
 
-**Live demo:** https://YOUR_GITHUB_USERNAME.github.io/swarm-command/
+**Live demo:** https://d-ungvari.github.io/swarm-command/
 
 ![Swarm Command gameplay](screenshot.png)
 
-![CI](https://github.com/YOUR_GITHUB_USERNAME/swarm-command/actions/workflows/deploy.yml/badge.svg)
+![CI](https://github.com/D-ungvari/swarm-command/actions/workflows/deploy.yml/badge.svg)
+
+---
+
+## Features
+
+- **14 practice scenarios** — micro, macro, build order, timing, and survival drills
+- **10 campaign missions** — 5 Terran + 5 Zerg with progressive unlock
+- **27 unit types** — 13 Terran, 14 Zerg with authentic stats and abilities
+- **Build order trainer** — practice real SC2 openers against AI pressure
+- **Veterancy system** — units gain kill-count stars and visual rank-ups
+- **Achievements** — track milestones across sessions
+- **4 difficulty levels** — Easy, Normal, Hard, Brutal
+- **3 win conditions** — Destroy All, Timed Survival (10 min), Economy (5000 resources)
+- **Fog of war** — toggle on/off
+- **3 map layouts** — Plains, Canyon, Islands + custom map editor
+- **Replay system** — save and watch replays
+- **Survival mode** — endless waves
+- **Stim Pack, Siege Mode, and more** — unit abilities with real cooldowns
+- **Full control group support** — Ctrl+0-9 for SC2-style army management
 
 ---
 
@@ -19,21 +38,8 @@ A StarCraft-inspired real-time strategy game running entirely in the browser. Co
 | Camera | pixi-viewport (pan, zoom, edge-scroll) |
 | Pathfinding | A* via pathfinding.js |
 | Build | Vite |
-| Tests | Vitest |
+| Tests | Vitest (197 tests) |
 | ECS | Hand-rolled (TypedArrays + bitmask queries) |
-
----
-
-## Key Features
-
-- 10 unit types across two factions (Terran and Zerg)
-- Unit abilities: Stim Pack (Marine), Siege Mode (Tank)
-- Building queue and unit production
-- Resource gathering and base economy
-- Fog of war
-- Four AI difficulty levels (Easy / Normal / Hard / Brutal)
-- Drag-box multi-unit selection and control groups (Ctrl+0–9)
-- Attack-move and hold-position commands
 
 ---
 

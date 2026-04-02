@@ -26,8 +26,8 @@ function startGame(): void {
   if (startScreen) startScreen.style.display = 'none';
   const game = new Game();
 
-  const diffSelect = document.getElementById('difficulty-select') as HTMLSelectElement | null;
-  const diffValue = diffSelect ? parseInt(diffSelect.value, 10) : Difficulty.Normal;
+  const activeDiffCard = document.querySelector('.diff-card.active') as HTMLElement | null;
+  const diffValue = activeDiffCard ? parseInt(activeDiffCard.dataset.value || '1', 10) : Difficulty.Normal;
   game.setDifficulty(diffValue as Difficulty);
 
   const mapSelect = document.getElementById('map-select') as HTMLSelectElement | null;
@@ -57,6 +57,11 @@ function startGame(): void {
   const turboSelect = document.getElementById('turbo-mode') as HTMLSelectElement | null;
   if (turboSelect) {
     game.setTurboMode(turboSelect.value === '1');
+  }
+
+  const winConditionSelect = document.getElementById('win-condition') as HTMLSelectElement | null;
+  if (winConditionSelect) {
+    game.setWinCondition(winConditionSelect.value);
   }
 
   // Read faction selection
@@ -309,8 +314,8 @@ document.getElementById('map-editor-play')?.addEventListener('click', () => {
 
   const game = new Game();
 
-  const diffSelect = document.getElementById('difficulty-select') as HTMLSelectElement | null;
-  const diffValue = diffSelect ? parseInt(diffSelect.value, 10) : Difficulty.Normal;
+  const activeDiffCard = document.querySelector('.diff-card.active') as HTMLElement | null;
+  const diffValue = activeDiffCard ? parseInt(activeDiffCard.dataset.value || '1', 10) : Difficulty.Normal;
   game.setDifficulty(diffValue as Difficulty);
 
   // Read faction selection

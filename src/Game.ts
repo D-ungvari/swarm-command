@@ -171,6 +171,7 @@ export class Game {
   private fogEnabled = true;
   private survivalMode = false;
   private turboMode = false;
+  private winCondition: string = 'destroy';
 
   // Fixed timestep accumulator
   private accumulator = 0;
@@ -239,6 +240,10 @@ export class Game {
   setTurboMode(v: boolean): void {
     this.turboMode = v;
     if (v) this.gameSpeedIndex = 3; // lock to 2x
+  }
+
+  setWinCondition(v: string): void {
+    this.winCondition = v;
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -671,10 +676,10 @@ export class Game {
     this.debugOverlay.update(this.world.nextEid - 1, 197, this.gameTime);
 
     const wasShown = this.gameOverRenderer.isShown;
-    this.gameOverRenderer.update(this.world, this.gameTime);
+    const snapshot = this.stats.getSnapshot(this.gameTime);
+    this.gameOverRenderer.update(this.world, this.gameTime, this.winCondition, snapshot.resourcesGathered);
     if (!wasShown && this.gameOverRenderer.isShown && !this.gameEnded) {
       this.gameEnded = true;
-      const snapshot = this.stats.getSnapshot(this.gameTime);
       this.gameOverRenderer.setStats(snapshot);
       this.recorder.stopRecording();
       this.gameOverRenderer.setReplay(this.recorder.toJSON(), this.recorder.frameCount);

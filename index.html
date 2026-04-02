@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Swarm Command — Browser RTS</title>
-  <meta name="description" content="StarCraft-inspired real-time strategy game built with TypeScript and PixiJS. Terran vs Zerg in your browser." />
-  <meta property="og:title" content="Swarm Command — Browser RTS" />
-  <meta property="og:description" content="StarCraft-inspired real-time strategy built with TypeScript and PixiJS v8" />
+  <title>Swarm Command — SC2 Mechanics Practice Tool</title>
+  <meta name="description" content="Practice StarCraft 2 mechanics in your browser. True unit stats. No install. Built with TypeScript and PixiJS." />
+  <meta property="og:title" content="Swarm Command — SC2 Mechanics Practice Tool" />
+  <meta property="og:description" content="Practice StarCraft 2 mechanics in your browser. True unit stats. No install." />
   <meta property="og:type" content="website" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -74,12 +74,28 @@
     </div>
     <div style="margin: 12px 0;">
       <label style="color: #88bbff; font-size: 13px;">Difficulty: </label>
-      <select id="difficulty-select" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 13px; cursor: pointer;">
-        <option value="0">Easy</option>
-        <option value="1" selected>Normal</option>
-        <option value="2">Hard</option>
-        <option value="3">Brutal</option>
-      </select>
+      <div id="difficulty-cards" style="display: flex; gap: 8px; margin: 8px 0;">
+        <div class="diff-card" data-value="0" style="padding: 8px 14px; border: 1px solid #334; border-radius: 6px; background: rgba(10,15,25,0.8); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+          <div style="color:#44ff88;font-size:14px;font-weight:bold;">EASY</div>
+          <div style="color:#888;font-size:10px;">&#9733;&#9734;&#9734;&#9734;</div>
+          <div style="color:#667;font-size:9px;">Slow waves, relaxed</div>
+        </div>
+        <div class="diff-card active" data-value="1" style="padding: 8px 14px; border: 1px solid rgba(100,180,255,0.8); border-radius: 6px; background: rgba(20,40,80,0.6); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+          <div style="color:#44aaff;font-size:14px;font-weight:bold;">NORMAL</div>
+          <div style="color:#888;font-size:10px;">&#9733;&#9733;&#9734;&#9734;</div>
+          <div style="color:#667;font-size:9px;">Balanced pressure</div>
+        </div>
+        <div class="diff-card" data-value="2" style="padding: 8px 14px; border: 1px solid #334; border-radius: 6px; background: rgba(10,15,25,0.8); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+          <div style="color:#ffaa44;font-size:14px;font-weight:bold;">HARD</div>
+          <div style="color:#888;font-size:10px;">&#9733;&#9733;&#9733;&#9734;</div>
+          <div style="color:#667;font-size:9px;">Aggressive AI</div>
+        </div>
+        <div class="diff-card" data-value="3" style="padding: 8px 14px; border: 1px solid #334; border-radius: 6px; background: rgba(10,15,25,0.8); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+          <div style="color:#ff4444;font-size:14px;font-weight:bold;">BRUTAL</div>
+          <div style="color:#888;font-size:10px;">&#9733;&#9733;&#9733;&#9733;</div>
+          <div style="color:#667;font-size:9px;">Merciless</div>
+        </div>
+      </div>
     </div>
     <div style="margin: 8px 0;">
       <label style="color: #88bbff; font-size: 13px;">Map: </label>
@@ -112,6 +128,13 @@
             <option value="1" selected>1x (Normal)</option>
             <option value="2">1.5x (Fast)</option>
             <option value="3">2x (Very Fast)</option>
+          </select>
+        </label>
+        <label style="color: #88bbff; font-size: 12px;">Victory condition:
+          <select id="win-condition" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+            <option value="destroy" selected>Destroy All (default)</option>
+            <option value="timed">Timed Survival (10 min)</option>
+            <option value="economy">Economy (gather 5000 resources)</option>
           </select>
         </label>
         <label style="color: #88bbff; font-size: 12px;">Survival mode:
@@ -335,6 +358,21 @@
         });
         terranBtn.dataset.selected = 'true'; // default
       }
+
+      // Difficulty card selection
+      var diffCards = document.querySelectorAll('.diff-card');
+      diffCards.forEach(function(card) {
+        card.addEventListener('click', function() {
+          diffCards.forEach(function(c) {
+            c.classList.remove('active');
+            c.style.borderColor = '#334';
+            c.style.background = 'rgba(10,15,25,0.8)';
+          });
+          card.classList.add('active');
+          card.style.borderColor = 'rgba(100,180,255,0.8)';
+          card.style.background = 'rgba(20,40,80,0.6)';
+        });
+      });
     });
   </script>
   <script type="module" src="/src/main.ts"></script>

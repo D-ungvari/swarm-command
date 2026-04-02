@@ -83,13 +83,13 @@ export class FogRenderer {
 
         if (fog === FOG_UNEXPLORED) {
           g.rect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-          g.fill({ color: 0x000000, alpha: 0.95 });
+          g.fill({ color: 0x000000, alpha: 0.88 });
         } else if (fog === FOG_EXPLORED) {
           // Transition from unexplored: fade in over 0.3s (alpha 0.95 → 0.6)
           // Transition from visible: fade in darker over 0.5s (alpha 0 → 0.6)
           const FADE_DURATION = elapsed < 0.01 ? 0.3 : (this.prevVisibility[idx] === FOG_VISIBLE ? 0.5 : 0.3);
           const t = Math.min(1, elapsed / FADE_DURATION);
-          const alpha = 0.6 * t;
+          const alpha = 0.45 * t;
           if (t < 1) anyTransitioning = true;
           if (alpha > 0.01) {
             g.rect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);

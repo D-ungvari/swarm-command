@@ -2954,4 +2954,422 @@ v2.0 target:
   + Full mod API  + Analytics    + Tournament    + Open plugin system
   + Persistent world + CDN delivery + Community tools
 ```
+
+---
+
+---
+
+# Iteration BB — Competitive Balance & Metagame
+
+## BB.1 — Unit Interaction Matrix
+
+A formal "rock-paper-scissors" interaction map for every matchup, documented and enforced in unit stats:
+
+```
+Terran vs Zerg:
+  Marines → Zerglings ✓ (splash from grenade/stimmed DPS)
+  Banelings → Marines ✓ (splash kills clumped bio)
+  Marauders → Roaches ✓ (Concussive + Armored bonus)
+  Roaches → Marines ✓ (tankier, survives longer per-mineral)
+  Siege Tanks → Roach/Ravager ground pushes ✓ (splash + range)
+  Mutalisks → Siege Tanks ✓ (air, tanks can't respond)
+  Vikings → Mutalisks ✓ (air-to-air counter)
+  Hydralisks → Vikings ✓ (anti-air ground unit)
+
+Terran vs Protoss:
+  Marines → Zealots ✓ (kite with stim)
+  Marauders → Stalkers ✓ (Armored bonus, suppresses Blink)
+  Siege Tanks → Immortals ✓ (siege range > Hardened Shield threshold)
+  Ghosts → High Templar ✓ (EMP drains shield before storm)
+  Vikings → Carriers ✓ (air-to-air vs capital ship)
+
+Zerg vs Protoss:
+  Zerglings + Banelings → Zealot/Stalker wall ✓ (Baneling breaks force fields)
+  Roach-Ravager → Immortal ✓ (Bile bypasses Hardened Shield)
+  Mutalisk → Stalker/Sentry ✓ (Blink wasted chasing Mutalisks)
+  Infestor → Colossus ✓ (Fungal roots Colossus, army surrounds)
+  Corruptor → Carrier ✓ (pure air-to-air counter)
+```
+
+Codified into a `MATCHUP_GUIDE.md` and used to tune unit stats in the balance pass.
+
+## BB.2 — Dynamic Balance Patch System
+
+A JSON balance file (`src/data/balance.json`) that can be updated without redeploying:
+
+```json
+{
+  "version": "1.2.0",
+  "date": "2026-04-15",
+  "changes": {
+    "Marine.hp": 45,
+    "Marine.damage": 6,
+    "Zergling.speed": 4.1,
+    "Baneling.damage": 20,
+    "SiegeTank.atkRange_sieged": 13
+  }
+}
+```
+
+`Game.ts` fetches this file on startup (with a fallback to hardcoded defaults). Players always play the latest balance without a cache bust. GitHub Actions auto-commits balance changes from the telemetry balance report (Iteration X.3).
+
+## BB.3 — Unit Win-Rate Dashboard
+
+A public `/balance` page (GitHub Pages) showing real-time win rates per unit from telemetry:
+
+- Unit used vs win rate (bar chart per unit)
+- Most common counter-composition (what units were in winning armies that beat each unit)
+- "Tier list" auto-generated from data: S/A/B/C/D tiers based on >55%/>50%/>45%/<45%/<40% win rates
+- Updated weekly from Supabase aggregates
+
+---
+
+# Iteration CC — Advanced AI Personalities
+
+## CC.1 — Named AI Commanders (15 profiles)
+
+Replace the single "personality" with 15 distinct named AI commanders, each with unique playstyle:
+
+| Commander | Race | Style | Signature |
+|-----------|------|-------|-----------|
+| **Kerrigan** | Zerg | Aggressive macro | Mass Zerglings + Banelings at 3:00, never stops pushing |
+| **Abathur** | Zerg | Bio-focus | Roach-Ravager-Corruptor, tech-rushes Infestation Pit |
+| **Izsha** | Zerg | Creep spread | Maximises creep network, Ultralisk finisher |
+| **Raynor** | Terran | Bio-heavy | Mass Marine/Marauder, constant Medivac support |
+| **Tychus** | Terran | Hellion harass | Opens with Hellion mineral-line harassment, Battlecruiser close |
+| **Mengsk** | Terran | Bunker turtle | Masses bunkers + missile turrets, Planetary Fortress, then BC push |
+| **Nova** | Terran | Ghost ops | Drops Ghosts behind enemy lines, EMP then army |
+| **Artanis** | Protoss | Warp-gate swarm | Masses Zealots + Stalkers via Warp-in |
+| **Vorazun** | Protoss | Dark Templar | Permanent cloak harassment, Shadow Fury |
+| **Alarak** | Protoss | Death march | Small elite army, max upgrade bonuses, never retreats |
+| **Zagara** | Zerg | Baneling bus | Constant Baneling drops, Scourge vs air |
+| **Stukov** | Terran | Infested | Hybrid units (placeholder for future content) |
+| **Swann** | Terran | Mech | All vehicles, no bio, Thor + Tank + Hellbat |
+| **Fenix** | Protoss | Colossus push | Colossus + Immortal spine, no harassment |
+| **Ji'nara** | Protoss | Void Ray swarm | Air-only composition, skips ground entirely |
+
+Each commander has: a distinct `buildOrder[]`, specific `unitWeights{}`, a `personality` multiplier set, and a unique `specialEvent` (e.g., Tychus always drops a "ODIN is go!" message when reaching wave 5 and deploying a Thor).
+
+## CC.2 — Commander Select Screen
+
+On the start screen, after choosing difficulty, select the AI commander:
+- Grid of commander portraits (geometric avatars in faction colour)
+- Each shows: name, faction icon, 3 trait tags (e.g., "Aggressive / Bioball / No retreat")
+- "Random" option selects a commander appropriate for the chosen difficulty
+- Commander portrait shown in bottom-right corner during the game ("You are facing: Raynor")
+
+## CC.3 — Commander Dialogue
+
+Each commander has 5 voice lines triggered at key moments (via Web Speech API in different voices):
+
+| Moment | Example (Raynor) |
+|--------|-----------------|
+| Game start | "Battlecruiser operational. Let's roll." |
+| Wave 3 | "Time to show 'em what we're made of." |
+| 50% army lost | "Pull back! Regroup!" |
+| Expansion spotted | "They're expanding. Hit 'em now." |
+| Victory | "Hell of a fight. Good work, soldier." |
+
+Distinct voices per commander via `SpeechSynthesisUtterance.voice` selection (browser provides 10+ voices).
+
+---
+
+# Iteration DD — Spectator League & Esports
+
+## DD.1 — League Mode
+
+A persistent weekly "league" using the signaling server:
+
+- Every Sunday, 8 players are automatically seeded into a bracket
+- Games are played throughout the week at the players' convenience
+- Results automatically submitted when a ranked game is completed between two bracket participants
+- Final standings posted to the leaderboard on Saturday
+
+## DD.2 — Observer Pack
+
+Spectator tools for competitive play:
+
+- **Army strength bars**: two horizontal bars at top of screen showing Terran vs Zerg army value in real time
+- **Resource graph**: live line graph of both players' mineral rates
+- **Unit count table**: side-by-side table showing each player's army composition (Marines: 24 | Zerglings: 38)
+- **F9 toggle**: switch between normal view and "caster view" (above spectator UI, larger minimap, no HUD)
+
+## DD.3 — Auto-Commentary (Experimental)
+
+Real-time text commentary generated from game events:
+
+```
+[3:42] Terran player pulls 8 Marines from mineral line
+[3:45] Zerg wave incoming! 12 Zerglings + 4 Banelings
+[3:47] CRITICAL: Banelings connect — Terran loses 6 Marines
+[3:48] Terran counter-attacks with Marauders — Zerg retreats
+```
+
+Shown as a scrolling feed on the spectator screen. Triggered by event thresholds in the existing `GameStats` and `damageEvents` systems.
+
+---
+
+# Iteration EE — Procedural Map Generation
+
+## EE.1 — Fully Procedural Maps
+
+Beyond the hand-crafted maps, generate random maps at game start using a procedural algorithm:
+
+**Generation algorithm (Cellular Automata + Constraints):**
+1. Fill a 128×128 grid with 60% ground, 40% water randomly
+2. Run 4 iterations of cellular automata (tile becomes water if 5+ neighbours are water)
+3. Enforce: player base area (25×25 around start point) is fully walkable
+4. Mirror: copy the top-left quadrant to bottom-right for symmetric competitive play
+5. Place mineral patches + gas geysers at optimal locations (connected to base, reachable)
+6. Validate: A* path exists between start positions; if not, regenerate
+
+**Seeded generation:** The same seed always produces the same map. Multiplayer players both generate from the shared game seed — guaranteed identical maps without transmitting tile data.
+
+## EE.2 — Map Generation Parameters
+
+Expose sliders on the start screen (under Advanced Settings):
+- **Water density** (10%–60%): how much of the map is water
+- **Choke factor** (0–100%): tendency to form narrow corridors vs open spaces
+- **Resource richness** (low/medium/high): mineral patch count and per-patch amounts
+- **Symmetry** (2-player symmetric, 4-player, asymmetric)
+- **Feature injection**: toggle each of: destructible rocks, Xel'Naga towers, neutral expansion bases
+
+## EE.3 — Daily Challenge Map
+
+Every day a new procedurally-generated "Daily Challenge" map is available:
+- Seeded from the UTC date (`seed = Math.floor(Date.now() / 86400000)`)
+- Same map for all players worldwide that day
+- Score submitted to a daily leaderboard (win time + APM + units lost)
+- Badge awarded for completing the daily challenge
+
+---
+
+# Iteration FF — Tutorial & Onboarding
+
+## FF.1 — Interactive Tutorial (5 lessons)
+
+Replaces the first-run hint system with a full guided tutorial:
+
+| Lesson | Title | Teaches |
+|--------|-------|---------|
+| 1 | Workers & Minerals | Select SCVs, right-click mineral patches, watch income grow |
+| 2 | Supply & Production | Build Supply Depot, build Barracks, train first Marine |
+| 3 | Attack & Defend | Select Marines, attack-move, retreat wounded units |
+| 4 | Tech & Upgrades | Build Factory, research upgrade at Engineering Bay |
+| 5 | The Full Loop | Complete a game vs Easy AI using everything learned |
+
+Each lesson: triggered UI lock (can only do the highlighted action), arrow indicators, voice narration via Web Speech API, completion checkmarks.
+
+## FF.2 — Contextual In-Game Tips
+
+A non-intrusive tip system that triggers once per unique situation:
+
+| Situation | Tip shown |
+|-----------|-----------|
+| First time under attack while camera elsewhere | "You're under attack! Press Space to jump to base." |
+| First time supply-capped | "Supply blocked! Build more Supply Depots (B→2)." |
+| Worker count drops below 8 | "Low worker count. Train more SCVs to maintain income." |
+| Enemy Mutalisks appear, player has no anti-air | "Mutalisks incoming! Build Vikings (Starport) or Thors (Factory)." |
+| Player hasn't used control groups by minute 3 | "Tip: Ctrl+1 assigns units to group 1. Press 1 to recall." |
+
+Tips shown once per session, stored in `localStorage['seen_tips']`.
+
+## FF.3 — Unit Encyclopedia
+
+A full in-game encyclopedia accessible from the main menu (keyboard shortcut: E from start screen):
+
+Each unit has a dedicated page showing:
+- Large portrait (the 22-layer portrait renderer)
+- Stats table (HP, shield, damage, range, speed, cost, build time)
+- Ability descriptions with cooldowns and costs
+- "Strong against / Weak against" section using the interaction matrix (BB.1)
+- Lore flavour text (2–3 sentences per unit)
+- Video clip placeholder (replaced by animated GIF of the unit in action, captured from gameplay)
+
+---
+
+# Iteration GG — Full Sound Redesign
+
+## GG.1 — Procedural Music Composer
+
+Upgrade the adaptive music system (Iteration D.5) to a full procedural composer:
+
+**Instruments (all Web Audio oscillators):**
+- Bass: 80Hz square wave, pattern-driven (16-step sequencer at 120 BPM)
+- Harmony: 4 oscillators (root + 3rd + 5th + 7th), chord progression engine
+- Lead: sawtooth oscillator with portamento, melodic patterns
+- Drums: noise burst (kick) + mid-noise (snare) + high-noise (hi-hat)
+- Strings: 6 detuned sawtooth oscillators, reverb
+
+**Musical states:**
+- **Terran theme:** Minor key, industrial feel, 4/4 tempo, bass-heavy
+- **Zerg theme:** Odd time signatures (7/8, 5/4), organic swells, no clear beat
+- **Protoss theme:** Major pentatonic, ethereal pads, crystalline arpeggios
+- **Combat:** Tempo increases, percussion adds, dissonant notes increase
+- **Victory:** Bright major resolution, full orchestra swell
+- **Defeat:** Slow minor descent, sustained bass
+
+## GG.2 — Sound Effects Library Expansion
+
+50 additional sound effects covering every game event:
+
+| Category | New sounds |
+|----------|-----------|
+| Building | Construction start (each building unique), placement invalid, upgrade complete |
+| Combat | Per-weapon-type fire (Gauss rifle vs Baneling acid vs Psionic bolt), unit collision thud |
+| Abilities | Each of 20 abilities has a unique sound signature |
+| UI | Menu navigation clicks, hotkey press confirm, error buzz |
+| Environment | Water lapping, wind on cliffs, lava bubbling (Volcano map) |
+| Zerg | Creep expansion sound, Larva hatching, Hatchery pulse |
+
+## GG.3 — 3D Audio Positioning
+
+Full WebAudio `PannerNode` implementation (not the simplified distance-fade):
+
+- Every sound source is a `PannerNode` positioned in 3D space matching the unit's world coordinates
+- Listener position = camera center
+- Sounds from left of camera pan left, sounds from right pan right
+- Distance attenuation model: `inverse` (SC2-standard)
+- This makes the soundscape genuinely spatial — the player feels the battle around them
+
+---
+
+# Iteration HH — Post-Launch Growth
+
+## HH.1 — Plugin Marketplace
+
+Allow community-created plugins distributed as ES modules loaded from URL:
+
+```typescript
+// Community plugin: "Marine Corps" — replaces all Terran infantry models
+import MarineCorps from 'https://swarm-mods.github.io/marine-corps/index.js';
+game.plugins.register(MarineCorps);
+```
+
+Plugins can override: unit renderers, sound effects, building definitions, UI panels.
+Safety: plugins run in a sandboxed iframe with `postMessage` API — no direct DOM/game access.
+
+## HH.2 — User-Generated Missions
+
+A mission editor built on top of the map editor (Iteration I):
+
+- Script simple objectives via a node graph UI (no code)
+- Share missions via URL (same base64 approach as maps)
+- Community mission rating system
+
+## HH.3 — Localisation (4 Languages)
+
+Full game translation into:
+- **German** (de): large European gaming market
+- **French** (fr): second-largest EU market
+- **Spanish** (es): Latin America growth market
+- **Korean** (ko): RTS heartland, SC2 is most popular in Korea
+
+All UI strings use the i18n system (Iteration Q.5). Community translators can submit PRs to `src/i18n/`.
+
+## HH.4 — Console & Native Wrappers
+
+**Electron wrapper (desktop app):**
+- Packages the game as a native Windows/Mac/Linux app via Electron
+- Adds: native file save/load for replays, system tray integration, offline support
+- CI/CD auto-builds installers via GitHub Actions + `electron-builder`
+
+**Tauri alternative (smaller bundle, Rust runtime):**
+- 10× smaller than Electron (~5MB vs ~50MB)
+- Better performance (no Node.js overhead)
+- Native OS notifications for "Daily Challenge available"
+
+---
+
+# Extended Grand Sprint Calendar (Sprints 105–150)
+
+```
+Sprint 105 (2d): BB.1-BB.2       — Interaction matrix + dynamic balance JSON
+Sprint 106 (1d): BB.3             — Win-rate dashboard + tier list
+Sprint 107 (2d): CC.1-CC.2        — 15 AI commanders + select screen
+Sprint 108 (1d): CC.3             — Commander dialogue + voice lines
+Sprint 109 (1d): DD.1             — League mode + weekly brackets
+Sprint 110 (1d): DD.2-DD.3        — Observer pack + auto-commentary
+Sprint 111 (2d): EE.1-EE.2        — Procedural map generation + parameters
+Sprint 112 (1d): EE.3             — Daily challenge map + leaderboard
+Sprint 113 (2d): FF.1             — Interactive tutorial (5 lessons)
+Sprint 114 (1d): FF.2-FF.3        — Contextual tips + unit encyclopedia
+Sprint 115 (2d): GG.1             — Procedural music composer (5 states)
+Sprint 116 (2d): GG.2-GG.3        — Sound library expansion + 3D audio
+Sprint 117 (1d): HH.1             — Plugin marketplace + sandboxed loader
+Sprint 118 (2d): HH.2             — User-generated mission editor
+Sprint 119 (2d): HH.3             — Localisation (de/fr/es/ko)
+Sprint 120 (2d): HH.4             — Electron + Tauri native wrappers
+Sprint 121 (2d): N ext            — Protoss Tier 2: High Templar + Dark Templar
+Sprint 122 (2d): N ext            — Protoss Tier 3: Void Ray + Tempest + Mothership
+Sprint 123 (2d): M ext            — Full Terran unit parity (Hellbat, Bunker, Missile Turret, Planetary Fortress)
+Sprint 124 (2d): Zerg ext         — Full Zerg unit parity (Overseer, Changeling, Nydus Worm)
+Sprint 125 (3d): AI balance       — Tune all 15 commanders with telemetry data
+Sprint 126 (2d): 3rd faction AI   — Protoss AI build orders (Gateway, Colossus, Blink Stalker)
+Sprint 127 (2d): Map pack 3       — 5 more competitive maps (procedurally seeded + hand-tuned)
+Sprint 128 (1d): Social           — Clan system + friend list via Supabase
+Sprint 129 (2d): Mobile v3        — Optimise TouchCommandBar for new units (Protoss abilities)
+Sprint 130 (1d): Perf audit       — Profile 400-entity battle, fix regressions post-WebGPU
+Sprint 131 (1d): Security v2      — Rate-limit leaderboard API, verify mod sandbox escape prevention
+Sprint 132 (1d): Docs v2          — Full architectural docs: ECS guide, lockstep guide, mod SDK guide
+Sprint 133 (2d): Tutorial v3      — Protoss tutorial (warp-in, Chrono Boost, Shield mechanics)
+Sprint 134 (1d): Balance v3       — Full 3-faction balance sweep post-all-units
+Sprint 135 (1d): Soundtrack       — Release OST as separate page/download (procedurally recorded)
+Sprint 136 (2d): Editor v2        — Map editor supports Protoss power grids, Zerg creep zones
+Sprint 137 (1d): Analytics v3     — Per-commander win-rate breakdown, map preference stats
+Sprint 138 (1d): Legal v2         — Open-source assets audit, trademark checks
+Sprint 139 (2d): Ladder Season 2  — First season with Protoss faction active
+Sprint 140 (1d): QA blitz         — 100 manual test cases across all 3 factions
+Sprint 141 (1d): Regression       — Expand automated test suite to 400+ tests
+Sprint 142 (1d): Stress test      — 400-unit replay stress test, memory leak checks
+Sprint 143 (2d): v3.0 prep        — Feature freeze, release notes, migration guide for mods
+Sprint 144 (1d): v3.0 launch      — Tag, deploy, blog post, community announcement
+Sprint 145 (2d): Post-launch      — Hotfix window, community Discord setup
+Sprint 146 (1d): Retrospective    — Full retrospective blog: architecture decisions, lessons learned
+Sprint 147 (2d): Hackathon        — Open "Mod Jam" event — community creates mods in 48h
+Sprint 148 (1d): Plugin showcase  — Curate top 10 community mods into official gallery
+Sprint 149 (2d): Engine OSS       — Extract ECS + game loop into a standalone OSS library ("swarm-engine")
+Sprint 150 (1d): Legacy           — Archive, documentation, hand-off to community maintainers
+```
+
+---
+
+## The Complete Vision: 150 Sprints, ~180 days, 36 weeks
+
+```
+Phase 1  (Sprints 1–10):    Polish & fix. 2 factions feel great. AI is alive.
+Phase 2  (Sprints 11–30):   Audio, visuals, campaign foundation.
+Phase 3  (Sprints 31–55):   3 factions. Multiplayer. Map editor. v1.0 launch.
+Phase 4  (Sprints 56–70):   AI Director. Ranked. Modding. Analytics.
+Phase 5  (Sprints 71–104):  Full unit parity. Esports. Start menu. Procedural maps.
+Phase 6  (Sprints 105–120): Balance system. 15 AI commanders. 3D audio. Native apps.
+Phase 7  (Sprints 121–144): Protoss complete. All units. v3.0 launch.
+Phase 8  (Sprints 145–150): Community handoff. Engine OSS. Legacy.
+```
+
+**End state at Sprint 150: Not just a game — an open-source RTS engine. The game ships as a showcase. The engine lives on.**
+
+---
+
+## Dependency Graph: Critical Path
+
+```
+Sprint 1 (Tech UI) ──────────────────────────────────────────────────────────┐
+Sprint 4 (AI Defense) ────────────────────────────────────────────────────── │
+Sprint 7 (Marine visual) ──────────────────────────────────────────────────  │
+  └─ Sprint 8 (All visuals) ─────────────────────────────────────────────── │
+Sprint 16 (Determinism) → Sprint 17 (Lockstep) → Sprint 18 (Reconnect)      │
+  └─ Sprint 34 (Spectator) → Sprint 110 (Observer) → Sprint 144 (v3.0 ship) │
+Sprint 19 (Campaign) → Sprint 60 (Campaign) → Sprint 113 (Tutorial)         │
+Sprint 30 (Protoss shields) → Sprint 31 (Warp-in) → Sprint 32 (Full Protoss)│
+  └─ Sprint 121-122 (Tier2-3) → Sprint 134 (Balance v3) ──────────────────  │
+Sprint 56 (AI Director) → Sprint 107 (15 commanders) → Sprint 125 (balance) │
+Sprint 101 (Start menu) → Sprint 103 (7 maps) → Sprint 111 (Proc gen)       │
+Sprint 62 (Mod loader) → Sprint 117 (Marketplace) → Sprint 149 (Engine OSS) │
+All paths ───────────────────────────────────────────────────────────────────┘
+                                                                              ▼
+                                                            Sprint 150: Legacy
+```
+
+**Every feature feeds the next. The critical path is: Fix → Fight → Look → Sound → Multiplayer → 3 Factions → Community → Open Source.**
 ```

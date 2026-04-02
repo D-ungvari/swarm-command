@@ -3947,4 +3947,525 @@ v5.0  Sprints 181–200: Engine published. WASM sim. Conference. Academic paper.
 **200 sprints. ~250 days. ~50 weeks. One year.**
 **The most complete RTS ever built as an open-source browser application.**
 **From "fix the tech tree UI" to a landmark open-source project used as a reference implementation for browser game development.**
+
+---
+
+---
+
+# Iteration SS — Game Feel & "Juice"
+
+Game feel is the collection of micro-responses that make every action feel satisfying. SC2's game feel is legendary — every click, attack, and death has weight. This iteration is entirely about feel.
+
+## SS.1 — Hit Stop (Frame Freeze on Impact)
+
+When a high-damage hit lands (Yamato Cannon, Siege Tank shell, Baneling explosion), freeze the simulation for 2–4 frames. This is the same technique used in fighting games and makes large hits feel devastating.
+
+**Implementation:**
+- `hitStopFrames: number` variable in `Game.ts`
+- When `rawDmg > 50` or `atkSplash[eid] >= 2.0`: set `hitStopFrames = 3`
+- In `loop()`: while `hitStopFrames > 0`, skip the tick accumulator decrement and decrement `hitStopFrames` instead
+- The render still runs (world is frozen, but screen updates) — this is the correct behaviour; the player sees the freeze
+
+## SS.2 — Screen Flash on Massive Damage
+
+When a player unit takes heavy damage (>50% max HP in a single hit), flash the screen edges with a red vignette:
+
+```typescript
+// In render(), add an overlay div that briefly shows
+const vignette = document.getElementById('damage-vignette');
+if (recentHeavyDamage) {
+  vignette.style.opacity = '0.6';
+  vignette.style.transition = 'opacity 0s';
+  setTimeout(() => {
+    vignette.style.opacity = '0';
+    vignette.style.transition = 'opacity 0.4s';
+  }, 50);
+}
+```
+
+The vignette is a CSS radial gradient from transparent center to `rgba(255,0,0,0.6)` at edges.
+
+## SS.3 — Ability Charge-Up Indicators
+
+Before casting abilities with a wind-up time (Corrosive Bile 2s travel, Yamato 0.5s charge), show a visual charge indicator:
+
+- **Circular charge arc**: a clockwise arc that fills over the cast time, centered on the unit
+- **Colour**: ability-specific (Yamato = orange, Bile = green, Fungal = purple)
+- **Flare at completion**: brief burst of particles when the ability fires
+
+This gives the player visual feedback about what's about to happen.
+
+## SS.4 — Unit Acknowledgment Animations
+
+Beyond voice lines (Iteration D.1), add micro-animations when units are selected or given orders:
+
+- **Selected**: unit briefly scales to 1.05× then snaps back (50ms)
+- **Command received**: unit rotates slightly toward the target direction, then snaps forward (100ms)
+- **Stim Pack**: Marine flinches backward 2px then snaps to position (represents the jab)
+- **Siege Mode**: Tank rocks back 3px as it deploys (represents the recoil of anchoring)
+
+All implemented in `UnitRenderer` as delta offsets applied for 2-3 frames on state change.
+
+## SS.5 — Projectile Impact Sparks
+
+When a bullet/projectile hits a unit, spawn 4–6 spark particles at the impact point:
+
+- **Terran hit**: white/grey sparks (metal on metal)
+- **Zerg hit**: yellow-green slime splash
+- **Protoss hit**: blue-white shield energy dissipation
+
+Particle lifetime: 0.25s. Direction: spread ±60° from the projectile travel direction. Size: 2–4px.
+
+## SS.6 — Death Ragdoll
+
+Instead of shrink-and-fade, biological unit deaths use a simplified ragdoll:
+
+- When `deathTime[eid] > 0`: the unit sprite fractures into 3–4 body pieces (rectangles/ellipses representing torso, legs, head)
+- Each piece flies outward in a different direction with random velocity
+- Each piece fades over 0.4s while decelerating
+- Mechanical units: explosion + debris rectangles (already planned in C.7 — ensure velocity-based spread)
+
+---
+
+# Iteration TT — Cross-Platform Profile Sync
+
+## TT.1 — Cloud Save (Supabase Auth)
+
+Allow players to create an account and sync their progress across devices:
+
+- Email/password auth via Supabase Auth (no OAuth required)
+- On login: sync from cloud → local (if cloud is newer)
+- On game end: sync local → cloud (achievements, rank, settings, replays)
+- Profile data: `{ player_id, username, created_at, ...PlayerProfile }`
+- Guest mode: all data stays in localStorage (no account required, existing behaviour)
+
+**UI:** "Sign In" link on the start screen (top-right corner). Minimal — just email + password. "Auto-sync enabled" indicator (small cloud icon) when logged in.
+
+## TT.2 — Multi-Device Continuation
+
+A player starts a campaign mission on their desktop, saves mid-mission, continues on their laptop:
+
+- Campaign state is part of the cloud save: `{ missionId, completedObjectives[], unitRoster[], credits }`
+- On loading, the game checks cloud save for any in-progress campaign state
+- "Resume Campaign" option on the start screen when an in-progress state is found
+
+## TT.3 — Social Profile Page
+
+A public profile page at `/profile/:playerId`:
+- Powered by GitHub Pages + Supabase read-only fetch
+- Shows: username, total wins/losses, favourite faction (most played), best season rank, last 5 games (faction, opponent commander, outcome, duration)
+- Shareable link: players post their profile to Discord
+- "Challenge" button: generates a multiplayer room code and sends it to the profile owner
+
+## TT.4 — Settings Sync
+
+Game settings (keybindings, audio levels, display preferences, colourblind mode) sync to the cloud:
+- Applied instantly on any new device the player logs into
+- Override local settings on first sync (with a confirmation dialog)
+
+---
+
+# Iteration UU — Replay Deep Analysis
+
+## UU.1 — Economy Graph
+
+Post-game overlay (accessible from the game-over screen's "Analyse" button):
+
+A `<canvas>` chart showing:
+- **Y axis**: Minerals per minute, Gas per minute, Army value
+- **X axis**: Game time
+- **Two lines per resource**: Terran (blue) and Zerg (red)
+- **Event markers**: vertical lines at wave attacks, unit deaths, building completions
+- **Zoom**: scroll to zoom into any time window
+
+Implemented with Chart.js (CDN) or a custom 200-line canvas renderer.
+
+## UU.2 — Army Composition Timeline
+
+A stacked area chart showing army composition over time:
+
+```
+          Marines ████████████████████
+          Marauders  ████████████
+          SiegeTanks      ████████████████
+          Medivacs         ██████████
+0m ─────────────────────────────────── 10m
+```
+
+This visualises how the tech transition looked in hindsight — when did the player switch from bio to mech? When did the Zerg player transition from Zerglings to Roach-Ravager?
+
+## UU.3 — Heat Maps
+
+After a replay, generate spatial heat maps:
+
+- **Combat heat map**: where did most damage events occur? (bright spots = fights)
+- **Death heat map**: where did most units die? (reveals dangerous terrain)
+- **Movement heat map**: where did the player's army spend most time? (reveals patrolling patterns)
+
+Generated by iterating the replay's command + damage event records, accumulating a 128×128 `Float32Array` grid, then rendering as a colour gradient overlay on the map preview canvas.
+
+## UU.4 — Decision Moments
+
+Automatically identify the 5 "decision moments" in a replay — points where a different choice might have changed the outcome:
+
+**Detection criteria:**
+- Army value swing > 30% in a single wave engagement
+- A building was destroyed that changed available production
+- Player supply-blocked for > 10 seconds (lost production time)
+- A wave was defeated with < 20% of player army surviving
+
+Each moment is marked on the timeline. Clicking it jumps the replay to that timestamp and shows a tooltip: "Your army dropped from 840 to 240 here. This was the turning point."
+
+---
+
+# Iteration VV — Community Hub
+
+## VV.1 — In-Game News Ticker
+
+A scrolling ticker at the top of the start screen showing:
+- Recent community events ("Season 3 starts in 2 days!")
+- Balance changes ("Patch 1.3: Mutalisk -5 HP")
+- Featured content ("Map of the week: Desert Storm")
+- Player achievements ("NightmareX just beat Brutal in 4:12!")
+
+Data fetched from a GitHub-hosted `news.json` — updated by the developer, cached locally.
+
+## VV.2 — Featured Map/Mod/Build of the Week
+
+A "Community Spotlight" section on the start screen:
+
+- **Map of the week**: highest-rated community map (from mod gallery rating)
+- **Build of the week**: a featured build order from the database (LL.1) with commentary
+- **Commander of the week**: stats showing which AI commander has the lowest win rate this week (to help players focus practice)
+
+## VV.3 — Community Discord Integration
+
+A live widget on the start screen showing:
+- Current active players count (from Supabase `active_sessions` table)
+- "Players online now" (anonymous count)
+- A "Join Discord" button
+- Most recent match result ("DesertFox just won a Hard game in 6:23!")
+
+Updates every 60 seconds via a Supabase realtime subscription.
+
+## VV.4 — Clan System
+
+Simple group system for friends playing together:
+
+- Create a clan: 4-character tag + full name + faction theme
+- Members share a clan profile page on the stats site
+- Clan leaderboard: total wins + average win time by member
+- Clan tag displayed before player name in lobbies: `[SWRM] NightmareX`
+
+---
+
+# Iteration WW — Advanced Visual Effects
+
+## WW.1 — Post-Processing Pipeline
+
+Add a post-processing pass to the PixiJS render using custom GLSL shaders:
+
+**Chromatic Aberration (combat only):**
+- Slight RGB channel offset (2–3px) during active combat
+- Fades out between waves
+- Makes the screen feel "stressed" during intense moments
+
+**Bloom (ability effects):**
+- Bright ability effects (Yamato beam, Psionic Storm, Baneling explosion) get a bloom halo
+- Implemented via a blur pass on high-luminosity pixels only
+- Very subtle — max 0.3× contribution — should be barely noticeable but clearly "there"
+
+**Scanline overlay (retro option):**
+- Optional thin horizontal lines at 0.03 opacity
+- Toggleable in settings: "CRT scanlines"
+- Gives the game a classic RTS aesthetic
+
+## WW.2 — Weather System
+
+Per-map weather effects rendered as a particle layer above everything:
+
+| Map | Weather | Visual | Effect |
+|-----|---------|--------|--------|
+| Frozen Tundra | Snow | White particles drifting downward | None (cosmetic only) |
+| Desert Storm | Dust | Brown haze particles moving horizontally | Already: vision halved during storm |
+| Volcano | Ash | Grey particles falling from sky | None (cosmetic only) |
+| Crossfire | Rain | Blue streaks falling fast | None |
+| Fortress | Fog | Slow-drifting white mist patches | Slightly reduces far-vision for flavour |
+
+Weather particles rendered in a `WeatherRenderer.ts` using a simple particle emitter — 200–500 particles at 3–4px size.
+
+## WW.3 — Dynamic Lighting
+
+Each explosion, ability effect, and muzzle flash casts a brief dynamic light on nearby terrain:
+
+- Rendered as a `RadialGradient` fill on a temporary `RenderTexture` overlay
+- Light radius = 3× the explosion radius
+- Colour: orange (explosions), cyan (Terran tech), green (Zerg), blue (Protoss)
+- Duration: 0.15s, linear falloff
+
+This makes night-time maps feel atmospheric and makes explosions light up the battlefield.
+
+## WW.4 — Unit Shadow System
+
+Every unit casts a soft drop shadow on the terrain below:
+
+- Simple ellipse at `posX + shadow_offset, posY + shadow_height`, `alpha 0.25`
+- Air units: shadow offset = `isAir ? 12 : 4` pixels below (suggests altitude)
+- Shadow size scales with unit size
+- Rendered in a dedicated "shadow pass" before units, after terrain
+
+---
+
+# Iteration XX — AI Coaching System
+
+## XX.1 — Post-Game Coach Report
+
+After every game, an AI coach analyses the replay and generates a structured feedback report:
+
+**Report sections:**
+
+**Economy:**
+- "Your worker count peaked at 12 at 4:00. Optimal for Plains is 16. You left ~300 minerals/min on the table."
+- "You ran out of gas at 6:30. Consider adding a second Refinery earlier."
+
+**Production:**
+- "Your Barracks was idle for 2:40 total (38% idle time). Queue units in advance."
+- "You supply-blocked 3 times, losing 42 seconds of production."
+
+**Army Management:**
+- "Your army was on the offensive for 4:20 (44% of game). The Zerg army was threatening your mineral line for 1:15 while you were attacking — a defensive unit or Bunker at your base would have prevented 340 HP of worker damage."
+
+**Tech Path:**
+- "You built a Factory but never trained a SiegeTank. The Factory investment (150m/100g) was wasted."
+
+## XX.2 — Mistake Detection System
+
+Real-time mistake detection during play (shown as subtle hints, not intrusive popups):
+
+| Mistake | Detection | Hint shown |
+|---------|-----------|-----------|
+| Supply blocked | `supplyUsed >= supplyProvided - 1` for > 8s | Small "⚠ SUPPLY" flash on HUD |
+| Idle Barracks | `prodUnitType[barracks] === 0` for > 15s while enemy advancing | Barracks icon pulses |
+| No anti-air with air threat | AI has Mutalisks, player has no Goliath/Viking/Thor | Small "! AIR THREAT" note |
+| Oversaturated minerals | `workerCountOnResource > 2` on all patches | "EXPAND?" nudge |
+| Workers not gathering | Worker in Idle state for > 20s | Small worker icon flashes |
+
+Each hint shown once per game (doesn't repeat). Very unobtrusive.
+
+## XX.3 — Personalised Training Plan
+
+Based on 5+ games of play, the coach identifies the player's weakest area and recommends a specific training mode:
+
+- Weak economy → "Try the Build Order Practice: 16-worker opener"
+- Low APM → "Try the APM Trainer at 90 APM target"
+- Losing to early rushes → "Play the Tutorial Mission: Defend the Rush"
+- Never uses upgrades → "Try a game where you focus only on Engineering Bay upgrades"
+
+Displayed on the start screen as a "Today's Training" card with one specific recommendation.
+
+---
+
+# Iteration YY — Physics & Destruction Depth
+
+## YY.1 — Structural Physics for Buildings
+
+When a building is destroyed, it doesn't just disappear — it **collapses**:
+
+**Terran building collapse:**
+- Building health bar hits 0
+- The building sprite fractures into 5–8 rectangular chunks
+- Each chunk flies outward with an initial velocity based on the last damage vector
+- Chunks decelerate and fade over 1.5s
+- A smoke cloud lingers at the death position for 3s
+
+**Zerg building collapse:**
+- Organic building "deflates" — the irregular polygon squishes downward over 0.5s
+- 8–12 bio-chunks fly outward (ellipses of different sizes)
+- Green acid pool remains at the death position (a semi-transparent ellipse that fades over 5s)
+
+## YY.2 — Knockback
+
+High-impact attacks have knockback:
+
+- **Siege Tank shell**: pushes the primary target 2 tiles in the direction of travel
+- **Yamato Cannon**: pushes target 4 tiles
+- **Baneling explosion**: radial knockback — all units within 1.5 tiles pushed outward proportionally to proximity (closest = farthest pushed)
+
+**Implementation**: `knockbackX/Y: Float32Array` component. Applied in `CombatSystem` after damage. `MovementSystem` applies knockback velocity as a decaying additional velocity term.
+
+**Gameplay impact**: Banelings can push Marines off defensive walls. Yamato can push a Siege Tank out of its optimal fire position.
+
+## YY.3 — Chain Reactions
+
+When a mechanical unit explodes (Siege Tank, Battlecruiser), units within 1.5 tiles of the explosion take 30% of the unit's base HP as collateral damage:
+
+- Terran: nearby SCVs get caught in the Siege Tank explosion
+- Zerg: adjacent Banelings detonate in a chain (if they're alive, they're triggered by the nearby explosion)
+
+Chain Baneling detonations are a feature of SC2 that creates spectacular "chain reaction" moments. **Implement as**: in `DeathSystem`, when a mechanical unit dies, check for nearby Banelings — trigger their explosion ability immediately.
+
+---
+
+# Iteration ZZ — The Engine's Open Future
+
+## ZZ.1 — `swarm-engine` npm Package
+
+Extract the following into a standalone publishable npm package:
+
+```
+@swarm-engine/core
+  ├── ecs/          — World, components, archetypes, queries
+  ├── input/        — CommandQueue, InputProcessor, InputManager
+  ├── systems/      — Interfaces: ISystem, IRenderer
+  ├── utils/        — SeededRng, SpatialHash, FixedTimestep
+  └── network/      — LockstepManager, CommandSerializer
+
+@swarm-engine/pixi
+  └── PixiRenderer  — Wraps PixiJS with swarm-engine conventions
+
+@swarm-engine/audio
+  └── SoundManager  — Procedural Web Audio toolkit
+```
+
+Published to npm under MIT licence. Used by the game (`swarm-command`) as a consumer of its own engine. This proves the engine works in real conditions.
+
+## ZZ.2 — Documentation Website
+
+A dedicated documentation site at `swarm-engine.dev` (or `d-ungvari.github.io/swarm-engine`):
+
+- **Getting Started**: 5-minute "Hello World" — spawn a unit that moves
+- **Core Concepts**: ECS, fixed timestep, command queue
+- **API Reference**: auto-generated from TSDoc comments
+- **Guides**: multiplayer lockstep, pathfinding, custom renderers
+- **Examples gallery**: 6 minimal demos (each <100 lines) showing specific features
+- **Migration guide**: upgrading between engine versions
+
+Built with Vitepress (static site generator, markdown-based).
+
+## ZZ.3 — Second Game (Engine Proof)
+
+Build a second small game using only `@swarm-engine/core` — proving the engine is genuinely reusable:
+
+**"Colony Wars"** — a 3-minute top-down sci-fi shooter:
+- Player controls a spaceship directly (WASD)
+- Enemies are ECS entities with simple pursue+shoot behaviour
+- Uses the ECS, SpatialHash, SeededRng, FixedTimestep from `@swarm-engine/core`
+- Rendered with the PixiJS renderer wrapper
+
+If this second game compiles cleanly against the engine package (no hacks, no copy-paste), the engine extraction is validated.
+
+## ZZ.4 — Engine Roadmap Beyond v1.0
+
+After open-sourcing `swarm-engine`, the community can contribute:
+
+**Planned engine modules (community-driven):**
+- `@swarm-engine/physics` — rigid body physics (Box2D WASM)
+- `@swarm-engine/ai` — behaviour tree toolkit
+- `@swarm-engine/networking` — WebRTC + WebSocket transport layer
+- `@swarm-engine/tilemap` — Tiled map format loader
+
+**Engine governance:**
+- Semver with strict changelog
+- RFC process for breaking changes (post GitHub issue, 2-week comment period)
+- Core maintainers: 3 (project owner + 2 trusted community contributors)
+- Plugin compatibility matrix (which engine version each plugin requires)
+
+---
+
+# Ultra-Extended Sprint Calendar (Sprints 201–250)
+
+```
+Sprint 201 (2d): SS.1-SS.3      — Hit stop + screen flash + charge-up indicators
+Sprint 202 (2d): SS.4-SS.6      — Unit micro-animations + impact sparks + death ragdoll
+Sprint 203 (2d): TT.1-TT.2      — Cloud save (Supabase auth) + multi-device continuation
+Sprint 204 (1d): TT.3-TT.4      — Social profile page + settings sync
+Sprint 205 (2d): UU.1-UU.2      — Economy graph + army composition timeline
+Sprint 206 (2d): UU.3-UU.4      — Heat maps + decision moments detection
+Sprint 207 (1d): VV.1-VV.2      — News ticker + community spotlight
+Sprint 208 (1d): VV.3-VV.4      — Discord widget + clan system
+Sprint 209 (2d): WW.1            — Post-processing pipeline (bloom, chromatic aberration)
+Sprint 210 (2d): WW.2-WW.3      — Weather system + dynamic lighting
+Sprint 211 (1d): WW.4            — Unit shadow system
+Sprint 212 (2d): XX.1-XX.2      — Post-game coach report + mistake detection
+Sprint 213 (1d): XX.3            — Personalised training plan
+Sprint 214 (2d): YY.1-YY.2      — Building collapse physics + knockback
+Sprint 215 (1d): YY.3            — Chain reactions (Baneling cascade)
+Sprint 216 (3d): ZZ.1            — swarm-engine npm package extraction
+Sprint 217 (2d): ZZ.2            — Documentation website (Vitepress)
+Sprint 218 (2d): ZZ.3            — Colony Wars (engine proof game)
+Sprint 219 (1d): ZZ.4            — Engine governance + community RFC process
+Sprint 220 (2d): NN ext          — 4 more seasonal events (special maps + unit skins)
+Sprint 221 (2d): CC ext          — AI commander voice lines for all 15 commanders (full set)
+Sprint 222 (2d): II ext          — 3v3 and 4v4 mode + Colosseum map
+Sprint 223 (2d): QQ ext          — Lore pages for all buildings + full animated intro cinematic
+Sprint 224 (2d): FF ext          — Tutorial for Protoss warp-in + Chrono Boost
+Sprint 225 (1d): LL ext          — 20 more build orders (full 3-faction coverage)
+Sprint 226 (2d): PP ext          — Neural AI training run 2 (with Protoss faction)
+Sprint 227 (1d): BB ext          — Balance patch 2.0 from ML AI telemetry
+Sprint 228 (2d): RR ext          — Scenario editor: triggers for multiplayer games
+Sprint 229 (1d): OO ext          — Alliance supply sharing in team games
+Sprint 230 (2d): EE ext          — Procedural campaign: endless random missions
+Sprint 231 (2d): KK ext          — Underground tunnels as map feature (Nydus network paths)
+Sprint 232 (2d): JJ ext          — Smart waypoint smoothing (Bezier curve paths, no sharp corners)
+Sprint 233 (1d): WW ext          — Full day/night cycle (dark maps at night, vision bonus at dawn)
+Sprint 234 (2d): UU ext          — Live replay sharing: watch a friend's game in real time
+Sprint 235 (1d): MM ext          — Webhooks API (notify Discord/Slack on game events)
+Sprint 236 (2d): VV ext          — Community-curated "best plays" gallery (30-second highlight clips)
+Sprint 237 (2d): TT ext          — Cross-platform tournaments (mobile vs desktop bracket)
+Sprint 238 (1d): XX ext          — "Coach mode": AI analyses opponent's strategy in real time
+Sprint 239 (2d): GG ext          — Full live orchestra recording of swarm-engine music themes
+Sprint 240 (1d): HH ext          — App Store submission (Electron Tauri build for iOS via Capacitor)
+Sprint 241 (2d): Performance v4  — Comprehensive profiling: <8ms frame time target for 400 units
+Sprint 242 (2d): N ext final     — Complete Protoss unit roster (all 17 units fully implemented)
+Sprint 243 (2d): M ext final     — Complete Terran unit roster (all 21 units fully implemented)
+Sprint 244 (2d): Zerg ext final  — Complete Zerg unit roster (all 19 units fully implemented)
+Sprint 245 (2d): Balance v4      — Full 3-faction parity balance pass (57 units total)
+Sprint 246 (1d): Lore complete   — 57-unit encyclopedia + 3-faction story arc complete
+Sprint 247 (2d): Campaign final  — 3-faction campaign complete (15 missions total, branching)
+Sprint 248 (1d): Engine v2.0     — swarm-engine v2.0 with breaking API changes + migration guide
+Sprint 249 (1d): v6.0 prep       — Feature freeze, changelog, community vote on v6 roadmap
+Sprint 250 (1d): v6.0 Release    — The complete game. The mature engine. The community platform.
+```
+
+---
+
+## The 250-Sprint Complete Vision
+
+```
+v0.1  Sprints   1–10:  Polish, fix bugs. AI lives. Looks great.
+v1.0  Sprints  11–55:  3 factions. Multiplayer. Campaign. Map editor. Launch.
+v1.5  Sprints  56–104: Director AI. MMR. Modding. Proc maps. 15 commanders.
+v2.0  Sprints 105–150: Balance. 3D audio. Native apps. Engine OSS.
+v3.0  Sprints 121–150: Full Protoss. All current units. Season ladder.
+v4.0  Sprints 151–180: Team modes. ML AI. Lore. Live service. Creator tools.
+v5.0  Sprints 181–200: WASM sim. Conference talks. Engine published.
+v6.0  Sprints 201–250: Game feel mastery. Cloud saves. Coach AI. Full unit parity.
+                       Complete campaigns. Mature engine ecosystem. Eternal legacy.
+```
+
+**250 sprints. ~300 days. ~60 weeks. 15 months.**
+**End state:** A complete three-faction real-time strategy game, a published open-source engine, a living community platform, a documented architecture used as a teaching resource, and a codebase that outlives any single developer.
+
+---
+
+## Priority Tiers (for focus when context is limited)
+
+```
+TIER 0 — Ship today (bugs blocking play):
+  Sprint 1:  Tech tree UI labels
+  Sprint 4:  AI base defense
+  Sprint 7:  Marine redesign
+
+TIER 1 — Core game loop polish (next 2 weeks):
+  Sprints 2–10: Selection UI, AI overhaul, visual passes
+
+TIER 2 — Depth features (next 2 months):
+  Sprints 11–55: Audio, campaign, multiplayer, map editor, 3rd faction
+
+TIER 3 — Platform & live service (3–6 months):
+  Sprints 56–104: AI Director, ranked, modding, procedural content
+
+TIER 4 — Mastery & legacy (6–15 months):
+  Sprints 105–250: Team modes, ML AI, game feel, engine OSS, full unit parity
+```
 ```

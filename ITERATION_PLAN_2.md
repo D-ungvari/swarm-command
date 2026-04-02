@@ -1846,6 +1846,336 @@ Sprint 28 (1d): M.4-M.5             — Swarm Host + Watchtower
 Sprint 29 (1d): Final polish + README + screenshots + portfolio sync
 ```
 
-**Total: ~40 days / 8 weeks of focused development**
-**End result: A fully playable browser SC2 clone with campaign, multiplayer, map editor, 35+ units, and competitive features.**
+**Total: ~40 days / 8 weeks of focused development (Iterations A–M)**
+**Extended roadmap below continues to full platform parity.**
+
+---
+
+---
+
+# Iteration N — Protoss Faction
+
+## Why Protoss
+
+Three factions is the core SC2 identity. Protoss plays completely differently from both Terran and Zerg:
+- **Shields** recharge fully after 10s out of combat (separate HP bar)
+- **Warp-in mechanic** — units warp in anywhere on the map that has a Pylon power field
+- **Chrono Boost** — spend energy from Nexus to speed up any building's production by 50%
+- **No supply cap on Pylons** (they provide supply but also power buildings)
+- **Expensive but powerful** — fewer units, each hits hard
+
+## N.1 — Shield System
+
+New component arrays: `shieldCurrent: Float32Array`, `shieldMax: Float32Array`, `shieldRegenTimer: Float32Array`.
+
+**Shield rules:**
+- Shields absorb damage first, then HP takes damage
+- Shields regen fully after `SHIELD_REGEN_DELAY = 10s` since last hit
+- Regen rate: `SHIELD_REGEN_RATE = 2 HP/s` (slow regen, not instant)
+- In `CombatSystem`: `if (shieldCurrent[tgt] > 0) { shieldCurrent[tgt] -= dmg; dmg = max(0, -shieldCurrent[tgt]); shieldCurrent[tgt] = max(0, shieldCurrent[tgt]); }` then apply remaining `dmg` to `hpCurrent`
+
+**Visual:** Two stacked health bars — blue (shields) above green/yellow/red (HP). Shield bar shows full blue, depletes to nothing, then slowly refills.
+
+## N.2 — Pylon Power Field
+
+Pylons are the core Protoss building:
+- BuildingType.Pylon = 50, 2×2 tiles, 8 supply, 100m cost, no prereq
+- Each Pylon has a `powerRadius = 7 tiles`
+- All other Protoss buildings must be within a Pylon's power radius to function
+- Powered buildings: normal color. Unpowered buildings: red tint, production halted
+
+**Power grid computation:** New `PylonSystem.ts` — each tick, for each Protoss building, check if any completed Pylon is within `powerRadius`. Set `powered: Uint8Array` component.
+
+In `ProductionSystem`: skip buildings where `!powered[eid]`.
+
+**Visual:** Pylon power radius shown as a soft circular gradient on the ground (blue-tinted overlay) when a Pylon is selected.
+
+## N.3 — Warp-In Mechanic
+
+Instead of training units at the Gateway and waiting, Protoss uses **Warp Gates**:
+1. Gateway → upgrade to Warp Gate (morph, 7s)
+2. Warp Gates don't queue units — they have a `warpCooldown` timer
+3. When cooldown expires, player can "warp in" a unit ANYWHERE on the map within a Pylon's power field
+4. Warp-in animation: 3s hologram effect at the target location, then unit appears
+
+**Implementation:**
+- `CommandType.WarpIn = 34` — player selects unit type on Warp Gate panel, left-clicks a target location within a powered tile
+- `InputProcessor` enters warp-in mode (similar to patrol/bile pending modes)
+- `WarpInRenderer`: draws pulsing blue hexagon at cursor over powered tiles; red outside power range
+- On placement: deduct cost, start `warpTimer[warpGateEid]` countdown, record `warpTargetX/Y/Type`
+- When timer expires in `ProductionSystem`: spawn unit at target location (teleport)
+
+## N.4 — Chrono Boost (Nexus Ability)
+
+Nexus is the Protoss CC equivalent. It has `nexusEnergy: Float32Array` (max 200, +0.5625/s regen, starts at 50).
+
+**Chrono Boost (C key while Nexus selected, then click target building):**
+- Costs 50 energy
+- Target building produces/researches at 2× speed for 20s
+- Component: `chronoBoostTimer: Float32Array` per building — while > 0, `ProductionSystem` uses double speed
+- Visual: target building gets a bright blue shimmer ring + "CHRONO" text in info panel
+
+## N.5 — Protoss Unit Roster (Phase 1)
+
+Starting roster — 8 units covering all roles:
+
+| Unit | HP | Shield | Role | Unique |
+|------|----|--------|------|--------|
+| Probe | 20 | 20 | Worker | Warps buildings (doesn't get consumed like Drone) |
+| Zealot | 100 | 50 | Melee tank | Charge ability (+1.5 speed when targeting enemy) |
+| Stalker | 80 | 80 | Ranged anti-all | Blink (E) — short-range teleport, 10s CD |
+| Sentry | 40 | 40 | Support | Force Field (F) — impassable barrier for 11s |
+| Immortal | 200 | 100 | Heavy anti-armored | Hardened Shield: absorbs max 10 dmg per hit |
+| Colossus | 200 | 150 | AoE ground | Thermal Lance: long beam attack hitting all units in a line |
+| Phoenix | 120 | 60 | Air-to-air | Graviton Beam (G): lifts a ground unit into the air, helpless, 4s |
+| Carrier | 300 | 150 | Capital ship | Launches 8 Interceptors (tiny fighters) that attack independently |
+
+## N.6 — Protoss Building Roster
+
+| Building | Prereq | Produces | Notes |
+|----------|--------|---------|-------|
+| Nexus | — | Probe | Command centre + Chrono Boost |
+| Pylon | — | — | Supply + power field |
+| Gateway | Pylon | Zealot, Stalker, Sentry | → upgrades to Warp Gate |
+| Forge | Pylon | — | Weapon/armor upgrades |
+| Cybernetics Core | Gateway | — | Unlocks Stalker, Sentry, air |
+| Robotics Facility | Cybernetics Core | Immortal, Colossus | — |
+| Stargate | Cybernetics Core | Phoenix, Carrier | — |
+| Templar Archives | Cybernetics Core | High Templar | (future) |
+
+---
+
+# Iteration O — Spectator & Replay System
+
+## O.1 — Full Replay Playback UI
+
+The command recorder exists. Build a proper replay viewer:
+
+- **Timeline scrub bar** at the bottom — drag to any point in the replay
+- **Play/Pause/Fast-forward (2×/4×/8×)** controls
+- **Rewind to start** button
+- **Camera follows action**: auto-pans to the most active area of the map (highest `damageEvents` density)
+
+**Implementation:**
+- `ReplayPlayer.ts` extends the existing command record playback
+- Timeline = `<input type="range">` mapped to `totalTicks`
+- Scrubbing re-simulates from nearest checkpoint (save world snapshots every 300 ticks)
+- World snapshot: serialize all relevant TypedArray slices to a `Float32Array` blob
+
+## O.2 — Spectator Mode
+
+For multiplayer games, allow a third browser tab to watch in real-time:
+
+- Spectator connects to the signaling server with role "spectator"
+- Both players send their command streams to the spectator's data channel (broadcast)
+- Spectator runs the same deterministic simulation but applies both players' commands
+- Spectator has no input — only camera controls (WASD/drag/scroll)
+- Spectator UI: shows both players' resource panels side by side at top
+
+## O.3 — Highlight Reel Generation
+
+After a game, automatically generate a "highlight clip" from the replay:
+
+- Scan replay for peak `damageEvents` density periods → mark as "exciting moments"
+- Top 3 moments: show as a 3-panel preview on the game-over screen
+- "Share Moment": encode the 5s window around the moment as a replay URL fragment
+
+---
+
+# Iteration P — Performance & Scale
+
+## P.1 — Web Worker Simulation
+
+Move the entire tick simulation to a Web Worker thread. The main thread only handles:
+- Input collection
+- Rendering (PixiJS on main thread — required)
+- Audio
+
+The simulation worker receives input commands, runs all systems, and posts back the world state diff (only changed entity positions/HPs/states) each tick.
+
+**Benefits:** Rendering never stalls during AI computation. Large battles (200 units) compute off the main thread, preventing frame drops.
+
+**Challenge:** TypedArrays are transferable (zero-copy) but PixiJS renders from shared memory. Use `SharedArrayBuffer` for the main component arrays so both main thread (rendering) and worker thread (simulation) can read/write without message passing overhead.
+
+**Files:** `src/workers/SimulationWorker.ts`, `src/Game.ts` restructure
+
+## P.2 — GPU-Accelerated Particle System
+
+Current particles (death effects, explosions) are drawn via PixiJS `Graphics` per frame. At 50+ simultaneous deaths, this gets expensive.
+
+Replace with a PixiJS `ParticleContainer` + custom particle shader:
+- Particles are tiny sprites (1×1 white pixel texture, tinted per particle)
+- `ParticleContainer` uses GPU instancing — 10,000 particles at 60fps with near-zero CPU cost
+- Particle physics on GPU via custom vertex shader: position += velocity * dt, alpha -= fadeRate * dt
+
+## P.3 — Lazy Terrain Rendering
+
+The `TilemapRenderer` currently draws all ~16,000 tiles every frame the water animates. Optimize:
+
+- Static tiles (ground, cliff) rendered once to a `RenderTexture` — never redrawn
+- Only water tiles and creep overlay redraw each frame
+- Destructible tiles redraw only when their state changes (rock destroyed)
+- Expected speedup: 5× fewer draw calls for terrain
+
+## P.4 — Network Delta Compression
+
+For multiplayer: instead of sending full `GameCommand[]` arrays, send binary-encoded deltas:
+
+- Each command: 1 byte type + 1 byte unit count + 2 bytes per unit EID + 4 bytes wx + 4 bytes wy = ~15 bytes per command
+- Batch: frame number (2 bytes) + command count (1 byte) + commands
+- ~200 bytes per frame at 60 FPS = ~12KB/s per player — negligible bandwidth
+
+Use a `CommandSerializer.ts` with `DataView` for binary packing/unpacking.
+
+---
+
+# Iteration Q — Platform & Accessibility
+
+## Q.1 — Progressive Web App (PWA)
+
+Install the game on phone/desktop like a native app:
+
+- `manifest.json`: name, icons, display: standalone, theme_color
+- `service-worker.js`: cache all assets for offline play (single-player only when offline)
+- App icon: the SC2-inspired Swarm Command logo (drawn as SVG, no external assets)
+- On iOS Safari: "Add to Home Screen" prompt after 3rd visit
+
+## Q.2 — Keyboard Remapping
+
+Allow players to change any hotkey binding:
+
+- New settings panel: "Controls" tab with all hotkeys listed
+- Each binding: `<key-capture-input>` that listens for a keypress and stores it
+- Bindings stored in `localStorage['keybindings']`
+- `InputProcessor` reads from the stored bindings at init instead of hardcoded strings
+- Conflict detection: warn if two actions share the same key
+
+## Q.3 — Colourblind Modes
+
+Three accessibility modes selectable from settings:
+
+| Mode | Terran | Zerg | Resource/UI |
+|------|--------|------|-------------|
+| Default | Blue | Red/Purple | Blue minerals, Green gas |
+| Deuteranopia | Blue | Orange | Blue minerals, Yellow gas |
+| Tritanopia | Green | Red | Yellow minerals, Red gas |
+| High Contrast | White | Black | Bright yellow minerals |
+
+Units also gain a small shape-based identifier overlay (already partly in place with distinct unit shapes).
+
+## Q.4 — Screen Reader Support
+
+For accessibility compliance:
+
+- All HTML UI panels get `aria-label` attributes
+- Key game events announced via `aria-live="polite"` region: "Wave 3 incoming", "Marine produced", "Under attack"
+- HUD values readable by screen reader: minerals/gas/supply with proper `aria-label`
+
+## Q.5 — Internationalisation (i18n) Foundation
+
+All display strings extracted to `src/i18n/en.ts`:
+
+```typescript
+export const strings = {
+  UNIT_Marine: "Marine",
+  UNIT_Zergling: "Zergling",
+  ABILITY_Stim: "Stim Pack",
+  HUD_Minerals: "Minerals",
+  ALERT_UnderAttack: "Under Attack",
+  // ...
+} as const;
+```
+
+Replace all hardcoded strings in renderers with `strings.KEY`. Adding a language is then just a new file `src/i18n/de.ts`, `src/i18n/fr.ts` etc.
+
+---
+
+# Iteration R — Meta & Social
+
+## R.1 — In-Game Screenshot Tool
+
+`Shift+F12` captures the current frame as a PNG:
+- Temporarily hide all HTML UI overlays (HUD, panels, minimap)
+- Use `app.renderer.extract.canvas()` → `canvas.toBlob()` → download link
+- Optional: add a "Share" button that uploads to a free image service (imgbb.com free API or similar)
+
+## R.2 — Twitch/Stream Integration
+
+- OBS browser source: add `?obs=1` URL param to enable a stream-friendly layout
+  - Larger fonts, higher contrast UI
+  - No HUD clutter, minimal panels
+  - Overlay showing both players' army values (for caster perspective)
+- Twitch Extension placeholder: iframe embedded in Twitch channel showing live game stats
+
+## R.3 — Discord Rich Presence (via Web API)
+
+When playing, update Discord status via the Discord Game SDK web overlay:
+- "Playing Swarm Command — Terran vs Zerg — Wave 7"
+- "Watching Replay — 4:32 APM 187"
+- Invite button: opens the game URL with the current lobby code as a URL param
+
+## R.4 — Leaderboard (Serverless)
+
+Global leaderboard using a free serverless backend:
+
+- **Supabase free tier**: table `scores(player_id, difficulty, time_seconds, waves, apm, faction, created_at)`
+- On game end: POST score if `difficulty >= Normal` and `!fogEnabled === false` (no cheating)
+- Leaderboard page: top 100 scores per difficulty, filterable by faction
+- Anonymous player IDs: `localStorage` UUID generated at first run
+- Optional: add a name (stored in localStorage, sent with score)
+
+---
+
+# Extended Master Sprint Calendar (Sprints 30–55)
+
+```
+Sprint 30 (2d): N.1-N.2         — Protoss shields + Pylon power field
+Sprint 31 (2d): N.3-N.4         — Warp-in mechanic + Chrono Boost
+Sprint 32 (3d): N.5-N.6         — Protoss unit + building roster
+Sprint 33 (1d): O.1             — Full replay playback UI + scrub bar
+Sprint 34 (2d): O.2-O.3         — Spectator mode + highlight reel
+Sprint 35 (2d): P.1             — Web Worker simulation offload
+Sprint 36 (1d): P.2-P.3         — GPU particles + lazy terrain render
+Sprint 37 (1d): P.4             — Network delta compression
+Sprint 38 (1d): Q.1-Q.2         — PWA install + keyboard remapping
+Sprint 39 (1d): Q.3-Q.4-Q.5     — Colourblind modes + accessibility + i18n foundation
+Sprint 40 (1d): R.1-R.2         — Screenshot tool + stream layout
+Sprint 41 (1d): R.3-R.4         — Discord presence + global leaderboard
+Sprint 42 (2d): N.5 ext         — Protoss units: High Templar (Psionic Storm), Dark Templar (permanent cloak)
+Sprint 43 (2d): N.5 ext         — Protoss Tier 3: Void Ray (prismatic beam), Mothership (mass recall, time stop)
+Sprint 44 (2d): M ext           — Terran Tier 3: Thor upgrade (Odin), SCV auto-repair on structures, Planetary Fortress (turret CC)
+Sprint 45 (2d): M ext           — Zerg Tier 3: Nydus Network (army teleport), Spine Crawler/Spore Crawler (static defence that can uproot and walk)
+Sprint 46 (3d): AI ext          — Protoss AI: build order, warp-in aggression, Colossus push, Blink Stalker micro
+Sprint 47 (2d): Campaign ext    — 5 Protoss campaign missions (Warp Gate tutorial → Colossus deploy → Psionic Storm finale)
+Sprint 48 (1d): Balance pass    — Full unit cost/stat balance review against SC2 values, community playtesting feedback
+Sprint 49 (2d): Map pack        — 5 new competitive maps (by hand-coding MapData patterns): Daybreak, Frost, Abyssal Reef, Merry Go Round, Alterzim
+Sprint 50 (1d): Automated tests — Unit tests for all new systems (shield regen, warp-in, chrono boost, morph, burrow)
+Sprint 51 (1d): Load testing    — 400-entity stress test, profile & fix frame-time spikes
+Sprint 52 (2d): Tutorial        — Interactive tutorial overlay for first-time players (step-by-step: gather → build → train → attack)
+Sprint 53 (1d): SEO & meta      — Proper OpenGraph tags, Twitter card, structured data for search indexing
+Sprint 54 (1d): Final QA pass   — Cross-browser test (Chrome/Firefox/Safari/Edge), mobile device test, performance budget
+Sprint 55 (1d): Launch v1.0     — Tag release, push to GitHub Pages, update portfolio, post to Hacker News / Reddit SC2 community
+```
+
+**Grand Total: ~55 sprints / 75 days / 15 weeks**
+**End state: A fully playable 3-faction SC2 browser clone — Terran, Zerg, Protoss — with multiplayer, campaign, map editor, PWA install, spectator mode, leaderboard, and accessibility support. The most complete RTS ever built in a browser.**
+
+---
+
+## Priority Stack (if only shipping 10 sprints)
+
+The 10 sprints with the highest return-on-investment for playability and portfolio impact:
+
+```
+1.  Sprint 1:  F.1-F.4   — Tech tree UI + Zerg buildings (makes it immediately more playable)
+2.  Sprint 4:  B.1-B.3   — AI base defense + faster pressure (fixes the biggest gameplay complaint)
+3.  Sprint 7:  C.1-C.9   — Marine redesign + palette (portfolio first impression)
+4.  Sprint 2:  A.1-A.2   — Ctrl+click + control group UI (core SC2 feel)
+5.  Sprint 19: H.1-H.2   — Campaign framework + Terran missions (gives the game purpose)
+6.  Sprint 26: L.3       — Achievements (replayability, portfolio talking point)
+7.  Sprint 8:  C.2-C.3   — Unit visual passes (every unit looks great)
+8.  Sprint 16: G.1-G.2   — Multiplayer foundation (the biggest feature gap)
+9.  Sprint 30: N.1-N.2   — Protoss shields + Pylon (third faction foundation)
+10. Sprint 55: Launch    — Deploy, portfolio sync, community post
+```
 ```

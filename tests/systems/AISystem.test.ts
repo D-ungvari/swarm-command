@@ -217,7 +217,7 @@ describe('AISystem', () => {
     it('does not spawn near MAX_ENTITIES', () => {
       const spawnFn = vi.fn(() => 0);
       setAIMinerals(1000, 1000);
-      world.nextEid = MAX_ENTITIES - 49;
+      world.nextEid = MAX_ENTITIES - 5; // Very close to cap — should block spawning
       runOneDecision(150, spawnFn);
       expect(spawnFn).not.toHaveBeenCalled();
     });

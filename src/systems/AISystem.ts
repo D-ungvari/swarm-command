@@ -84,14 +84,19 @@ type SpawnBuildingFn = (type: number, fac: number, col: number, row: number) => 
 // ─────────────────────────────────────────
 // Tuning constants
 // ─────────────────────────────────────────
-const INITIAL_DELAY = 20;
+const INITIAL_DELAYS: Record<Difficulty, number> = {
+  [Difficulty.Easy]: 20,
+  [Difficulty.Normal]: 15,
+  [Difficulty.Hard]: 5,
+  [Difficulty.Brutal]: 0,
+};
 const DECISION_INTERVAL = 15;
 const BASE_INCOME = 3.0;
 const GAS_INCOME_RATIO = 0.35;
 const INCOME_GROWTH_PER_WAVE = 0.25;
 const MAX_SPAWNS_PER_DECISION = 3;
 
-const FIRST_WAVE_SIZE = 6;
+const FIRST_WAVE_SIZE = 4;
 const WAVE_SIZE_GROWTH = 4;
 const MAX_WAVE_SIZE = 30;
 const WAVE_COOLDOWN = 8;
@@ -191,6 +196,8 @@ let regroupY = 0;
 const armyEids = new Set<number>();
 const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
+let defenseEids: Set<number> = new Set();
+let lastDefenseTime = 0;
 let hasExpanded = false;
 let currentMap: MapData | null = null;
 
@@ -218,6 +225,8 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   lastAIUpgradeWave = 0;
   nextAIUpgradeType = 3;
   hasExpanded = false;
+  defenseEids = new Set();
+  lastDefenseTime = 0;
   terranArmyEids = new Set();
   terranLastSpawnTime = 0;
   terranAIMinerals = 0;
@@ -332,6 +341,65 @@ function executeBuildOrder(
 }
 
 // ─────────────────────────────────────────
+// Base Defense (B.1)
+// ─────────────────────────────────────────
+function checkBaseUnderAttack(world: World, gameTime: number, map: MapData): void {
+  if (gameTime - lastDefenseTime < 15) return; // 15s cooldown between defense activations
+
+  // Find if any enemy units are within 12 tiles of any AI building
+  let threatX = 0, threatY = 0;
+  let threatFound = false;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, BUILDING)) continue;
+    if (faction[eid] !== currentAIFaction) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    const bx = posX[eid], by = posY[eid];
+    for (let other = 1; other < world.nextEid; other++) {
+      if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+      if (faction[other] === currentAIFaction || faction[other] === 0) continue;
+      if (hpCurrent[other] <= 0) continue;
+      const dx = posX[other] - bx, dy = posY[other] - by;
+      if (dx * dx + dy * dy < (12 * TILE_SIZE) * (12 * TILE_SIZE)) {
+        threatX = posX[other];
+        threatY = posY[other];
+        threatFound = true;
+        break;
+      }
+    }
+    if (threatFound) break;
+  }
+
+  if (!threatFound) return;
+  lastDefenseTime = gameTime;
+
+  // Determine which army set to peel from
+  const armySet = currentAIFaction === Faction.Terran ? terranArmyEids : armyEids;
+
+  // Peel off 40% of army to defend (minimum 3, max 10)
+  const peelCount = Math.min(10, Math.max(3, Math.floor(armySet.size * 0.4)));
+  let peeled = 0;
+  for (const eid of armySet) {
+    if (peeled >= peelCount) break;
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+
+    commandMode[eid] = CommandMode.AttackMove;
+    const startTile = worldToTile(posX[eid], posY[eid]);
+    const endTile = worldToTile(threatX, threatY);
+    const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+    if (tilePath.length > 0) {
+      setPath(eid, tilePath.map(([c, r]) => {
+        const wp = tileToWorld(c, r);
+        return [wp.x, wp.y] as [number, number];
+      }));
+    }
+    defenseEids.add(eid);
+    peeled++;
+  }
+}
+
+// ─────────────────────────────────────────
 // Terran AI Module
 // ─────────────────────────────────────────
 let terranArmyEids: Set<number> = new Set();
@@ -353,6 +421,9 @@ function runTerranAI(
 
   // Build order execution (runs first, takes priority)
   executeBuildOrder(world, resources, gameTime, spawnUnit);
+
+  // Base defense check (B.1)
+  checkBaseUnderAttack(world, gameTime, map);
 
   // Income
   terranAIMinerals += 3 * diffConfig.incomeMultiplier;
@@ -396,14 +467,37 @@ function runTerranAI(
   void resources;
 
   // Attack when army is large enough
-  const targetSize = Math.min(6 + waveCount * 3, Math.floor(25 * diffConfig.armySizeCapMultiplier));
+  const targetSize = Math.min(4 + waveCount * 3, Math.floor(25 * diffConfig.armySizeCapMultiplier));
   if (terranArmyEids.size >= targetSize) {
+    // Route through map center for visibility (B.9)
+    const midpoint = tileToWorld(64, 64);
     const target = tileToWorld(playerBaseTile.col, playerBaseTile.row);
+    const midTile = worldToTile(midpoint.x, midpoint.y);
     for (const eid of terranArmyEids) {
       if (!entityExists(world, eid)) continue;
       commandMode[eid] = CommandMode.AttackMove;
-      const tilePath = findNearestWalkablePath(world, eid, target, map);
-      if (tilePath) setPath(eid, tilePath);
+
+      const startTile = worldToTile(posX[eid], posY[eid]);
+      const pathToMid = findPath(map, startTile.col, startTile.row, midTile.col, midTile.row);
+
+      if (pathToMid.length > 0) {
+        const worldPath: Array<[number, number]> = pathToMid.map(([c, r]) => {
+          const wp = tileToWorld(c, r);
+          return [wp.x, wp.y] as [number, number];
+        });
+        const targetTile = worldToTile(target.x, target.y);
+        const pathToTarget = findPath(map, midTile.col, midTile.row, targetTile.col, targetTile.row);
+        if (pathToTarget.length > 0) {
+          worldPath.push(...pathToTarget.map(([c, r]) => {
+            const wp = tileToWorld(c, r);
+            return [wp.x, wp.y] as [number, number];
+          }));
+        }
+        setPath(eid, worldPath);
+      } else {
+        const tilePath = findNearestWalkablePath(world, eid, target, map);
+        if (tilePath) setPath(eid, tilePath);
+      }
     }
     waveCount++;
     isAttacking = true;
@@ -448,7 +542,7 @@ export function aiSystem(
     return;
   }
 
-  if (gameTime < INITIAL_DELAY + personality.timingOffset) return;
+  if (gameTime < INITIAL_DELAYS[currentDifficulty] + personality.timingOffset) return;
 
   tickCounter++;
   if (tickCounter < DECISION_INTERVAL) return;
@@ -460,6 +554,9 @@ export function aiSystem(
 
   pruneDeadUnits(world);
   gatherIntelFromUnits(world);
+
+  // Base defense check (B.1)
+  checkBaseUnderAttack(world, gameTime, map);
 
   const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
 
@@ -1136,6 +1233,9 @@ function sendUnitsToAttack(
   const spacing = TILE_SIZE * 0.8;
   let i = 0;
 
+  // Route through map center (64,64) so the army is visible crossing the map (B.9)
+  const midpoint = tileToWorld(64, 64);
+
   for (const eid of units) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
 
@@ -1149,11 +1249,39 @@ function sendUnitsToAttack(
     const destY = targetY + offsetY;
     commandMode[eid] = CommandMode.AttackMove;
 
-    // If waypoint given, path through it first for varied approach angle
-    if (waypoint) {
-      pathTo(eid, waypoint.x + offsetX, waypoint.y + offsetY, map);
+    // Build a 2-waypoint path: unit -> midpoint -> target (via optional angle waypoint)
+    const startTile = worldToTile(posX[eid], posY[eid]);
+    const midTile = worldToTile(midpoint.x, midpoint.y);
+
+    // Path to midpoint first
+    const pathToMid = findPath(map, startTile.col, startTile.row, midTile.col, midTile.row);
+
+    if (pathToMid.length > 0) {
+      const worldPath: Array<[number, number]> = pathToMid.map(([c, r]) => {
+        const wp = tileToWorld(c, r);
+        return [wp.x, wp.y] as [number, number];
+      });
+
+      // Then path from midpoint to final destination (via waypoint if given)
+      const finalX = waypoint ? waypoint.x + offsetX : destX;
+      const finalY = waypoint ? waypoint.y + offsetY : destY;
+      const finalTile = worldToTile(finalX, finalY);
+      const pathToTarget = findPath(map, midTile.col, midTile.row, finalTile.col, finalTile.row);
+
+      if (pathToTarget.length > 0) {
+        worldPath.push(...pathToTarget.map(([c, r]) => {
+          const wp = tileToWorld(c, r);
+          return [wp.x, wp.y] as [number, number];
+        }));
+      }
+      setPath(eid, worldPath);
     } else {
-      pathTo(eid, destX, destY, map);
+      // Fallback: direct path if midpoint is unreachable
+      if (waypoint) {
+        pathTo(eid, waypoint.x + offsetX, waypoint.y + offsetY, map);
+      } else {
+        pathTo(eid, destX, destY, map);
+      }
     }
   }
 }

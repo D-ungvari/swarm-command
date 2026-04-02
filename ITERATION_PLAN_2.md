@@ -3372,4 +3372,579 @@ All paths ───────────────────────�
 ```
 
 **Every feature feeds the next. The critical path is: Fix → Fight → Look → Sound → Multiplayer → 3 Factions → Community → Open Source.**
+
+---
+
+---
+
+# Iteration II — Team Multiplayer (2v2 / 3v3 / 4v4)
+
+## II.1 — Shared Vision & Allied Units
+
+The biggest multiplayer leap after 1v1: team games fundamentally change strategy.
+
+**Allied mechanics:**
+- **Shared vision**: all teammates see everything each other sees (fog of war merged)
+- **No friendly fire** (default): splashes from Siege Tanks / Banelings cannot hit allies
+- **Allied building placement**: players can place structures anywhere on the map, not just near their own base
+- **Shared resources** (optional setting): minerals pooled across the team vs individual
+
+**Ally indicator**: allied units display a slightly different selection ring colour (teal vs blue for Terran-Terran) so players can distinguish their own units from allies.
+
+## II.2 — Team Faction Drafting
+
+Before the game starts, team players each independently choose:
+1. Their faction (Terran / Zerg / Protoss)
+2. Their role preference: **Macro** (economy focus) / **Harass** (early pressure) / **Army** (main force)
+
+The AI director adjusts based on which roles are present — if both players picked Macro, pressure comes earlier.
+
+**Lobby UI changes**: a 2×2 or 3×3 grid of player slots. Each row = one team. Each slot shows: player name, faction icon, chosen role. Colour-coded team rows (blue team vs red team).
+
+## II.3 — 2v2 Specific Maps
+
+Maps designed for team play have distinct zones:
+- Each player has their own base pocket (not shared)
+- A contested center large enough for multiple armies
+- "Rotations" — paths connecting the two bases on each team (so teammates can reinforce each other)
+
+**New 2v2 maps:**
+- **Twin Peaks** (2v2): Each team shares a plateau. Opponents on the other plateau. One central bridge. Drop-heavy.
+- **Chasm** (2v2): Teams on opposite sides of a massive chasm. Three narrow bridges, each defendable. Forces the fight onto the bridges.
+- **Colosseum** (2v2/4v4): A circular arena. All 4 bases in the corners, open center. Constant skirmishing.
+
+## II.4 — Team Communication
+
+Simple in-game communication tools (no voice, no chat spam risk):
+
+- **Quick pings**: press Alt+click anywhere to send a map ping visible to all teammates
+- **Ping types**: Attack (red exclamation), Defend (blue shield), Expand (green flag), Retreat (yellow arrow)
+- **Minimap callout**: pings show on minimap as coloured blinking dots
+- **"On my way"**: press M to broadcast "On my way!" as a floating text notification near ally's ping
+
+---
+
+# Iteration JJ — Advanced Pathfinding & Movement
+
+## JJ.1 — Hierarchical Pathfinding (HPA*)
+
+Current A* recalculates the full path every time a unit needs to chase a moving target. At 200 units this means 200 A* searches per repath interval.
+
+**Hierarchical A* (HPA*) implementation:**
+
+1. Divide the 128×128 map into 8×8 **sectors** (256 sectors total)
+2. Pre-compute **inter-sector edges**: for each pair of adjacent sectors, find all tile pairs that connect them and record their cost
+3. **High-level path**: A* over sectors (fast — only 256 nodes vs 16,384)
+4. **Low-level path**: A* within each sector to connect the waypoints from the high-level path
+
+**Result**: 10–15× speedup for long-distance paths. Short paths (<3 tiles) use direct A* (no overhead). Falls back gracefully if sector graph is invalid.
+
+**Files:** `src/map/HPAPathfinder.ts`, replaces `src/map/Pathfinder.ts`
+
+## JJ.2 — Army Flocking (Reynolds Boids)
+
+Replace the current O(n²) separation pass with a proper flocking algorithm for combat units in AttackMove mode:
+
+**Three rules (applied in order):**
+1. **Separation**: steer away from nearby flockmates (existing, improved)
+2. **Alignment**: steer toward average heading of flockmates within 3 tiles (new)
+3. **Cohesion**: steer toward average position of flockmates within 5 tiles (new)
+
+This creates organic-looking army movement — armies don't just blob-march in a square; they spread naturally, fill space intelligently, and reform after obstacles.
+
+**Tuning per unit type:**
+- Zerglings: high cohesion, low separation → tight swarm feel
+- Marines: balanced → orderly formation
+- Mutalisks: high separation, low cohesion → spread harassment cloud
+
+## JJ.3 — Terrain Weight Map
+
+Different terrain types affect movement speed beyond walkable/not-walkable:
+
+```typescript
+const TERRAIN_SPEED_MULTIPLIER: Record<TileType, number> = {
+  [TileType.Ground]:     1.0,
+  [TileType.Cliff]:      0.0,  // impassable
+  [TileType.Water]:      0.0,  // impassable (or 0.3 for air)
+  [TileType.Sand]:       0.85, // Desert Storm map — already planned
+  [TileType.Ice]:        0.9,  // Frozen Tundra — already planned
+  [TileType.Creep]:      1.3,  // Zerg speed bonus — already exists
+  [TileType.Lava]:       0.0,  // Volcano — lethal
+  [TileType.Shallow]:    0.6,  // wading through ankle-deep water
+  [TileType.Road]:       1.15, // paved paths inside Terran bases
+};
+```
+
+Applied in `MovementSystem` as `effectiveSpeed *= TERRAIN_SPEED_MULTIPLIER[currentTile]`. The pathfinder's cost function is updated to weight tile types so units naturally prefer roads and avoid sand.
+
+## JJ.4 — Collision Resolution (Circle-Circle)
+
+Current separation is position-based pushing. Add proper velocity-based collision resolution:
+
+When two units overlap:
+1. Compute penetration depth (distance between centers minus sum of radii)
+2. Compute collision normal (normalized vector from center A to center B)
+3. Apply impulse: `velocity += normal * penetrationDepth * RESTITUTION_FACTOR`
+
+This makes units physically push each other out of the way rather than teleporting apart, giving melee fights a visceral feel when masses collide.
+
+---
+
+# Iteration KK — Terrain Deformation & Environmental Hazards
+
+## KK.1 — Crater System
+
+When a Siege Tank shell or Baneling explodes on the ground, it leaves a **crater**:
+
+- The tile at the impact point becomes `TileType.Crater`
+- Crater: passable but speed 0.75× (rough terrain), visually a dark depressed circle
+- Craters persist until end of game
+- After 12 craters in a small area, the terrain becomes "blasted" — that zone is visually darker
+
+**Visual:** At the explosion impact point, a dark circle rendered under units, plus 4-6 small debris sprites (short line segments) radiating outward.
+
+**Implementation:** New `craterMap: Uint8Array` (like `creepMap`). Updated in `AbilitySystem` when splash damage fires. `TilemapRenderer` draws craters as a dark overlay layer.
+
+## KK.2 — Destructible Terrain (Bridges)
+
+On Islands and Archipelago maps, the narrow land bridges can be **destroyed** by concentrated fire:
+
+- Bridge tile type: `TileType.Bridge = 10`, HP: 500
+- When bridge HP drops to 0: all bridge tiles become water tiles, pathfinder cache invalidated
+- Bridge rebuilding: SCVs / Drones can repair bridges (B+right-click on broken bridge tile), takes 60s
+
+This creates a strategic decision: destroy the bridge to cut off reinforcements, or preserve it for your own advance.
+
+## KK.3 — Environmental Hazard Events
+
+Dynamic hazard events triggered on specific maps:
+
+**Volcano Eruption (Volcano map):** Already planned (every 90s, lava zone). Extend:
+- Visual: actual red-orange lava tiles spreading from center, 3-tile radius
+- Units in lava zone: 50 dmg/s, forced movement out of zone (AI units flee automatically)
+- Screen effect: red vignette, camera shake, rumble sound
+
+**Storm Front (Desert Storm map):** A sandstorm sweeps across the map every 3 minutes:
+- Direction: random, announced 15s ahead with "SANDSTORM APPROACHING" alert
+- During storm: vision range halved for all ground units, projectiles slower
+- Lasts 30 seconds
+
+**Tidal Wave (Archipelago map):** Every 4 minutes, one bridge submerges temporarily:
+- Announced 20s ahead: "TIDAL SURGE WARNING — Bridge 2"
+- That bridge becomes impassable for 45s
+- Forces armies to reroute, creates tactical opportunity
+
+---
+
+# Iteration LL — Build Order Trainer & Educational Mode
+
+## LL.1 — Build Order Database
+
+A curated database of real SC2 build orders translated for Swarm Command:
+
+```typescript
+interface BuildOrder {
+  name: string;
+  faction: Faction;
+  matchup: string;          // e.g. "TvZ", "ZvP"
+  type: 'rush' | 'macro' | 'timing' | 'cheese';
+  difficulty: 1 | 2 | 3;   // 1=beginner, 3=advanced
+  steps: BuildOrderStep[];  // exact supply/time triggers
+  tips: string[];
+  counterTo: string[];      // what this beats
+  weakTo: string[];         // what beats this
+  videoUrl?: string;        // placeholder for future
+}
+```
+
+30 build orders across all factions and matchups. Browsable from the main menu.
+
+## LL.2 — Build Order Practice Mode
+
+A mode where the player follows a specific build order in real-time:
+
+- Target build order displayed as a HUD overlay: next action highlighted
+- Timer showing how far ahead/behind optimal timing the player is
+- "Ghost overlay": a ghost version of the ideal army/economy at this timestamp shown at 30% opacity
+- Score: 0–100 based on how closely timing was followed
+
+**Files:** `src/scenarios/BuildOrderPractice.ts` — a game mode that creates a special tick listener and compares the player's world state to the expected world state at each build order step.
+
+## LL.3 — APM Trainer
+
+A dedicated mode to improve actions-per-minute:
+
+- Metronome tick sound with visual flash (sets a rhythm)
+- "Action prompts": random highlighted unit + action type appears every 0.5–1s
+- Player must click the correct unit and press the correct key before next prompt
+- Score = (correct actions / total prompts) × APM achieved
+- Difficulty: APM targets (60 / 90 / 120 / 150 / 200)
+
+## LL.4 — Strategy Glossary
+
+In-game glossary (accessible from tutorial screen) explaining RTS terminology:
+
+| Term | Definition |
+|------|-----------|
+| APM | Actions Per Minute — how many commands you issue per minute |
+| Macro | Managing your economy and production efficiently |
+| Micro | Precise control of individual units in battle |
+| All-in | Committing all resources to one attack — no fallback |
+| Cheese | An unexpected early strategy designed to catch opponents off guard |
+| Creep | Zerg terrain that boosts Zerg unit speed |
+| Supply-blocked | Unable to train more units because supply is at cap |
+| Kite | Moving units away while they attack to avoid return fire |
+| AoE | Area of Effect — abilities that damage multiple units at once |
+| Timing attack | Attacking at the exact moment your composition peaks |
+
+50 terms total. Searchable. Links to relevant units/abilities where applicable.
+
+---
+
+# Iteration MM — API Ecosystem & Third-Party Tools
+
+## MM.1 — Public Game Data API
+
+A serverless REST API (Cloudflare Workers, free tier) exposing game data:
+
+```
+GET /api/units              — all unit definitions
+GET /api/units/:id          — single unit with stats and abilities
+GET /api/buildings          — all building definitions
+GET /api/balance/current    — current balance.json values
+GET /api/leaderboard?faction=Terran&difficulty=Hard&limit=100
+GET /api/replays/:id        — fetch a shared replay by ID
+POST /api/replays           — upload a replay (returns shareable ID)
+POST /api/scores            — submit a game score
+GET /api/stats/global       — aggregated telemetry data
+```
+
+JSON responses. No authentication for read-only endpoints. Rate-limited at 100 req/min per IP.
+
+## MM.2 — Overlay SDK for Streamers
+
+A JavaScript SDK (`swarm-overlay.js`) that streamers embed on their overlay page (e.g., StreamElements, Overwolf):
+
+- Reads from `localStorage` (same origin as game)
+- Exposes: `getCurrentGame()`, `getArmyValue()`, `getLastWave()`, `subscribeToEvents(callback)`
+- Overlay can show: current game stats, live unit count, income rate
+- Sample overlay template: a sleek bottom-bar showing both players' army values
+
+## MM.3 — Replay Hosting Service
+
+Integration with GitHub Gist for free replay hosting:
+
+- "Share Replay" button on game-over screen
+- Uploads the replay JSON to a new anonymous GitHub Gist
+- Returns a URL: `swarm-command.github.io/replay?gist=abc123`
+- That URL fetches the Gist content and loads the replay directly
+- No server needed — Gist API is free and public
+
+## MM.4 — Discord Bot Integration
+
+A Discord bot (`@SwarmCommand`) for competitive communities:
+
+```
+/stats @Player         — shows player's win/loss, favourite faction, APM
+/leaderboard top10     — shows top 10 players this season
+/schedule match @p1 @p2 — schedules a match notification
+/replay <URL>          — posts a replay summary with key stats
+/quote                 — random unit voice line
+```
+
+Built on Discord.js, deployed on Railway free tier. Connects to the Supabase leaderboard.
+
+---
+
+# Iteration NN — Seasonal Events & Live Service
+
+## NN.1 — Seasonal Content Calendar
+
+A 4-season content calendar with unique maps, unit skins, and challenges:
+
+| Season | Theme | Map | Unit Cosmetic | Challenge |
+|--------|-------|-----|---------------|-----------|
+| Spring | Renewal | Blossoming fields, cherry trees as resources | Marines in green armour | Win 3 games with all 3 factions |
+| Summer | Inferno | Volcanic archipelago, heat waves | Hellions with chrome plating | Achieve 150+ APM in a game |
+| Autumn | Harvest | Orange-tinted plains, pumpkin mineral patches | SCVs with harvest equipment | Win without losing any workers |
+| Winter | Frozen | Snow-covered terrain, ice bridges | Ghost with white camouflage | Win on Brutal difficulty |
+
+Seasons last 30 days. Cosmetics unlocked via challenge completion (stored in localStorage).
+
+## NN.2 — Unit Skin System
+
+Cosmetic alternate renders for units that don't change stats:
+
+**Terran:**
+- Marine "Dress Blues": Navy blue with gold trim instead of blue-grey
+- SiegeTank "Demolisher": Red-and-black industrial colour scheme
+- Ghost "Shadow Ops": All-black with red visor slit
+
+**Zerg:**
+- Zergling "Acid Strain": Bright yellow-green instead of red-purple
+- Baneling "Crimson Sphere": Deep crimson instead of green
+
+Skins stored as `renderTint` overrides in a skin profile. Selecting a skin changes the colour constants used in `UnitRenderer` for that unit type. The geometric shapes remain the same — just different colours.
+
+## NN.3 — Weekly Mission
+
+Every week a new mission challenge with a unique restriction:
+
+| Week | Mission | Restriction |
+|------|---------|-------------|
+| 1 | Invasion | No building — only the units you start with |
+| 2 | The Hive | Zerg only, no upgrades |
+| 3 | Precision Strike | Win in under 5 minutes |
+| 4 | Ghost Protocol | Ghosts only (+ SCVs for economy) |
+
+Rewards: cosmetic title displayed on profile ("Ghost Protocol Veteran").
+
+## NN.4 — Live Balance Events
+
+Special 72-hour "meta shake-up" events:
+
+- "Baneling Bonanza": Banelings deal 40 damage instead of 20 for 72 hours
+- "Siege Supremacy": Siege Tanks fire 50% faster
+- "Mutalisk Madness": Mutalisks have 6x speed but 50% HP
+
+Communicated via the in-game news ticker at the top of the start menu. Opt-in only (toggle in settings: "Enable event balance overrides").
+
+---
+
+# Iteration OO — Team Economy & Shared Resources
+
+## OO.1 — Resource Transfer
+
+In team games, allow players to send minerals and gas to teammates:
+
+- Select a mineral amount via a slider UI panel
+- Click a teammate's portrait on the HUD to confirm transfer
+- Transferred minerals instantly deducted from sender, added to receiver
+- Visual: a floating credit icon animates from sender's base to receiver's
+
+**Hotkey:** `Shift+M` opens the transfer panel.
+
+## OO.2 — Shared Production Buildings
+
+Ally units can be produced from your buildings (if you have idle production capacity):
+
+- Right-click on an ally's unit training button → "Train for Ally"
+- Produced unit spawns at ally's rally point
+- Cost deducted from YOUR minerals
+- Useful for: one player masses economy while the other masses military production
+
+## OO.3 — Combined Army Control
+
+In team games, option to give army control to a partner:
+
+- `Ctrl+G` surrenders army control to your partner temporarily
+- Your units appear as "guest units" in their control groups (different colour selection rings)
+- Partner can command your units
+- Revoke at any time with `Ctrl+G` again
+
+---
+
+# Iteration PP — Machine Learning AI
+
+## PP.1 — Neural Network Training Framework
+
+Long-term research track: train an AI using reinforcement learning against itself.
+
+**Architecture:**
+- **Observation space**: a 128×128 grid encoding (tile type, unit presence, unit HP, faction) at each cell + global features (resources, supply, waveCount, gameTime)
+- **Action space**: discrete actions (build, train, attack-move to tile, research) + continuous (which tile, which unit type)
+- **Reward function**: `+1` for each enemy unit killed, `+10` for each building destroyed, `+100` for game won, `-1` for each own unit lost
+
+**Training setup:**
+- Run 10,000 self-play games in headless mode (no rendering) using Node.js + the simulation worker (Iteration P.1)
+- Record `(observation, action, reward, next_observation)` tuples
+- Train a small neural network (TensorFlow.js, 3 hidden layers, 256 neurons each) on these tuples via DQN (Deep Q-Network)
+
+**Files:** `src/ai/NeuralAI.ts` — wraps a trained TensorFlow.js model; called from `AISystem` as an alternative to the rule-based system.
+
+## PP.2 — Behaviour Cloning Bootstrap
+
+Before self-play, bootstrap the neural network by imitating existing rule-based AI:
+
+- Record 1,000 games of the rule-based AI (Brutal difficulty) playing against itself
+- Train the neural net via supervised learning to predict the rule-based AI's actions
+- This gives the neural net a sensible starting point before expensive self-play
+
+**Expected outcome**: a neural AI that initially plays like the existing Brutal AI, then improves beyond it through self-play.
+
+## PP.3 — Human vs. Trained AI
+
+The trained model is quantized to INT8 (dramatically smaller/faster) and bundled with the game (< 2MB). At Hard/Brutal difficulty, a toggle: "Classic AI" (rule-based) vs "Neural AI" (ML-trained).
+
+The neural AI won't be perfect but it will feel genuinely surprising — it will occasionally discover unconventional strategies the rule-based AI never uses.
+
+---
+
+# Iteration QQ — Narrative Universe
+
+## QQ.1 — Story Bible
+
+A canonical backstory for the game universe (differentiated from Blizzard's SC2 lore to avoid IP issues):
+
+**Setting:** The Outer Fringe, 2387. Three species clash over a dying star system.
+
+- **The Confederation** (Terran): A military-industrial human faction. Pragmatic, adaptable, armed with repurposed mining equipment and improvised weapons. Their greatest strength: rebuilding faster than they're destroyed.
+- **The Swarm** (Zerg): A hive-consciousness that integrates all lifeforms it encounters. Not evil — simply consuming. Their Queen drives them with a singular purpose: consume, evolve, grow.
+- **The Forerunners** (Protoss): An ancient silicon-based species. They built civilisations when humans were still using fire. Now they're slowly dying — their birth rate is near zero. Every Protoss death is irreplaceable. Their technology compensates.
+
+## QQ.2 — Unit Lore Pages
+
+Each unit gets a 100-word lore entry in the Encyclopedia (Iteration FF.3):
+
+**Marine:** "The backbone of Confederation ground forces. These men and women volunteered — or were conscripted — for the CMC-300 Powered Combat Suit programme. The suit's onboard stimulant injector is technically voluntary. Most Marines use it on the first day."
+
+**Queen:** "The Swarm's first responder. A Queen is not a leader — she is a nerve junction. Through her, the Hive Mother feels the pulse of each base, injects vitality into new broods, and plants the seeds of expansion. She does not ask permission. The Swarm does not ask."
+
+**Zealot:** "The Forerunners do not train soldiers. They elevate warriors. A Zealot has meditated for 40 years before their first battle. Their psi-blades are not weapons — they are extensions of the warrior's will. When a Zealot charges, they do not feel fear. They have forgotten the word."
+
+## QQ.3 — Cinematics (Text-Based)
+
+Each campaign mission opens with a 20-second text cinematic:
+
+- Black screen
+- Text appears line by line (typewriter effect at 40 characters/second)
+- Atmospheric sound: faction-appropriate ambient audio
+- A striking single image (geometric composition — no art assets needed): for example, a silhouette of a Marine helmet drawn with PixiJS Graphics at full resolution
+
+**Example opening (T1):**
+```
+OUTER FRINGE — RELAY STATION ECHO-7
+Day 1 of contact.
+
+"They came at dawn.
+ We had 8 Marines and a broken radio.
+ The Commander said: hold until evac arrives.
+ Evac never came.
+ So we held."
+
+— Corporal J. Rasmussen, after-action report
+```
+
+---
+
+# Iteration RR — Sandbox & Custom Game Creator
+
+## RR.1 — Scenario Editor
+
+A node-graph-based scenario editor for creating custom one-off games:
+
+**Conditions (left side of graph):**
+- Time elapsed (> N seconds)
+- Unit count (player has > N units)
+- Building destroyed
+- Wave number reached
+- Resource threshold
+
+**Actions (right side of graph):**
+- Spawn units at location
+- Change AI behaviour (aggressive / passive / retreat)
+- Display message
+- Grant resources
+- Win / Lose the mission
+
+Connect conditions to actions with arrows. Multiple conditions can feed one action (AND logic). Scenarios are JSON, shareable via URL.
+
+## RR.2 — God Mode (Dev/Creator Mode)
+
+Toggle in Advanced Settings: **God Mode**. Grants:
+
+- Infinite minerals and gas (type doesn't deplete)
+- Units cannot die (HP stays at 1 minimum)
+- All tech immediately available (no prerequisites)
+- Speed slider from 0.1× to 10× in real time
+- "Instant build": all construction and training completes in 1 tick
+- Enemy AI toggle: disable AI entirely for sandbox exploration
+- Free camera (F11): removes all camera bounds, zoom from 0.1× to 20×
+
+Perfect for: exploring map designs, creating screenshots/videos, testing unit compositions.
+
+## RR.3 — Unit Sandbox
+
+A dedicated "unit showroom" mode:
+- Empty flat map
+- Spawn any unit via a menu (no cost)
+- Units of different factions fight each other
+- Stats panel shows live DPS, HP remaining, time-to-kill calculations
+- "Freeze time" (Escape): pauses simulation, lets you examine the battlefield
+- Great for: testing the interaction matrix, recording ability demonstrations for the Encyclopedia
+
+---
+
+# Grand Sprint Calendar Extension (Sprints 151–200)
+
+```
+Sprint 151 (2d): II.1-II.2      — Team multiplayer: shared vision + faction drafting
+Sprint 152 (2d): II.3-II.4      — 2v2 maps + team communication pings
+Sprint 153 (2d): JJ.1           — HPA* hierarchical pathfinding
+Sprint 154 (2d): JJ.2-JJ.3      — Army flocking (boids) + terrain weight map
+Sprint 155 (1d): JJ.4           — Circle-circle collision resolution
+Sprint 156 (2d): KK.1-KK.2      — Crater system + destructible bridges
+Sprint 157 (2d): KK.3           — Environmental hazards (storm, tidal wave, eruption)
+Sprint 158 (2d): LL.1-LL.2      — Build order database + practice mode
+Sprint 159 (1d): LL.3-LL.4      — APM trainer + strategy glossary
+Sprint 160 (2d): MM.1-MM.2      — Public REST API + streamer overlay SDK
+Sprint 161 (1d): MM.3-MM.4      — Replay hosting via Gist + Discord bot
+Sprint 162 (2d): NN.1-NN.2      — Seasonal content calendar + unit skin system
+Sprint 163 (1d): NN.3-NN.4      — Weekly missions + live balance events
+Sprint 164 (2d): OO.1-OO.2      — Resource transfer + shared production buildings
+Sprint 165 (1d): OO.3           — Combined army control
+Sprint 166 (3d): PP.1           — Neural network training framework + DQN setup
+Sprint 167 (2d): PP.2-PP.3      — Behaviour cloning + bundled neural AI
+Sprint 168 (2d): QQ.1-QQ.2      — Story bible + unit lore pages
+Sprint 169 (2d): QQ.3           — Text cinematics for campaign
+Sprint 170 (2d): RR.1           — Scenario editor node graph
+Sprint 171 (1d): RR.2-RR.3      — God mode + unit sandbox
+Sprint 172 (2d): Balance ext    — Full post-NN balance pass (does ML AI expose imbalance?)
+Sprint 173 (2d): 2v2 campaign   — 5 co-op missions designed for two players
+Sprint 174 (2d): EE ext         — Procedural scenario generation (random objectives)
+Sprint 175 (2d): CC ext         — 10 more AI commanders (25 total) to cover all playstyles
+Sprint 176 (1d): GG ext         — Faction-specific musical themes + victory/defeat stingers
+Sprint 177 (2d): AA ext         — Commander select screen from main menu (replacing difficulty dropdown)
+Sprint 178 (1d): QoL sweep      — Community-reported quality-of-life issues from Season 1
+Sprint 179 (2d): VR prep        — Investigate WebXR API for an experimental VR spectator mode
+Sprint 180 (1d): v4.0 vision    — Roadmap for the next 2 years, community input session
+Sprint 181 (2d): Engine extract — Fully decouple game content from engine, publish `swarm-engine@1.0.0`
+Sprint 182 (2d): Demo game      — Build a second demo game using swarm-engine (top-down RPG proof of concept)
+Sprint 183 (1d): Engine docs    — Full `swarm-engine` documentation site (TypeDoc + hand-written guides)
+Sprint 184 (2d): Grant app      — Apply for Open Source grants (GitHub Sponsors, NLNet, EU Horizon)
+Sprint 185 (1d): Academic       — Write a paper: "Deterministic Game Simulation in TypeScript: Patterns for Browser RTS"
+Sprint 186 (2d): Conference     — Submit talk proposal to JSConf / GDC / HackConf: "Building SC2 in a Browser"
+Sprint 187 (1d): Mentorship     — Open "good first issue" labels, first-time contributor guide
+Sprint 188 (2d): Codebase audit — Technical debt cleanup, dead code removal, dependency updates
+Sprint 189 (1d): Perf budget    — Establish and enforce: 16ms frame budget, <100ms cold start, <5MB bundle
+Sprint 190 (2d): AI paper       — Document the neural AI training process; publish results as a blog series
+Sprint 191 (1d): Podcast        — Appear on a TypeScript or game-dev podcast to discuss the project
+Sprint 192 (2d): 4v4 mode       — Full 4-player team support (2 per team), Colosseum map
+Sprint 193 (2d): FFA mode       — Free For All: 4 players, no teams, last base standing wins
+Sprint 194 (1d): Observer tools v2 — Replay timestamp bookmarks, highlight export as GIF
+Sprint 195 (2d): Map editor v3  — Collaborative editing: two users edit the same map in real time via CRDTs
+Sprint 196 (2d): Mod SDK v2     — TypeScript types for mod API, hot-reload in dev mode
+Sprint 197 (1d): i18n complete  — Full translation of all 8 planned languages (add Portuguese, Japanese, Chinese)
+Sprint 198 (2d): WASM complete  — Full simulation in WASM; JavaScript only for IO + rendering
+Sprint 199 (1d): Final audit    — Security, performance, accessibility, legal — final sign-off
+Sprint 200 (1d): v5.0 Release   — The definitive browser RTS. Community-maintained. 
+```
+
+---
+
+## The 200-Sprint Complete Picture
+
+```
+v0.1  Sprints  1–10:  Polished 2-faction game. AI alive. Good visuals.
+v1.0  Sprints 11–55:  3 factions. Multiplayer. Campaign. Map editor. First launch.
+v1.5  Sprints 56–104: AI Director. Ranked MMR. Modding. Procedural maps. 15 commanders.
+v2.0  Sprints 105–150: Balance system. 3D audio. Native apps. Engine OSS prep.
+v3.0  Sprints 121–150: Full Protoss. All units. Esports. Season ladder.
+v4.0  Sprints 151–180: Team modes. ML AI. Narrative universe. Live service. Creator tools.
+v5.0  Sprints 181–200: Engine published. WASM sim. Conference. Academic paper. Legacy.
+```
+
+**200 sprints. ~250 days. ~50 weeks. One year.**
+**The most complete RTS ever built as an open-source browser application.**
+**From "fix the tech tree UI" to a landmark open-source project used as a reference implementation for browser game development.**
 ```

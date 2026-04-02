@@ -14,7 +14,7 @@ import { type World, hasComponents } from '../ecs/world';
 import { type MapData } from '../map/MapData';
 import { isTileVisible } from '../systems/FogSystem';
 
-const MINIMAP_SIZE = 160;
+const MINIMAP_SIZE = 200;
 const MINIMAP_PADDING = 12;
 const MINIMAP_SCALE = MINIMAP_SIZE / MAP_WIDTH; // tiles -> minimap pixels
 const ATTACK_PING_DURATION = 5; // seconds before ping expires
@@ -81,9 +81,14 @@ export class MinimapRenderer {
     const g = this.backgroundGraphics;
     g.clear();
 
-    // Semi-transparent dark border/background
-    g.rect(-4, -4, MINIMAP_SIZE + 8, MINIMAP_SIZE + 8);
-    g.fill({ color: 0x000000, alpha: 0.7 });
+    // Dark background with styled border
+    g.rect(-5, -5, MINIMAP_SIZE + 10, MINIMAP_SIZE + 10);
+    g.fill({ color: 0x000000, alpha: 0.75 });
+    g.rect(-5, -5, MINIMAP_SIZE + 10, MINIMAP_SIZE + 10);
+    g.stroke({ color: 0x334466, width: 1.5, alpha: 0.6 });
+    // Inner border highlight
+    g.rect(-1, -1, MINIMAP_SIZE + 2, MINIMAP_SIZE + 2);
+    g.stroke({ color: 0x223344, width: 0.5, alpha: 0.4 });
 
     // Draw terrain tiles at reduced resolution
     // Group tiles into 2x2 blocks for performance (128 tiles -> 64 blocks -> fits in 160px)
@@ -106,6 +111,12 @@ export class MinimapRenderer {
             break;
           case TileType.Gas:
             color = GAS_COLOR;
+            break;
+          case TileType.Destructible:
+            color = 0x666055;
+            break;
+          case TileType.Ramp:
+            color = 0x3a3a28;
             break;
           default:
             color = GROUND_COLOR;
@@ -164,25 +175,28 @@ export class MinimapRenderer {
         continue;
       }
 
-      // Buildings: larger squares in faction color
+      // Buildings: larger squares with outline
       if (hasComponents(world, eid, BUILDING)) {
         const fac = faction[eid] as Faction;
         // Skip enemy buildings in fog
         if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(posX[eid], posY[eid])) continue;
         const color = fac === Faction.Terran ? TERRAN_COLOR
           : fac === Faction.Zerg ? ZERG_COLOR : 0x888888;
-        g.rect(mx - 2, my - 2, 4, 4);
-        g.fill({ color });
+        g.rect(mx - 2.5, my - 2.5, 5, 5);
+        g.fill({ color, alpha: 0.9 });
+        g.rect(mx - 2.5, my - 2.5, 5, 5);
+        g.stroke({ color: 0xffffff, width: 0.5, alpha: 0.3 });
         continue;
       }
 
-      // Units: small dots in faction color
+      // Units: dots sized by importance, with glow for player units
       const fac = faction[eid] as Faction;
       if (fac === Faction.None) continue;
       // Skip enemy units in fog
       if (fac !== Faction.Terran && !isTileVisible(posX[eid], posY[eid])) continue;
       const color = fac === Faction.Terran ? TERRAN_COLOR : ZERG_COLOR;
-      g.rect(mx - 1, my - 1, 2, 2);
+      // Slightly larger dots for better visibility
+      g.rect(mx - 1.2, my - 1.2, 2.4, 2.4);
       g.fill({ color });
     }
 
@@ -221,8 +235,11 @@ export class MinimapRenderer {
     const rw = Math.min(MINIMAP_SIZE - rx, camWidth);
     const rh = Math.min(MINIMAP_SIZE - ry, camHeight);
 
+    // Camera viewport with fill tint and bright border
     g.rect(rx, ry, rw, rh);
-    g.stroke({ color: 0xffffff, width: 1, alpha: 0.9 });
+    g.fill({ color: 0xffffff, alpha: 0.04 });
+    g.rect(rx, ry, rw, rh);
+    g.stroke({ color: 0xffffff, width: 1.2, alpha: 0.85 });
   }
 
   /**

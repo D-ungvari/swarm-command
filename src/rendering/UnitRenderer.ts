@@ -2195,13 +2195,36 @@ export class UnitRenderer {
         g.fill({ color: 0x000033, alpha: 0.55 }); // dark overlay to dim the unit to ~30% visible
       }
 
-      // Projectile line for ranged units when attacking
+      // Weapon fire line + muzzle flash for ranged units when attacking
       if (isFlashing && atkRange[eid] > TILE_SIZE) {
         const tgt = targetEntity[eid];
         if (tgt >= 1 && entityExists(world, tgt)) {
+          const isTerranUnit = fac === Faction.Terran;
+          const lineColor = isTerranUnit ? 0xaaccff : 0x88ff44;
+          const flashColor = isTerranUnit ? 0xffdd88 : 0xaaff66;
+          const flashAlpha = Math.min(1, atkFlashTimer[eid] / 0.06); // sharper fade
+
+          // Glow line (wider, faded)
           g.moveTo(x, y);
           g.lineTo(posX[tgt], posY[tgt]);
-          g.stroke({ color: 0xffff66, width: 1.5, alpha: 0.7 });
+          g.stroke({ color: lineColor, width: 3, alpha: flashAlpha * 0.2 });
+
+          // Core line (thin, bright)
+          g.moveTo(x, y);
+          g.lineTo(posX[tgt], posY[tgt]);
+          g.stroke({ color: lineColor, width: 1, alpha: flashAlpha * 0.5 });
+
+          // Muzzle flash at attacker position
+          g.circle(x, y, 3 + flashAlpha * 2);
+          g.fill({ color: flashColor, alpha: flashAlpha * 0.6 });
+          g.circle(x, y, 1.5);
+          g.fill({ color: 0xffffff, alpha: flashAlpha * 0.8 });
+
+          // Hit spark at target position
+          if (flashAlpha > 0.5) {
+            g.circle(posX[tgt], posY[tgt], 2 + flashAlpha);
+            g.fill({ color: 0xffffff, alpha: (flashAlpha - 0.5) * 0.6 });
+          }
         }
       }
 

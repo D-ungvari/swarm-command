@@ -267,7 +267,7 @@ export class Game {
     this.app.stage.addChild(this.viewport);
 
     this.viewport
-      .drag({ mouseButtons: 'middle' }) // 'middle' = button 2; touch events use button 0, so touch drag is already blocked
+      .drag({ mouseButtons: isTouchDevice ? 'left' : 'middle' }) // touch: single-finger pan; desktop: middle-click pan
       .pinch()
       .wheel()
       .clampZoom({ minScale: MIN_ZOOM, maxScale: MAX_ZOOM })

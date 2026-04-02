@@ -1,6 +1,7 @@
 import { Graphics, Container } from 'pixi.js';
 import { SELECTION_COLOR } from '../constants';
 import type { InputState } from '../input/InputManager';
+import { isTouchDevice } from '../utils/DeviceDetect';
 
 /** Brighter selection color for the outline */
 const BRIGHT_SELECTION = 0x44ff44;
@@ -29,7 +30,7 @@ export class SelectionRenderer {
     g.clear();
 
     const m = input.mouse;
-    if (!m.leftDown || !m.isDragging) return;
+    if (!m.leftDown || !m.isDragging || isTouchDevice) return;
 
     const x = Math.min(m.dragStartX, m.x);
     const y = Math.min(m.dragStartY, m.y);

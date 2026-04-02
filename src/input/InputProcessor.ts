@@ -3,6 +3,7 @@ import { selected, faction } from '../ecs/components';
 import { InputManager, type InputState } from './InputManager';
 import { CommandType, type GameCommand, GameCommandQueue } from './CommandQueue';
 import { Faction } from '../constants';
+import { isTouchDevice } from '../utils/DeviceDetect';
 import type { Viewport } from 'pixi-viewport';
 
 export class InputProcessor {
@@ -166,14 +167,17 @@ export class InputProcessor {
         const dy = evt.y - dragStartY;
         const isDrag = dx * dx + dy * dy > 100; // 10px threshold
 
-        if (isDrag) {
+        if (isDrag && !isTouchDevice) {
           // Box select — coordinates stay in screen space; SelectionSystem converts
+          // Suppressed on touch: single-finger drag pans the viewport instead
           this.selectionQueue.push({
             type: CommandType.BoxSelect,
             sx: dragStartX, sy: dragStartY,
             sx2: evt.x,    sy2: evt.y,
             shiftHeld: state.shiftHeld,
           });
+        } else if (isDrag && isTouchDevice) {
+          // Touch drag = pan (handled by viewport). No-op here.
         } else if (this.attackMovePending) {
           // Attack-move: convert to world space now
           const worldPos = this.viewport.toWorld(evt.x, evt.y);

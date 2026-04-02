@@ -92,7 +92,7 @@ export class TouchCommandBar {
   private abilityDefs: AbilityButton[] = [
     {
       label: 'Stim', shortcut: 'T', color: '#ffaa00',
-      forUnits: [UnitType.Marine],
+      forUnits: [UnitType.Marine, UnitType.Marauder],
       action: () => this.simulationQueue.push({ type: CommandType.Stim, units: this.snapshotSelection() }),
     },
     {

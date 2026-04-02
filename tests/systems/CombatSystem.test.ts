@@ -415,8 +415,8 @@ describe('CombatSystem', () => {
       const gameTime = 5.0;
       combatSystem(world, 1 / 60, gameTime, map);
 
-      // SLOW_DURATION = 1.5, SLOW_FACTOR = 0.5
-      expect(slowEndTime[enemy]).toBeCloseTo(gameTime + 1.5);
+      // SLOW_DURATION = 1.07, SLOW_FACTOR = 0.5
+      expect(slowEndTime[enemy]).toBeCloseTo(gameTime + 1.07);
       expect(slowFactor[enemy]).toBeCloseTo(0.5);
     });
 

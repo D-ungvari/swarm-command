@@ -7,7 +7,7 @@ import {
   MS_PER_TICK, Faction, UnitType, ResourceType, BuildingType, BuildState,
   MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
-  TileType, CommandMode, WorkerState, ArmorClass,
+  TileType, CommandMode, WorkerState,
   Difficulty, UpgradeType, AddonType,
   GAME_SPEEDS,
 } from './constants';
@@ -1449,7 +1449,7 @@ export class Game {
     bonusDmg[eid] = def.bonusDamage;
     bonusVsTag[eid] = def.bonusVsTag;
     armorClass[eid] = def.armorClass;
-    baseArmor[eid] = def.armorClass === ArmorClass.Armored ? 1 : 0;
+    baseArmor[eid] = def.baseArmor;
     pendingDamage[eid] = 0;
     killCount[eid] = 0;
     targetEntity[eid] = -1;

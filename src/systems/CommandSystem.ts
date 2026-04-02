@@ -26,7 +26,7 @@ import { worldToTile, tileToWorld, findNearestWalkableTile } from '../map/MapDat
 import { findPath } from '../map/Pathfinder';
 import {
   Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, TILE_SIZE,
-  STIM_DURATION, STIM_HP_COST, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
+  STIM_DURATION, STIM_HP_COST, STIM_HP_COST_MARAUDER, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
 } from '../constants';
@@ -381,7 +381,8 @@ export function commandSystem(
 
 function applyStim(world: World, units: number[], gameTime: number): void {
   for (const eid of units) {
-    if (unitType[eid] !== UnitType.Marine) continue;
+    const ut = unitType[eid] as UnitType;
+    if (ut !== UnitType.Marine && ut !== UnitType.Marauder) continue;
 
     // Already stimmed — just refresh duration
     if (stimEndTime[eid] > gameTime) {
@@ -389,11 +390,13 @@ function applyStim(world: World, units: number[], gameTime: number): void {
       continue;
     }
 
+    const hpCost = ut === UnitType.Marauder ? STIM_HP_COST_MARAUDER : STIM_HP_COST;
+
     // Can't stim if it would kill the unit
-    if (hpCurrent[eid] <= STIM_HP_COST) continue;
+    if (hpCurrent[eid] <= hpCost) continue;
 
     // Apply stim
-    hpCurrent[eid] -= STIM_HP_COST;
+    hpCurrent[eid] -= hpCost;
     stimEndTime[eid] = gameTime + STIM_DURATION;
 
     const def = UNIT_DEFS[unitType[eid]];

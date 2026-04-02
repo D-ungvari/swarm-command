@@ -156,39 +156,41 @@ export enum UpgradeType {
 }
 
 // ── Ability constants ──
-// Stim Pack (Marine)
-export const STIM_DURATION = 7.0;
-export const STIM_HP_COST = 10;
+// Stim Pack (Marine + Marauder)
+export const STIM_DURATION = 11.0;
+export const STIM_HP_COST = 10;            // Marine HP cost
+export const STIM_HP_COST_MARAUDER = 20;   // Marauder HP cost
 export const STIM_SPEED_MULT = 1.5;
 export const STIM_COOLDOWN_MULT = 0.5;
 
 // Concussive Shells (Marauder)
-export const SLOW_DURATION = 1.5;
+export const SLOW_DURATION = 1.07;
 export const SLOW_FACTOR = 0.5;
 
 // Siege Mode (Siege Tank)
-export const SIEGE_PACK_TIME = 2.0;
-export const SIEGE_DAMAGE = 35;
+export const SIEGE_PACK_TIME = 2.7;
+export const SIEGE_DAMAGE = 40;
 export const SIEGE_RANGE = 13;
-export const SIEGE_SPLASH = 1.5;
+export const SIEGE_SPLASH = 1.25;
+export const SIEGE_BONUS_DAMAGE = 30;      // +30 vs Armored
 
 // Medivac Heal
-export const MEDIVAC_HEAL_RATE = 3.0;
+export const MEDIVAC_HEAL_RATE = 9.0;
 export const MEDIVAC_HEAL_RANGE = 4;
 
 // Roach Regen
-export const ROACH_REGEN_COMBAT = 0.5;
-export const ROACH_REGEN_IDLE = 2.0;
+export const ROACH_REGEN_COMBAT = 0.38;
+export const ROACH_REGEN_IDLE = 7.0;
 export const ROACH_COMBAT_TIMEOUT = 3.0;
 
 // Larva / Queen (Hatchery mechanics)
 export const LARVA_MAX = 3;
-export const LARVA_REGEN_TIME = 11;       // seconds per larva
+export const LARVA_REGEN_TIME = 11;        // seconds per larva
 export const QUEEN_ENERGY_MAX = 200;
-export const QUEEN_ENERGY_REGEN = 0.5625; // per second
-export const INJECT_LARVA_COST = 25;      // energy cost
-export const INJECT_LARVA_BONUS = 4;      // extra larva added after 40s
-export const INJECT_LARVA_TIME = 40;      // seconds for inject to complete
+export const QUEEN_ENERGY_REGEN = 0.7875;  // per second
+export const INJECT_LARVA_COST = 25;       // energy cost
+export const INJECT_LARVA_BONUS = 3;       // extra larva added after inject
+export const INJECT_LARVA_TIME = 29;       // seconds for inject to complete
 
 // ── Building constants ──
 export const STARTING_SUPPLY = 10;

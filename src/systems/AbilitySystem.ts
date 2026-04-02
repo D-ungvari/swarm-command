@@ -10,12 +10,13 @@ import {
   injectTimer, buildingType, buildState,
   bileLandTime, bileLandX, bileLandY,
   fungalLandTime, fungalLandX, fungalLandY,
+  bonusDmg, bonusVsTag,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import {
   UnitType, Faction, SiegeMode, CommandMode, TILE_SIZE,
   STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
-  SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH,
+  SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH, SIEGE_BONUS_DAMAGE, ArmorClass,
   MEDIVAC_HEAL_RATE, MEDIVAC_HEAL_RANGE,
   ROACH_REGEN_COMBAT, ROACH_REGEN_IDLE, ROACH_COMBAT_TIMEOUT,
   QUEEN_ENERGY_MAX, QUEEN_ENERGY_REGEN,
@@ -50,14 +51,14 @@ function processGhostCloak(world: World, dt: number): void {
     if (unitType[eid] !== UnitType.Ghost) continue;
     if (hpCurrent[eid] <= 0) continue;
 
-    // Regenerate energy when not cloaked (1/s)
+    // Regenerate energy when not cloaked (0.7875/s)
     if (cloaked[eid] === 0 && energy[eid] < 200) {
-      energy[eid] = Math.min(200, energy[eid] + dt);
+      energy[eid] = Math.min(200, energy[eid] + dt * 0.7875);
     }
 
-    // Drain energy while cloaked (0.5/s)
+    // Drain energy while cloaked (0.9/s)
     if (cloaked[eid] === 1) {
-      energy[eid] = Math.max(0, energy[eid] - dt * 0.5);
+      energy[eid] = Math.max(0, energy[eid] - dt * 0.9);
       if (energy[eid] <= 0) {
         cloaked[eid] = 0; // auto-uncloak
       }
@@ -110,6 +111,8 @@ function processSiegeTransitions(world: World, gameTime: number): void {
       atkDamage[eid] = SIEGE_DAMAGE;
       atkRange[eid] = SIEGE_RANGE * TILE_SIZE;
       atkSplash[eid] = SIEGE_SPLASH;
+      bonusDmg[eid] = SIEGE_BONUS_DAMAGE;
+      bonusVsTag[eid] = ArmorClass.Armored;
     } else {
       // Packing complete → Mobile
       siegeMode[eid] = SiegeMode.Mobile;
@@ -118,6 +121,8 @@ function processSiegeTransitions(world: World, gameTime: number): void {
         atkDamage[eid] = def.damage;
         atkRange[eid] = def.range * TILE_SIZE;
         atkSplash[eid] = def.splashRadius;
+        bonusDmg[eid] = def.bonusDamage;
+        bonusVsTag[eid] = def.bonusVsTag;
       }
     }
   }
@@ -226,7 +231,7 @@ function processViperEnergyRegen(world: World, dt: number): void {
 
 function processCorrosiveBile(world: World, gameTime: number): void {
   const BILE_DAMAGE = 60;
-  const BILE_RADIUS = 2 * TILE_SIZE;
+  const BILE_RADIUS = 0.5 * TILE_SIZE;
   const BILE_RADIUS_SQ = BILE_RADIUS * BILE_RADIUS;
 
   for (let eid = 1; eid < world.nextEid; eid++) {
@@ -259,10 +264,10 @@ function processCorrosiveBile(world: World, gameTime: number): void {
 }
 
 function processFungalGrowth(world: World, gameTime: number): void {
-  const FUNGAL_DAMAGE = 30;
-  const FUNGAL_RADIUS = 2.5 * TILE_SIZE;
+  const FUNGAL_DAMAGE = 25;
+  const FUNGAL_RADIUS = 2.25 * TILE_SIZE;
   const FUNGAL_RADIUS_SQ = FUNGAL_RADIUS * FUNGAL_RADIUS;
-  const FUNGAL_ROOT_DURATION = 4; // seconds
+  const FUNGAL_SLOW_DURATION = 3; // seconds
 
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (unitType[eid] !== UnitType.Infestor) continue;
@@ -281,9 +286,9 @@ function processFungalGrowth(world: World, gameTime: number): void {
       const dy = posY[other] - fy;
       if (dx * dx + dy * dy <= FUNGAL_RADIUS_SQ) {
         hpCurrent[other] = Math.max(0, hpCurrent[other] - FUNGAL_DAMAGE);
-        // Root: 100% slow for 4s
-        slowFactor[other] = 1.0;
-        slowEndTime[other] = gameTime + FUNGAL_ROOT_DURATION;
+        // 75% slow for 3s (not a root)
+        slowFactor[other] = 0.75;
+        slowEndTime[other] = gameTime + FUNGAL_SLOW_DURATION;
       }
     }
 

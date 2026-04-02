@@ -246,9 +246,9 @@ describe('AbilitySystem', () => {
       abilitySystem(world, 1 / 60, gameTime + SIEGE_PACK_TIME + 0.01);
 
       expect(siegeMode[tank]).toBe(SiegeMode.Sieged);
-      expect(atkDamage[tank]).toBe(SIEGE_DAMAGE);
+      expect(atkDamage[tank]).toBe(40);
       expect(atkRange[tank]).toBe(SIEGE_RANGE * TILE_SIZE);
-      expect(atkSplash[tank]).toBe(SIEGE_SPLASH);
+      expect(atkSplash[tank]).toBe(1.25);
     });
 
     it('toggle back: Packing, then after time becomes Mobile with normal stats', () => {
@@ -372,8 +372,8 @@ describe('AbilitySystem', () => {
       const dt = 1.0; // 1 second
       abilitySystem(world, dt, 10.0);
 
-      // Should heal by MEDIVAC_HEAL_RATE * dt = 3.0 * 1.0 = 3.0
-      expect(hpCurrent[marine]).toBeCloseTo(33);
+      // Should heal by MEDIVAC_HEAL_RATE * dt = 9.0 * 1.0 = 9.0
+      expect(hpCurrent[marine]).toBeCloseTo(39);
     });
 
     it('does NOT heal full-HP units', () => {
@@ -479,8 +479,8 @@ describe('AbilitySystem', () => {
       const gameTime = 100.0; // well past ROACH_COMBAT_TIMEOUT
       abilitySystem(world, dt, gameTime);
 
-      // Idle rate: 2.0 HP/s * 1.0s = 2.0
-      expect(hpCurrent[roach]).toBeCloseTo(102);
+      // Idle rate: 7.0 HP/s * 1.0s = 7.0
+      expect(hpCurrent[roach]).toBeCloseTo(107);
     });
 
     it('regenerates at combat rate when recently in combat', () => {
@@ -499,8 +499,8 @@ describe('AbilitySystem', () => {
       const dt = 1.0;
       abilitySystem(world, dt, gameTime);
 
-      // Combat rate: 0.5 HP/s * 1.0s = 0.5
-      expect(hpCurrent[roach]).toBeCloseTo(100.5);
+      // Combat rate: 0.38 HP/s * 1.0s = 0.38
+      expect(hpCurrent[roach]).toBeCloseTo(100.38);
     });
 
     it('regen does not exceed hpMax', () => {

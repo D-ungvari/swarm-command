@@ -164,7 +164,7 @@ export function selectionSystem(
       }
 
       case CommandType.CycleSubgroup:
-        cycleSubgroup(world, playerFaction);
+        cycleSubgroup(world, playerFaction, cmd.data === -1 ? -1 : 1);
         break;
     }
   }
@@ -180,7 +180,7 @@ function clearSelection(world: World): void {
  * Cycle selection through subgroups of the current selection, grouped by unit type.
  * Each Tab press selects only the entities of the next unit type in the current selection.
  */
-function cycleSubgroup(world: World, playerFaction: Faction): void {
+function cycleSubgroup(world: World, playerFaction: Faction, direction: 1 | -1 = 1): void {
   // Collect all currently selected player-faction unit-type entities
   const bits = SELECTABLE | UNIT_TYPE;
   const typeToEids = new Map<number, number[]>();
@@ -198,7 +198,7 @@ function cycleSubgroup(world: World, playerFaction: Faction): void {
   const types = Array.from(typeToEids.keys()).sort((a, b) => a - b);
   if (types.length <= 1) return; // Nothing to cycle through
 
-  subgroupIndex = (subgroupIndex + 1) % types.length;
+  subgroupIndex = ((subgroupIndex + direction) % types.length + types.length) % types.length;
   const activeType = types[subgroupIndex];
 
   // Deselect all, then select only the active subgroup

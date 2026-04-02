@@ -381,6 +381,11 @@ export class Game {
       addonType[buildingEid] = addonTypeVal; // 1=TechLab, 2=Reactor
     });
 
+    // Wire up ability button callback (subgroup abilities like Stim, Siege, Cloak, etc.)
+    this.infoPanelRenderer.setAbilityCallback((commandType, unitEids) => {
+      this.simulationQueue.push({ type: commandType, units: unitEids });
+    });
+
     // Generate map with selected layout (setMapType is called before init)
     if (this.customTiles) {
       // Custom map from editor — build MapData from raw tiles

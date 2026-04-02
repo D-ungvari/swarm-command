@@ -1,4 +1,5 @@
 import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, STIM_DURATION } from '../constants';
+import { CommandType } from '../input/CommandQueue';
 import { hasCompletedBuilding } from '../ecs/queries';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
@@ -16,6 +17,7 @@ import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
 import { encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from '../systems/UpgradeSystem';
 import { getActiveSubgroupIndex } from '../systems/SelectionSystem';
+import { PortraitRenderer } from './PortraitRenderer';
 import type { PlayerResources } from '../types';
 
 /** Callback type for production button clicks */
@@ -26,6 +28,22 @@ export type ResearchCallback = (buildingEid: number, upgradeType: number) => voi
 
 /** Callback type for addon build button clicks */
 export type AddonCallback = (buildingEid: number, addonTypeVal: number) => void;
+
+/** Callback type for ability button clicks */
+export type AbilityCallback = (commandType: number, unitEids: number[]) => void;
+
+/** Active abilities per unit type (units without abilities are omitted) */
+const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandType: number }>> = {
+  [UnitType.Marine]: [{ name: 'Stim Pack', key: 'T', commandType: CommandType.Stim }],
+  [UnitType.SiegeTank]: [{ name: 'Siege Mode', key: 'E', commandType: CommandType.SiegeToggle }],
+  [UnitType.Ghost]: [{ name: 'Cloak', key: 'C', commandType: CommandType.Cloak }],
+  [UnitType.Viking]: [{ name: 'Transform', key: 'E', commandType: CommandType.SiegeToggle }],
+  [UnitType.Battlecruiser]: [{ name: 'Yamato', key: 'Y', commandType: CommandType.Yamato }],
+  [UnitType.Queen]: [{ name: 'Inject Larva', key: 'V', commandType: CommandType.InjectLarva }],
+  [UnitType.Ravager]: [{ name: 'Bile', key: 'R', commandType: CommandType.CorrosiveBile }],
+  [UnitType.Infestor]: [{ name: 'Fungal', key: 'F', commandType: CommandType.FungalGrowth }],
+  [UnitType.Viper]: [{ name: 'Abduct', key: 'G', commandType: CommandType.Abduct }],
+};
 
 /** Labels for the 3 Engineering Bay upgrades */
 const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
@@ -75,10 +93,14 @@ export class InfoPanelRenderer {
   private researchButtonsRow: HTMLDivElement;
   private researchButtons: HTMLDivElement[] = [];
   private addonButtonsRow: HTMLDivElement;
+  private abilityButtonsRow: HTMLDivElement;
+  private portraitContainer: HTMLDivElement;
+  private portraitRenderer = new PortraitRenderer();
   private wasVisible = false;
   private productionCallback: ProductionCallback | null = null;
   private researchCallback: ResearchCallback | null = null;
   private addonCallback: AddonCallback | null = null;
+  private abilityCallback: AbilityCallback | null = null;
   private lastButtonConfig = '';
 
   constructor(container: HTMLElement) {
@@ -103,6 +125,11 @@ export class InfoPanelRenderer {
       user-select: none;
       min-width: 160px;
     `;
+
+    // Portrait container (flex row for portrait thumbnails)
+    this.portraitContainer = document.createElement('div');
+    this.portraitContainer.style.cssText = 'display: flex; gap: 4px; align-items: center; flex-wrap: wrap;';
+    this.panel.appendChild(this.portraitContainer);
 
     // Name
     this.nameEl = document.createElement('div');
@@ -181,6 +208,11 @@ export class InfoPanelRenderer {
     this.addonButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto; flex-wrap: wrap;';
     this.panel.appendChild(this.addonButtonsRow);
 
+    // Ability buttons row (subgroup abilities for selected units)
+    this.abilityButtonsRow = document.createElement('div');
+    this.abilityButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto;';
+    this.panel.appendChild(this.abilityButtonsRow);
+
     container.appendChild(this.panel);
   }
 
@@ -197,6 +229,11 @@ export class InfoPanelRenderer {
   /** Wire up a callback for addon build button clicks */
   setAddonCallback(fn: AddonCallback): void {
     this.addonCallback = fn;
+  }
+
+  /** Wire up a callback for ability button clicks */
+  setAbilityCallback(fn: AbilityCallback): void {
+    this.abilityCallback = fn;
   }
 
   update(world: World, gameTime: number, playerResources?: PlayerResources): void {
@@ -219,6 +256,7 @@ export class InfoPanelRenderer {
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
+      this.abilityButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       return;
     }
@@ -254,6 +292,41 @@ export class InfoPanelRenderer {
       }
 
       this.nameEl.textContent = `${selCount} units selected`;
+
+      // Portrait row for multi-select: one portrait per type with count badge
+      this.portraitContainer.innerHTML = '';
+      const MAX_PORTRAITS = 8;
+      const typeEntries = Object.keys(typeCounts);
+      const showCount = Math.min(typeEntries.length, MAX_PORTRAITS);
+      for (let i = 0; i < showCount; i++) {
+        const uType = Number(typeEntries[i]);
+        const count = typeCounts[uType];
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position: relative; width: 44px; height: 44px;';
+        const portrait = this.portraitRenderer.getPortrait(uType).cloneNode(true) as HTMLCanvasElement;
+        portrait.style.cssText = 'display: block;';
+        wrapper.appendChild(portrait);
+        // Count badge
+        if (count > 1) {
+          const badge = document.createElement('div');
+          badge.style.cssText = `
+            position: absolute; bottom: 1px; right: 1px;
+            background: rgba(0,0,0,0.8); color: #fff;
+            font-size: 9px; padding: 0 3px; border-radius: 2px;
+            line-height: 14px; font-family: 'Consolas', monospace;
+          `;
+          badge.textContent = `${count}`;
+          wrapper.appendChild(badge);
+        }
+        this.portraitContainer.appendChild(wrapper);
+      }
+      if (typeEntries.length > MAX_PORTRAITS) {
+        const overflow = document.createElement('div');
+        overflow.style.cssText = 'color: #aaa; font-size: 11px; align-self: center;';
+        overflow.textContent = `+${typeEntries.length - MAX_PORTRAITS}`;
+        this.portraitContainer.appendChild(overflow);
+      }
+
       // Use innerHTML to color each type entry
       let detailHtml = '';
       for (const ut of Object.keys(typeCounts)) {
@@ -294,6 +367,45 @@ export class InfoPanelRenderer {
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
+
+      // Subgroup ability panel: show when exactly one unit type is in selection
+      // (either Tab cycling isolated a type, or only one type was selected)
+      const selectedTypes = Object.keys(typeCounts).map(Number);
+      if (selectedTypes.length === 1) {
+        const activeType = selectedTypes[0];
+        const abilities = UNIT_ABILITIES[activeType];
+        if (abilities && abilities.length > 0) {
+          this.abilityButtonsRow.innerHTML = '';
+          this.abilityButtonsRow.style.display = 'flex';
+
+          // Collect all selected unit eids of this type
+          const unitEids: number[] = [];
+          for (let e = 1; e < world.nextEid; e++) {
+            if (selected[e] === 1 && hasComponents(world, e, UNIT_TYPE) && unitType[e] === activeType) {
+              unitEids.push(e);
+            }
+          }
+
+          for (const ability of abilities) {
+            const btn = document.createElement('button');
+            btn.textContent = `[${ability.key}] ${ability.name}`;
+            btn.style.cssText = `
+              background: rgba(40,80,140,0.6); color: #cce0ff; border: 1px solid rgba(100,160,255,0.4);
+              padding: 4px 10px; font-family: 'Consolas', monospace; font-size: 11px; cursor: pointer;
+              border-radius: 3px;
+            `;
+            btn.addEventListener('click', () => {
+              if (this.abilityCallback) this.abilityCallback(ability.commandType, [...unitEids]);
+            });
+            this.abilityButtonsRow.appendChild(btn);
+          }
+        } else {
+          this.abilityButtonsRow.style.display = 'none';
+        }
+      } else {
+        this.abilityButtonsRow.style.display = 'none';
+      }
+
       // Border stays blue (player's faction)
       this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
       return;
@@ -305,6 +417,7 @@ export class InfoPanelRenderer {
 
     // Resource entity
     if (hasComponents(world, eid, RESOURCE)) {
+      this.portraitContainer.innerHTML = '';
       const rt = resourceType[eid] as ResourceType;
       const name = rt === ResourceType.Mineral ? 'Mineral Patch' : 'Vespene Geyser';
       this.nameEl.textContent = name;
@@ -319,6 +432,7 @@ export class InfoPanelRenderer {
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
+      this.abilityButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Cyan border for resources
       this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)';
@@ -327,6 +441,8 @@ export class InfoPanelRenderer {
 
     // Building entity
     if (hasComponents(world, eid, BUILDING)) {
+      this.abilityButtonsRow.style.display = 'none';
+      this.portraitContainer.innerHTML = '';
       const bt = buildingType[eid] as BuildingType;
       const def = BUILDING_DEFS[bt];
       const name = def ? def.name : 'Building';
@@ -460,6 +576,13 @@ export class InfoPanelRenderer {
       const ut = unitType[eid];
       const def = UNIT_DEFS[ut];
       const name = def ? def.name : 'Unit';
+
+      // Single-unit portrait
+      this.portraitContainer.innerHTML = '';
+      const portrait = this.portraitRenderer.getPortrait(ut).cloneNode(true) as HTMLCanvasElement;
+      portrait.style.cssText = 'display: block;';
+      this.portraitContainer.appendChild(portrait);
+
       this.nameEl.textContent = name;
 
       const fac = faction[eid] as Faction;
@@ -523,6 +646,7 @@ export class InfoPanelRenderer {
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
+      this.abilityButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Faction-colored border for units
       this.panel.style.borderColor = fac === Faction.Zerg
@@ -532,12 +656,14 @@ export class InfoPanelRenderer {
     }
 
     // Fallback — generic entity
+    this.portraitContainer.innerHTML = '';
     this.nameEl.textContent = 'Entity';
     this.detailEl.textContent = '';
     this.prodRow.style.display = 'none';
     this.prodButtonsRow.style.display = 'none';
     this.researchButtonsRow.style.display = 'none';
     this.addonButtonsRow.style.display = 'none';
+    this.abilityButtonsRow.style.display = 'none';
     this.queueRow.style.display = 'none';
     this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
   }

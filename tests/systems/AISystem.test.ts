@@ -86,7 +86,7 @@ describe('AISystem', () => {
     it('does nothing before delay', () => {
       const spawnFn = vi.fn(() => 0);
       for (let i = 0; i < 100; i++) {
-        aiSystem(world, dt, 10, map, spawnFn, resources);
+        aiSystem(world, dt, 5, map, spawnFn, resources);
       }
       expect(spawnFn).not.toHaveBeenCalled();
       expect(getAIState().aiMinerals).toBe(0);

@@ -124,8 +124,11 @@ export class InputProcessor {
     if (keys.has('KeyW')) {
       this.simulationQueue.push({ type: CommandType.Produce, data: 1, units: this.snapshotSelection() });
     }
-    if (keys.has('Tab')) {
-      this.selectionQueue.push({ type: CommandType.CycleSubgroup });
+    if (keys.has('Tab') || keys.has('ArrowRight')) {
+      this.selectionQueue.push({ type: CommandType.CycleSubgroup, data: 1 });
+    }
+    if (keys.has('ArrowLeft')) {
+      this.selectionQueue.push({ type: CommandType.CycleSubgroup, data: -1 });
     }
     if (keys.has('KeyC')) {
       this.simulationQueue.push({ type: CommandType.Cloak, units: this.snapshotSelection() });

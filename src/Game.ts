@@ -86,6 +86,8 @@ import { seedRng } from './utils/SeededRng';
 import { CommandRecorder, type ReplayFrame } from './replay/CommandRecorder';
 import { isTouchDevice } from './utils/DeviceDetect';
 import { TouchCommandBar } from './rendering/TouchCommandBar';
+import { ScenarioManager } from './scenarios/ScenarioManager';
+import type { Scenario } from './scenarios/ScenarioTypes';
 
 export class Game {
   app!: Application;
@@ -104,9 +106,15 @@ export class Game {
   placementMode = false;
   placementBuildingType: number = 0;
   playerFaction: Faction = Faction.Terran;
+  private scenarioManager?: ScenarioManager;
 
   setPlayerFaction(f: Faction): void {
     this.playerFaction = f;
+  }
+
+  setScenario(scenario: Scenario): void {
+    this.scenarioManager = new ScenarioManager();
+    this.scenarioManager.load(scenario);
   }
 
   /**
@@ -359,15 +367,29 @@ export class Game {
     // Apply custom starting minerals (set via setStartingMinerals before init)
     this.resources[this.playerFaction].minerals = this.startingMinerals;
 
-    this.spawnResourceNodes();
-    if (this.playerFaction === Faction.Zerg) {
-      this.spawnZergBase();        // player's Zerg base at (15, 15)
-      this.spawnTerranAIBase();    // AI's Terran base at (112, 112)
+    if (this.scenarioManager) {
+      // Scenario mode: spawn preset units, skip normal bases
+      this.scenarioManager.applySetup(
+        (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y),
+        (minerals, gas) => {
+          this.resources[this.playerFaction].minerals = minerals;
+          this.resources[this.playerFaction].gas = gas;
+        },
+        tileToWorld,
+      );
+      spawnRockEntities(this.world, this.map);
     } else {
-      this.spawnStartingBase();    // player's Terran base at (15, 15)
-      this.spawnZergBase();        // AI's Zerg base at (117, 117)
+      // Normal game: spawn resource nodes + bases
+      this.spawnResourceNodes();
+      if (this.playerFaction === Faction.Zerg) {
+        this.spawnZergBase();        // player's Zerg base at (15, 15)
+        this.spawnTerranAIBase();    // AI's Terran base at (112, 112)
+      } else {
+        this.spawnStartingBase();    // player's Terran base at (15, 15)
+        this.spawnZergBase();        // AI's Zerg base at (117, 117)
+      }
+      spawnRockEntities(this.world, this.map);
     }
-    spawnRockEntities(this.world, this.map);
 
     // Seed RNG at game start (replayMode reuses stored seed; live game picks a new one)
     if (!this.replayMode) {
@@ -378,7 +400,11 @@ export class Game {
       this.recorder.startRecording(this.gameSeed, this.difficulty, this.playerFaction);
     }
 
-    initAI(this.difficulty, this.playerFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg);
+    // Skip AI in scenario mode when disableAI is set
+    const scenarioDisableAI = this.scenarioManager?.getScenario()?.setup.disableAI;
+    if (!scenarioDisableAI) {
+      initAI(this.difficulty, this.playerFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg);
+    }
     resetCreepSystem();
 
     window.addEventListener('resize', () => {

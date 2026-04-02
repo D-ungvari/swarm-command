@@ -1,6 +1,8 @@
 import { Game } from './Game';
-import { Difficulty } from './constants';
+import { Difficulty, Faction } from './constants';
 import type { MapType } from './map/MapData';
+import { SCENARIOS } from './scenarios/scenarios';
+import type { Scenario } from './scenarios/ScenarioTypes';
 
 const startScreen = document.getElementById('start-screen');
 const playBtn = document.getElementById('play-btn');
@@ -78,4 +80,60 @@ if (playBtn) {
 
 if (watchReplayBtn && savedReplay) {
   watchReplayBtn.addEventListener('click', watchReplay);
+}
+
+// ── Scenario browser ──
+const scenarioList = document.getElementById('scenario-list');
+const scenarioBrowser = document.getElementById('scenario-browser');
+const practiceBtn = document.getElementById('practice-btn');
+const backBtn = document.getElementById('back-to-menu');
+
+if (scenarioList) {
+  for (const s of SCENARIOS) {
+    const card = document.createElement('div');
+    card.style.cssText = `
+      background: rgba(20,40,60,0.8); border: 1px solid rgba(60,100,160,0.4);
+      padding: 10px 14px; cursor: pointer; border-radius: 4px;
+      transition: border-color 0.15s;
+    `;
+    card.innerHTML = `
+      <div style="color:#cce0ff;font-size:13px;font-weight:bold">${s.title}
+        <span style="color:#667;font-size:11px;margin-left:8px">${'\u2605'.repeat(s.difficulty)}${'\u2606'.repeat(3 - s.difficulty)}</span>
+      </div>
+      <div style="color:#8899aa;font-size:11px;margin-top:4px">${s.description}</div>
+      <div style="color:#557799;font-size:10px;margin-top:4px">SC2 concept: ${s.sc2Concept}</div>
+    `;
+    card.addEventListener('mouseenter', () => { card.style.borderColor = 'rgba(60,140,255,0.7)'; });
+    card.addEventListener('mouseleave', () => { card.style.borderColor = 'rgba(60,100,160,0.4)'; });
+    card.addEventListener('click', () => { startScenario(s); });
+    scenarioList.appendChild(card);
+  }
+}
+
+practiceBtn?.addEventListener('click', () => {
+  // Hide main menu elements, show scenario browser
+  document.querySelectorAll('#start-screen .controls, #start-screen .play-btn, #start-screen select, #start-screen details').forEach(el => {
+    (el as HTMLElement).style.display = 'none';
+  });
+  // Hide faction buttons and their label containers
+  document.querySelectorAll('#start-screen > div[style*="margin"]').forEach(el => {
+    (el as HTMLElement).style.display = 'none';
+  });
+  if (practiceBtn) practiceBtn.style.display = 'none';
+  if (scenarioBrowser) scenarioBrowser.style.display = 'block';
+});
+
+backBtn?.addEventListener('click', () => {
+  window.location.reload();
+});
+
+function startScenario(scenario: Scenario): void {
+  if (startScreen) startScreen.style.display = 'none';
+  const game = new Game();
+  game.setPlayerFaction(scenario.setup.playerFaction === Faction.Terran ? Faction.Terran : Faction.Zerg);
+  game.setMapType(scenario.setup.mapType);
+  game.setScenario(scenario);
+  game.init(container!).catch((err) => {
+    console.error('Failed to initialize scenario:', err);
+  });
 }

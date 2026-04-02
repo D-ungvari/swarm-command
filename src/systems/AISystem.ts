@@ -314,6 +314,7 @@ function executeBuildOrder(
   spawnUnit: SpawnFn,
 ): void {
   if (!activeBuildOrder || buildOrderIndex >= activeBuildOrder.length) return;
+  if (world.nextEid >= MAX_ENTITIES - 50) return; // entity cap safety
 
   const res = resources[currentAIFaction];
   if (!res) return;
@@ -661,7 +662,7 @@ function runTerranAI(
   }
 
   // Spawn Marines and Marauders
-  if (gameTime - terranLastSpawnTime > 15 && terranAIMinerals >= 50) {
+  if (gameTime - terranLastSpawnTime > 15 && terranAIMinerals >= 50 && world.nextEid < MAX_ENTITIES - 50) {
     // Find a Terran Barracks
     let barracksEid = 0;
     for (let eid = 1; eid < world.nextEid; eid++) {

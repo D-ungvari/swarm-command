@@ -14,7 +14,7 @@ import {
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
   addUnitComponents, addWorkerComponent, addResourceComponents, addBuildingComponents,
-  POSITION, WORKER, MOVEMENT, BUILDING, UNIT_TYPE, SELECTABLE,
+  POSITION, WORKER, MOVEMENT, BUILDING, UNIT_TYPE, SELECTABLE, HEALTH,
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
@@ -88,6 +88,7 @@ import { isTouchDevice } from './utils/DeviceDetect';
 import { TouchCommandBar } from './rendering/TouchCommandBar';
 import { ScenarioManager } from './scenarios/ScenarioManager';
 import type { Scenario } from './scenarios/ScenarioTypes';
+import { ScenarioResultRenderer } from './rendering/ScenarioResultRenderer';
 
 export class Game {
   app!: Application;
@@ -107,6 +108,8 @@ export class Game {
   placementBuildingType: number = 0;
   playerFaction: Faction = Faction.Terran;
   private scenarioManager?: ScenarioManager;
+  private scenarioResult?: ScenarioResultRenderer;
+  private initialPlayerUnitCount = 0;
 
   setPlayerFaction(f: Faction): void {
     this.playerFaction = f;
@@ -322,6 +325,7 @@ export class Game {
     this.hotkeyPanelRenderer = new HotkeyPanelRenderer(container);
 
     this.gameOverRenderer = new GameOverRenderer(container);
+    this.scenarioResult = new ScenarioResultRenderer(container);
     this.alertRenderer = new AlertRenderer(container);
     this.debugOverlay = new DebugOverlay(container);
 
@@ -377,6 +381,13 @@ export class Game {
         },
         tileToWorld,
       );
+      this.scenarioManager.setStartTime(0);
+      // Count initial player units for loss tracking
+      let count = 0;
+      for (let eid = 1; eid < this.world.nextEid; eid++) {
+        if (hasComponents(this.world, eid, POSITION | HEALTH) && faction[eid] === this.playerFaction && hpCurrent[eid] > 0) count++;
+      }
+      this.initialPlayerUnitCount = count;
       spawnRockEntities(this.world, this.map);
     } else {
       // Normal game: spawn resource nodes + bases
@@ -533,6 +544,39 @@ export class Game {
       const newWaves = aiState.waveCount - this.lastWaveCount;
       for (let i = 0; i < newWaves; i++) this.stats.recordWaveDefeated();
       this.lastWaveCount = aiState.waveCount;
+    }
+
+    // Scenario objective check
+    if (this.scenarioManager) {
+      let playerAlive = 0, enemyAlive = 0;
+      const playerFac = this.playerFaction;
+      const enemyFac = playerFac === Faction.Terran ? Faction.Zerg : Faction.Terran;
+      for (let eid = 1; eid < this.world.nextEid; eid++) {
+        if (!hasComponents(this.world, eid, POSITION | HEALTH)) continue;
+        if (hpCurrent[eid] > 0) {
+          if (faction[eid] === playerFac) playerAlive++;
+          else if (faction[eid] === enemyFac) enemyAlive++;
+        }
+      }
+      const playerLost = Math.max(0, this.initialPlayerUnitCount - playerAlive);
+
+      const result = this.scenarioManager.checkObjective(
+        this.gameTime, playerAlive, enemyAlive, playerLost
+      );
+      if (result?.completed && this.scenarioResult && !this.scenarioResult.isVisible) {
+        const scenario = this.scenarioManager.getScenario()!;
+        this.scenarioResult.show({
+          scenarioTitle: scenario.title,
+          won: result.won,
+          score: result.score,
+          maxScore: result.maxScore,
+          timeElapsed: this.gameTime,
+          unitsLost: playerLost,
+          tips: scenario.tips,
+        });
+        // Pause the game when result shows
+        this.paused = true;
+      }
     }
   }
 

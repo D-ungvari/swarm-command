@@ -5,7 +5,7 @@ import {
   resetComponents,
   buildingType, buildState, builderEid, supplyProvided,
   commandMode, workerState, workerTargetEid,
-  deathTime,
+  deathTime, renderWidth, renderHeight,
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
 import { clearBuildingTiles, worldToTile } from '../map/MapData';
@@ -19,13 +19,14 @@ export interface DeathEvent {
   y: number;
   faction: number;
   time: number;
+  size: number; // max(renderWidth, renderHeight) for scale-dependent effects
 }
 
 /** Bounded array of recent death events for rendering effects */
 const MAX_DEATH_EVENTS = 64;
 export const deathEvents: DeathEvent[] = [];
 
-const DEATH_EVENT_LIFETIME = 0.5; // seconds
+const DEATH_EVENT_LIFETIME = 0.8; // seconds
 const DEATH_ANIM_DURATION = 0.3; // seconds — shrink/fade before removal
 
 /**
@@ -60,6 +61,7 @@ export function deathSystem(
           y: posY[eid],
           faction: faction[eid],
           time: gameTime,
+          size: Math.max(renderWidth[eid] || 12, renderHeight[eid] || 12),
         });
       }
       soundManager.playDeath();

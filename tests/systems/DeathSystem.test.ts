@@ -106,7 +106,7 @@ describe('DeathSystem', () => {
       deathSystem(world, 5.0);
 
       expect(deathEvents).toHaveLength(1);
-      expect(deathEvents[0]).toEqual({
+      expect(deathEvents[0]).toMatchObject({
         x: 250,
         y: 350,
         faction: Faction.Zerg,

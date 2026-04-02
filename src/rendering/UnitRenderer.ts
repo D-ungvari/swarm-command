@@ -222,7 +222,10 @@ export class UnitRenderer {
           continue;
         }
 
-        const isZergBuilding = bt === BuildingType.Hatchery || bt === BuildingType.SpawningPool;
+        const isZergBuilding = bt === BuildingType.Hatchery || bt === BuildingType.SpawningPool
+          || bt === BuildingType.EvolutionChamber || bt === BuildingType.RoachWarren
+          || bt === BuildingType.HydraliskDen || bt === BuildingType.Spire
+          || bt === BuildingType.InfestationPit;
 
         if (isZergBuilding) {
           // === Zerg buildings: organic ellipses ===
@@ -262,7 +265,7 @@ export class UnitRenderer {
               g.lineTo(x + Math.cos(angle) * outerR, y + Math.sin(angle) * outerR);
               g.stroke({ color: 0x993333, width: 1, alpha: 0.4 * baseAlpha });
             }
-          } else {
+          } else if (bt === BuildingType.SpawningPool) {
             // SpawningPool: smaller organic with pulsing glow
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0x661111, width: 2, alpha: 0.7 * baseAlpha });
@@ -278,6 +281,133 @@ export class UnitRenderer {
               const by = y + Math.sin(gameTime * 4 + b * 2) * 3;
               g.circle(bx, by, 3);
               g.fill({ color: 0xaa3322, alpha: 0.5 * baseAlpha });
+            }
+          } else if (bt === BuildingType.EvolutionChamber) {
+            // EvolutionChamber: mutation/upgrade building — DNA helix + mutation glow
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x226622, width: 2, alpha: 0.7 * baseAlpha });
+
+            // DNA helix: two intertwined sine waves across the building
+            const helixLen = w * 0.4;
+            const helixAmp = h * 0.15;
+            for (let i = 0; i < 12; i++) {
+              const t0 = i / 12;
+              const t1 = (i + 1) / 12;
+              const x0 = x - helixLen + t0 * helixLen * 2;
+              const x1 = x - helixLen + t1 * helixLen * 2;
+              // Strand 1
+              const y0a = y + Math.sin(t0 * Math.PI * 3) * helixAmp;
+              const y1a = y + Math.sin(t1 * Math.PI * 3) * helixAmp;
+              g.moveTo(x0, y0a);
+              g.lineTo(x1, y1a);
+              g.stroke({ color: 0x44cc44, width: 1.5, alpha: 0.6 * baseAlpha });
+              // Strand 2 (offset by PI)
+              const y0b = y + Math.sin(t0 * Math.PI * 3 + Math.PI) * helixAmp;
+              const y1b = y + Math.sin(t1 * Math.PI * 3 + Math.PI) * helixAmp;
+              g.moveTo(x0, y0b);
+              g.lineTo(x1, y1b);
+              g.stroke({ color: 0x33aa33, width: 1.5, alpha: 0.6 * baseAlpha });
+            }
+
+            // Mutation glow: pulsing green aura
+            const mutGlow = 0.2 + 0.2 * Math.sin(gameTime * 2.5);
+            g.ellipse(x, y, w / 2 + 5, h / 2 + 5);
+            g.stroke({ color: 0x44ff44, width: 2, alpha: mutGlow * baseAlpha });
+          } else if (bt === BuildingType.RoachWarren) {
+            // RoachWarren: acid pool + carapace arch
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x445522, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Acid pool: inner filled ellipse with green-yellow tint, bubbling
+            g.ellipse(x, y + h * 0.05, w * 0.3, h * 0.2);
+            g.fill({ color: 0x88aa22, alpha: 0.5 * baseAlpha });
+            // Bubbles in acid pool
+            for (let b = 0; b < 4; b++) {
+              const bx = x + (b - 1.5) * (w * 0.12);
+              const by = y + h * 0.05 + Math.sin(gameTime * 3 + b * 1.8) * 2;
+              const br = 1.5 + Math.sin(gameTime * 4 + b) * 0.5;
+              g.circle(bx, by, br);
+              g.fill({ color: 0xaacc33, alpha: 0.6 * baseAlpha });
+            }
+
+            // Carapace arch: thick dark arc on top half
+            g.arc(x, y, w * 0.3, Math.PI, 0, false);
+            g.stroke({ color: 0x334411, width: 3, alpha: 0.7 * baseAlpha });
+          } else if (bt === BuildingType.HydraliskDen) {
+            // HydraliskDen: spine rack + venom drip
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x224444, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Spine rack: 4 vertical spine shapes (thin triangles) protruding upward
+            const spineCount = 4;
+            for (let s = 0; s < spineCount; s++) {
+              const sx = x + (s - (spineCount - 1) / 2) * (w * 0.14);
+              const spineH = h * 0.3 + Math.sin(gameTime * 2 + s) * 2;
+              g.moveTo(sx - 2, y - h * 0.05);
+              g.lineTo(sx, y - h * 0.05 - spineH);
+              g.lineTo(sx + 2, y - h * 0.05);
+              g.closePath();
+              g.fill({ color: 0x33aaaa, alpha: 0.7 * baseAlpha });
+            }
+
+            // Venom drip: small circles below spines
+            for (let s = 0; s < spineCount; s++) {
+              const sx = x + (s - (spineCount - 1) / 2) * (w * 0.14);
+              const dripY = y + h * 0.05 + Math.abs(Math.sin(gameTime * 3 + s * 1.5)) * 4;
+              g.circle(sx, dripY, 1.5);
+              g.fill({ color: 0x22cccc, alpha: 0.5 * baseAlpha });
+            }
+          } else if (bt === BuildingType.Spire) {
+            // Spire: tall spire shape + wing motifs
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x442244, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Tall spire shape: triangle pointing upward from center
+            g.moveTo(x - w * 0.12, y + h * 0.15);
+            g.lineTo(x, y - h * 0.4);
+            g.lineTo(x + w * 0.12, y + h * 0.15);
+            g.closePath();
+            g.fill({ color: 0x9944aa, alpha: 0.7 * baseAlpha });
+
+            // Wing motifs: small angled lines from center outward
+            for (let wg = 0; wg < 4; wg++) {
+              const angle = (wg / 4) * Math.PI * 2 - Math.PI / 4;
+              const innerR = w * 0.1;
+              const outerR = w * 0.3;
+              g.moveTo(x + Math.cos(angle) * innerR, y + Math.sin(angle) * innerR);
+              g.lineTo(x + Math.cos(angle) * outerR, y + Math.sin(angle) * outerR);
+              g.stroke({ color: 0x7733aa, width: 1.5, alpha: 0.5 * baseAlpha });
+            }
+          } else if (bt === BuildingType.InfestationPit) {
+            // InfestationPit: tentacles + spore cloud
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x442233, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Tentacle lines: 4 curving lines from center outward
+            for (let t = 0; t < 4; t++) {
+              const angle = (t / 4) * Math.PI * 2;
+              const midR = w * 0.2;
+              const outerR = w * 0.38;
+              const curve = Math.sin(gameTime * 2 + t) * 0.3;
+              const mx = x + Math.cos(angle + curve) * midR;
+              const my = y + Math.sin(angle + curve) * midR;
+              const ex = x + Math.cos(angle) * outerR;
+              const ey = y + Math.sin(angle) * outerR;
+              g.moveTo(x, y);
+              g.lineTo(mx, my);
+              g.lineTo(ex, ey);
+              g.stroke({ color: 0x884466, width: 2, alpha: 0.6 * baseAlpha });
+            }
+
+            // Spore cloud: 3 small floating circles with animation
+            for (let s = 0; s < 3; s++) {
+              const sAngle = (s / 3) * Math.PI * 2 + gameTime * 0.8;
+              const sR = w * 0.2 + Math.sin(gameTime * 1.5 + s * 2) * 3;
+              const sx = x + Math.cos(sAngle) * sR;
+              const sy = y + Math.sin(sAngle) * sR;
+              const sAlpha = 0.3 + 0.2 * Math.sin(gameTime * 3 + s);
+              g.circle(sx, sy, 2.5);
+              g.fill({ color: 0xaa4488, alpha: sAlpha * baseAlpha });
             }
           }
         } else {
@@ -299,6 +429,7 @@ export class UnitRenderer {
         else if (bt === BuildingType.Refinery) borderColor = 0x448844;
         else if (bt === BuildingType.Factory) borderColor = 0x886644;
         else if (bt === BuildingType.Starport) borderColor = 0x4466aa;
+        else if (bt === BuildingType.EngineeringBay) borderColor = 0x5577cc;
         g.rect(x - w / 2, y - h / 2, w, h);
         g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
 
@@ -336,8 +467,8 @@ export class UnitRenderer {
           g.stroke({ color: 0x6699cc, width: 1, alpha: 0.5 * baseAlpha });
 
           // Bright gold star in center (4-pointed)
-          const starR = 5;
-          const starInner = 2;
+          const starR = 10;
+          const starInner = 4;
           g.moveTo(x, y - starR);
           g.lineTo(x + starInner, y - starInner);
           g.lineTo(x + starR, y);
@@ -352,7 +483,7 @@ export class UnitRenderer {
           // Diagonal cross-hatch pattern
           const hw2 = w / 2 - 3;
           const hh2 = h / 2 - 3;
-          const step = 6;
+          const step = 8;
           for (let d = -Math.max(hw2, hh2); d <= Math.max(hw2, hh2); d += step) {
             // Forward diagonals
             const fx1 = Math.max(-hw2, d - hh2);
@@ -360,23 +491,23 @@ export class UnitRenderer {
             if (fx1 < fx2) {
               g.moveTo(x + fx1, y + (fx1 - d));
               g.lineTo(x + fx2, y + (fx2 - d));
-              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.35 * baseAlpha });
+              g.stroke({ color: 0x88aacc, width: 1, alpha: 0.35 * baseAlpha });
             }
             // Backward diagonals
             if (fx1 < fx2) {
               g.moveTo(x + fx1, y - (fx1 - d));
               g.lineTo(x + fx2, y - (fx2 - d));
-              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.35 * baseAlpha });
+              g.stroke({ color: 0x88aacc, width: 1, alpha: 0.35 * baseAlpha });
             }
           }
         } else if (bt === BuildingType.Barracks) {
           // Larger X indicator
-          const xSize = 7;
+          const xSize = 12;
           g.moveTo(x - xSize, y - xSize);
           g.lineTo(x + xSize, y + xSize);
           g.moveTo(x + xSize, y - xSize);
           g.lineTo(x - xSize, y + xSize);
-          g.stroke({ color: 0xffffff, width: 2, alpha: 0.5 * baseAlpha });
+          g.stroke({ color: 0xffffff, width: 3, alpha: 0.5 * baseAlpha });
 
           // Door rectangle at bottom edge
           const doorW = 10;
@@ -387,17 +518,17 @@ export class UnitRenderer {
           g.stroke({ color: 0x6688aa, width: 1, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.Refinery) {
           // Green gas venting pipes — two small circles on top
-          g.circle(x - w * 0.2, y - h * 0.15, 4);
+          g.circle(x - w * 0.2, y - h * 0.15, 6);
           g.fill({ color: 0x44ff66, alpha: 0.4 * baseAlpha });
-          g.circle(x + w * 0.2, y - h * 0.15, 4);
+          g.circle(x + w * 0.2, y - h * 0.15, 6);
           g.fill({ color: 0x44ff66, alpha: 0.4 * baseAlpha });
           // Central pipe
-          g.rect(x - 2, y - h * 0.3, 4, h * 0.6);
+          g.rect(x - 3, y - h * 0.3, 6, h * 0.6);
           g.fill({ color: 0x556655, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.Factory) {
           // Gear icon shape — circle with teeth
-          const gearR = 8;
-          const gearInner = 5;
+          const gearR = 13;
+          const gearInner = 8;
           const teeth = 6;
           for (let t = 0; t < teeth; t++) {
             const angle = (t / teeth) * Math.PI * 2;
@@ -418,7 +549,7 @@ export class UnitRenderer {
               x + Math.cos(nextAngle) * gearInner,
               y + Math.sin(nextAngle) * gearInner,
             );
-            g.stroke({ color: 0xccaa44, width: 1.5, alpha: 0.6 * baseAlpha });
+            g.stroke({ color: 0xccaa44, width: 2, alpha: 0.6 * baseAlpha });
           }
           // Center dot
           g.circle(x, y, 3);
@@ -436,13 +567,13 @@ export class UnitRenderer {
           g.moveTo(x - w * 0.35, y - h * 0.2);
           g.lineTo(x, y + h * 0.15);
           g.lineTo(x + w * 0.35, y - h * 0.2);
-          g.stroke({ color: 0x88aaff, width: 2, alpha: 0.6 * baseAlpha });
+          g.stroke({ color: 0x88aaff, width: 3, alpha: 0.6 * baseAlpha });
           // Horizontal stabilizer
           g.moveTo(x - w * 0.25, y);
           g.lineTo(x + w * 0.25, y);
-          g.stroke({ color: 0x88aaff, width: 1.5, alpha: 0.4 * baseAlpha });
+          g.stroke({ color: 0x88aaff, width: 2.5, alpha: 0.4 * baseAlpha });
           // Landing pad circle
-          g.circle(x, y + h * 0.2, 5);
+          g.circle(x, y + h * 0.2, 7);
           g.stroke({ color: 0x6688cc, width: 1, alpha: 0.5 * baseAlpha });
 
           // Door rectangle at bottom
@@ -452,6 +583,30 @@ export class UnitRenderer {
           g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
           g.rect(x - doorW3 / 2, y + h / 2 - doorH3, doorW3, doorH3);
           g.stroke({ color: 0x4466aa, width: 1, alpha: 0.6 * baseAlpha });
+        } else if (bt === BuildingType.EngineeringBay) {
+          // Wrench/tool icon: two diagonal lines forming an X with circles at each end
+          const toolSize = 10;
+          g.moveTo(x - toolSize, y - toolSize);
+          g.lineTo(x + toolSize, y + toolSize);
+          g.moveTo(x + toolSize, y - toolSize);
+          g.lineTo(x - toolSize, y + toolSize);
+          g.stroke({ color: 0x88aadd, width: 2, alpha: 0.6 * baseAlpha });
+          // Circles at wrench ends
+          g.circle(x - toolSize, y - toolSize, 3);
+          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
+          g.circle(x + toolSize, y + toolSize, 3);
+          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
+          g.circle(x + toolSize, y - toolSize, 3);
+          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
+          g.circle(x - toolSize, y + toolSize, 3);
+          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
+
+          // Research glow: if production is active, subtle pulsing ring
+          if (prodUnitType[eid] > 0 && prodTimeTotal[eid] > 0) {
+            const resGlow = 0.2 + 0.2 * Math.sin(gameTime * 3);
+            g.circle(x, y, Math.max(w, h) * 0.35);
+            g.stroke({ color: 0x5577cc, width: 2, alpha: resGlow * baseAlpha });
+          }
         }
         } // close Terran buildings else block
 
@@ -1865,41 +2020,89 @@ export class UnitRenderer {
       }
     }
 
-    // Death effects — improved with filled circles, particles, faction colors
+    // Death effects — dramatic explosions with size-dependent scale
     for (const evt of deathEvents) {
       const age = gameTime - evt.time;
-      const duration = 0.5;
+      const duration = 0.8;
       const t = Math.min(1, age / duration);
       const alpha = Math.max(0, 1 - t);
 
       const isTerran = evt.faction === Faction.Terran;
-      const baseColor = isTerran ? 0x6699ff : 0x44cc44;
-      const particleColor = isTerran ? 0xaaccff : 0x66ff44;
+      const sizeMult = Math.max(1, evt.size / 14); // scale effects by unit size
 
-      // Filled expanding circle with decreasing alpha
-      const radius = 6 + t * 30;
-      g.circle(evt.x, evt.y, radius);
-      g.fill({ color: baseColor, alpha: alpha * 0.35 });
-      g.circle(evt.x, evt.y, radius);
-      g.stroke({ color: baseColor, width: 2, alpha: alpha * 0.7 });
+      // Faction-specific colors
+      const coreColor = isTerran ? 0xffaa44 : 0x88ff22;
+      const midColor = isTerran ? 0xff6622 : 0x44cc00;
+      const outerColor = isTerran ? 0x4488ff : 0x228800;
+      const sparkColor = isTerran ? 0xffcc88 : 0xaaff66;
+      const debrisColor = isTerran ? 0x667788 : 0x554422;
 
-      // Bright center flash (fades fast)
-      const centerAlpha = Math.max(0, 1 - t * 3);
-      if (centerAlpha > 0) {
-        g.circle(evt.x, evt.y, 4 + t * 6);
-        g.fill({ color: 0xffffff, alpha: centerAlpha * 0.6 });
+      // Phase 1: Bright white core flash (first 20% of duration)
+      const flashT = Math.min(1, t * 5);
+      if (flashT < 1) {
+        const flashAlpha = (1 - flashT) * 0.8;
+        const flashR = (4 + sizeMult * 6) * (0.5 + flashT * 0.5);
+        g.circle(evt.x, evt.y, flashR);
+        g.fill({ color: 0xffffff, alpha: flashAlpha });
       }
 
-      // 4 particle dots flying outward
-      const particleDist = 8 + t * 50;
-      const particleAlpha = alpha * 0.8;
-      const particleSize = Math.max(0.5, 2 - t * 2);
-      for (let i = 0; i < 4; i++) {
-        const angle = (i * Math.PI / 2) + 0.3; // offset for variety
-        const px = evt.x + Math.cos(angle) * particleDist;
-        const py = evt.y + Math.sin(angle) * particleDist;
-        g.circle(px, py, particleSize);
-        g.fill({ color: particleColor, alpha: particleAlpha });
+      // Phase 2: Expanding shockwave ring
+      const ringR = (8 + sizeMult * 12) * t;
+      const ringAlpha = alpha * 0.5;
+      g.circle(evt.x, evt.y, ringR);
+      g.stroke({ color: coreColor, width: 2 + sizeMult * 0.5, alpha: ringAlpha });
+
+      // Phase 3: Inner explosion glow (expanding, fading)
+      const innerR = (4 + sizeMult * 8) * (0.3 + t * 0.7);
+      g.circle(evt.x, evt.y, innerR);
+      g.fill({ color: midColor, alpha: alpha * 0.3 });
+
+      // Phase 4: Outer haze
+      const outerR = (6 + sizeMult * 14) * t;
+      g.circle(evt.x, evt.y, outerR);
+      g.fill({ color: outerColor, alpha: alpha * 0.15 });
+
+      // Phase 5: Spark particles flying outward (8 sparks for normal, more for big units)
+      const sparkCount = Math.min(12, Math.floor(4 + sizeMult * 2));
+      const sparkDist = (6 + sizeMult * 10) * t;
+      const sparkSize = Math.max(0.5, (1.5 + sizeMult * 0.3) * (1 - t));
+      for (let i = 0; i < sparkCount; i++) {
+        const angle = (i / sparkCount) * Math.PI * 2 + evt.time * 3; // seeded by time for variety
+        const wobble = Math.sin(angle * 3 + t * 8) * 4 * t; // slight wobble path
+        const px = evt.x + Math.cos(angle) * (sparkDist + wobble);
+        const py = evt.y + Math.sin(angle) * (sparkDist + wobble) - t * 8; // slight upward drift
+        g.circle(px, py, sparkSize);
+        g.fill({ color: sparkColor, alpha: alpha * 0.7 });
+      }
+
+      // Phase 6: Debris chunks (Terran = metal shards, Zerg = organic bits)
+      const debrisCount = Math.min(6, Math.floor(2 + sizeMult));
+      const debrisDist = (4 + sizeMult * 8) * t;
+      for (let i = 0; i < debrisCount; i++) {
+        const angle = (i / debrisCount) * Math.PI * 2 + 0.5;
+        const speed = 0.7 + (i % 3) * 0.15; // varying speeds
+        const dx = evt.x + Math.cos(angle) * debrisDist * speed;
+        const dy = evt.y + Math.sin(angle) * debrisDist * speed + t * t * 20; // gravity arc
+        const dSize = Math.max(0.5, (2 + sizeMult * 0.5) * (1 - t * 0.7));
+
+        if (isTerran) {
+          // Metal shards: small rotating rectangles
+          g.rect(dx - dSize, dy - dSize * 0.5, dSize * 2, dSize);
+          g.fill({ color: debrisColor, alpha: alpha * 0.6 });
+        } else {
+          // Organic bits: small circles
+          g.circle(dx, dy, dSize);
+          g.fill({ color: debrisColor, alpha: alpha * 0.5 });
+        }
+      }
+
+      // Phase 7: Smoke trail (Terran only — lingering dark smoke)
+      if (isTerran && t > 0.3) {
+        const smokeT = (t - 0.3) / 0.7;
+        const smokeR = (3 + sizeMult * 4) * (0.5 + smokeT * 0.5);
+        const smokeY = evt.y - smokeT * sizeMult * 8; // rises upward
+        g.circle(evt.x, smokeY, smokeR);
+        g.fill({ color: 0x222222, alpha: (1 - smokeT) * 0.25 });
       }
     }
 

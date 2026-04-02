@@ -1,7 +1,7 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import {
-  MAP_WIDTH, MAP_HEIGHT, TILE_SIZE,
+  MAP_WIDTH, MAP_HEIGHT, MAP_COLS, MAP_ROWS, TILE_SIZE,
   EDGE_SCROLL_ZONE, EDGE_SCROLL_SPEED,
   MIN_ZOOM, MAX_ZOOM,
   MS_PER_TICK, Faction, UnitType, ResourceType, BuildingType, BuildState,
@@ -90,6 +90,7 @@ import { TouchCommandBar } from './rendering/TouchCommandBar';
 import { ScenarioManager } from './scenarios/ScenarioManager';
 import type { Scenario } from './scenarios/ScenarioTypes';
 import { ScenarioResultRenderer } from './rendering/ScenarioResultRenderer';
+import { checkAchievements, showAchievementToast } from './stats/Achievements';
 
 export class Game {
   app!: Application;
@@ -211,6 +212,12 @@ export class Game {
 
   setMapType(m: MapType): void {
     this.mapType = m;
+  }
+
+  /** Set custom tiles from the map editor (used instead of procedural generation) */
+  private customTiles: Uint8Array | null = null;
+  setCustomTiles(tiles: Uint8Array): void {
+    this.customTiles = tiles;
   }
 
   setStartingMinerals(n: number): void {
@@ -370,7 +377,21 @@ export class Game {
     });
 
     // Generate map with selected layout (setMapType is called before init)
-    this.map = generateMap(this.mapType);
+    if (this.customTiles) {
+      // Custom map from editor — build MapData from raw tiles
+      const tiles = this.customTiles;
+      const walkable = new Uint8Array(tiles.length);
+      const destructibleHP = new Uint16Array(tiles.length);
+      const creepMap = new Uint8Array(tiles.length);
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        walkable[i] = (t === TileType.Ground || t === TileType.Ramp) ? 1 : 0;
+        if (t === TileType.Destructible) destructibleHP[i] = 500;
+      }
+      this.map = { tiles, walkable, destructibleHP, creepMap, cols: MAP_COLS, rows: MAP_ROWS };
+    } else {
+      this.map = generateMap(this.mapType);
+    }
 
     // Minimap (screen space, bottom-right corner)
     this.minimapRenderer = new MinimapRenderer(this.app.stage, this.viewport, this.map);
@@ -653,9 +674,16 @@ export class Game {
     this.gameOverRenderer.update(this.world, this.gameTime);
     if (!wasShown && this.gameOverRenderer.isShown && !this.gameEnded) {
       this.gameEnded = true;
-      this.gameOverRenderer.setStats(this.stats.getSnapshot(this.gameTime));
+      const snapshot = this.stats.getSnapshot(this.gameTime);
+      this.gameOverRenderer.setStats(snapshot);
       this.recorder.stopRecording();
       this.gameOverRenderer.setReplay(this.recorder.toJSON(), this.recorder.frameCount);
+
+      // Check achievements
+      const newAchievements = checkAchievements(snapshot);
+      for (const title of newAchievements) {
+        showAchievementToast(title);
+      }
     }
 
     // AI attack warning — jump camera to base on attack

@@ -9,6 +9,7 @@ import {
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
   energy, cloaked, stimEndTime,
   larvaCount, addonType,
+  workerTargetEid,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -436,6 +437,15 @@ export class InfoPanelRenderer {
         const larva = larvaCount[eid];
         const larvaText = larva > 0 ? `  Larva: ${larva}/3` : '  Larva: 0/3 (regenerating)';
         this.detailEl.textContent += larvaText;
+      }
+
+      // Refinery: show gas worker count
+      if (bt === BuildingType.Refinery && bs === BuildState.Complete) {
+        let gasWorkers = 0;
+        for (let w = 1; w < world.nextEid; w++) {
+          if (workerTargetEid[w] === eid && hpCurrent[w] > 0) gasWorkers++;
+        }
+        this.detailEl.textContent += `  Gas Workers: ${gasWorkers}/3`;
       }
 
       // Faction-colored border for buildings

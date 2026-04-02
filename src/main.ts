@@ -1,9 +1,11 @@
 import { Game } from './Game';
-import { Difficulty, Faction } from './constants';
+import { Difficulty, Faction, TileType } from './constants';
 import type { MapType } from './map/MapData';
 import { SCENARIOS } from './scenarios/scenarios';
 import type { Scenario } from './scenarios/ScenarioTypes';
 import { TERRAN_CAMPAIGN, ZERG_CAMPAIGN, getCampaignProgress, isMissionUnlocked } from './scenarios/campaign';
+import { MapEditor } from './map/MapEditor';
+import { ACHIEVEMENTS, getUnlockedAchievements } from './stats/Achievements';
 
 const startScreen = document.getElementById('start-screen');
 const playBtn = document.getElementById('play-btn');
@@ -239,3 +241,133 @@ function startScenario(scenario: Scenario): void {
     console.error('Failed to initialize scenario:', err);
   });
 }
+
+// ── Map Editor ──
+const mapEditorBtn = document.getElementById('map-editor-btn');
+const mapEditorPanel = document.getElementById('map-editor-panel');
+const mapEditorCanvasContainer = document.getElementById('map-editor-canvas-container');
+let mapEditor: MapEditor | null = null;
+
+mapEditorBtn?.addEventListener('click', () => {
+  // Hide main menu elements, show map editor
+  document.querySelectorAll('#start-screen .controls, #start-screen .play-btn, #start-screen select, #start-screen details').forEach(el => {
+    (el as HTMLElement).style.display = 'none';
+  });
+  document.querySelectorAll('#start-screen > div[style*="margin"]').forEach(el => {
+    (el as HTMLElement).style.display = 'none';
+  });
+  if (mapEditorBtn) mapEditorBtn.style.display = 'none';
+  if (mapEditorPanel && mapEditorCanvasContainer) {
+    mapEditorPanel.style.display = 'flex';
+    if (!mapEditor) {
+      mapEditor = new MapEditor(mapEditorCanvasContainer);
+      // Try to load a saved map
+      mapEditor.load();
+    }
+  }
+});
+
+// Map editor tool buttons
+document.querySelectorAll('.map-tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tool = parseInt((btn as HTMLElement).dataset.tool || '0', 10);
+    if (mapEditor) mapEditor.setTool(tool);
+    // Highlight active tool
+    document.querySelectorAll('.map-tool-btn').forEach(b => {
+      (b as HTMLElement).style.outline = '';
+    });
+    (btn as HTMLElement).style.outline = '2px solid #88ff88';
+  });
+});
+
+document.getElementById('map-editor-save')?.addEventListener('click', () => {
+  if (mapEditor) {
+    mapEditor.save();
+    const btn = document.getElementById('map-editor-save');
+    if (btn) {
+      btn.textContent = 'Saved!';
+      setTimeout(() => { btn.textContent = 'Save'; }, 1500);
+    }
+  }
+});
+
+document.getElementById('map-editor-load')?.addEventListener('click', () => {
+  if (mapEditor) {
+    const loaded = mapEditor.load();
+    const btn = document.getElementById('map-editor-load');
+    if (btn) {
+      btn.textContent = loaded ? 'Loaded!' : 'No saved map';
+      setTimeout(() => { btn.textContent = 'Load'; }, 1500);
+    }
+  }
+});
+
+document.getElementById('map-editor-play')?.addEventListener('click', () => {
+  if (!mapEditor) return;
+  mapEditor.save(); // Auto-save before playing
+  if (startScreen) startScreen.style.display = 'none';
+
+  const game = new Game();
+
+  const diffSelect = document.getElementById('difficulty-select') as HTMLSelectElement | null;
+  const diffValue = diffSelect ? parseInt(diffSelect.value, 10) : Difficulty.Normal;
+  game.setDifficulty(diffValue as Difficulty);
+
+  // Read faction selection
+  const factionZergBtn = document.getElementById('faction-zerg') as HTMLButtonElement | null;
+  const isZerg = factionZergBtn?.dataset.selected === 'true';
+  game.setPlayerFaction(isZerg ? 2 : 1);
+
+  game.setCustomTiles(mapEditor.getTiles());
+  game.init(container!).catch((err) => {
+    console.error('Failed to initialize custom map game:', err);
+  });
+});
+
+document.getElementById('map-editor-back')?.addEventListener('click', () => {
+  window.location.reload();
+});
+
+// ── Achievements UI ──
+function updateAchievementsCounter(): void {
+  const counter = document.getElementById('achievements-counter');
+  if (!counter) return;
+  const unlocked = getUnlockedAchievements();
+  counter.textContent = `Achievements: ${unlocked.length}/${ACHIEVEMENTS.length}`;
+}
+
+const achievementsCounter = document.getElementById('achievements-counter');
+const achievementsPanel = document.getElementById('achievements-panel');
+const achievementsList = document.getElementById('achievements-list');
+
+updateAchievementsCounter();
+
+achievementsCounter?.addEventListener('click', () => {
+  if (!achievementsPanel || !achievementsList) return;
+  const isVisible = achievementsPanel.style.display === 'block';
+  if (isVisible) {
+    achievementsPanel.style.display = 'none';
+    return;
+  }
+  achievementsPanel.style.display = 'block';
+  achievementsList.innerHTML = '';
+  const unlocked = getUnlockedAchievements();
+  for (const ach of ACHIEVEMENTS) {
+    const isUnlocked = unlocked.includes(ach.id);
+    const card = document.createElement('div');
+    card.style.cssText = `
+      background: ${isUnlocked ? 'rgba(40, 60, 30, 0.8)' : 'rgba(20, 20, 20, 0.6)'};
+      border: 1px solid ${isUnlocked ? 'rgba(100, 180, 60, 0.4)' : 'rgba(60, 60, 60, 0.3)'};
+      padding: 6px 10px;
+      border-radius: 3px;
+      opacity: ${isUnlocked ? '1' : '0.5'};
+    `;
+    card.innerHTML = `
+      <div style="color:${isUnlocked ? '#88ff44' : '#666'};font-size:12px;font-weight:bold">
+        ${isUnlocked ? '\u2713' : '\u2717'} ${ach.title}
+      </div>
+      <div style="color:${isUnlocked ? '#99aa88' : '#444'};font-size:10px;margin-top:2px">${ach.description}</div>
+    `;
+    achievementsList.appendChild(card);
+  }
+});

@@ -203,6 +203,62 @@
       ">&larr; Back</button>
     </div>
     <button class="play-btn" id="play-btn" style="font-size: 13px; padding: 8px 28px; opacity: 0.8;">SKIRMISH VS AI</button>
+    <button class="play-btn" id="map-editor-btn" style="
+      margin-top: 8px;
+      font-size: 13px;
+      padding: 8px 28px;
+      opacity: 0.7;
+      background: linear-gradient(180deg, #2a4a2a 0%, #0a2a0a 100%);
+      border: 1px solid #4a8a4a;
+      color: #88cc88;
+    ">MAP EDITOR</button>
+    <div id="map-editor-panel" style="
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin: 12px auto;
+      max-width: 500px;
+    ">
+      <h3 style="color: #88cc88; font-size: 14px; margin: 0;">MAP EDITOR</h3>
+      <div id="map-editor-canvas-container"></div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;">
+        <button class="map-tool-btn" data-tool="0" style="
+          background: #2a3a2a; color: #88cc88; border: 1px solid #4a8a4a;
+          padding: 4px 12px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Ground</button>
+        <button class="map-tool-btn" data-tool="5" style="
+          background: #1a2a4a; color: #88bbff; border: 1px solid #3a6a9a;
+          padding: 4px 12px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Water</button>
+        <button class="map-tool-btn" data-tool="4" style="
+          background: #1a1a12; color: #99aa88; border: 1px solid #444;
+          padding: 4px 12px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Rock</button>
+        <button class="map-tool-btn" data-tool="6" style="
+          background: #444038; color: #bbaa88; border: 1px solid #666;
+          padding: 4px 12px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Destructible</button>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button id="map-editor-save" style="
+          background: #1a3a5a; color: #88ccff; border: 1px solid #3a6a9a;
+          padding: 5px 14px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Save</button>
+        <button id="map-editor-load" style="
+          background: #1a3a5a; color: #88ccff; border: 1px solid #3a6a9a;
+          padding: 5px 14px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Load</button>
+        <button id="map-editor-play" style="
+          background: #2a4a2a; color: #88ff88; border: 1px solid #4a8a4a;
+          padding: 5px 14px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Play Custom Map</button>
+        <button id="map-editor-back" style="
+          background: transparent; color: #6688aa; border: 1px solid #334;
+          padding: 5px 14px; font-size: 11px; cursor: pointer; font-family: monospace;
+        ">Back</button>
+      </div>
+    </div>
     <button class="play-btn" id="watch-replay-btn" style="
       margin-top: 8px;
       font-size: 14px;
@@ -211,6 +267,25 @@
       cursor: not-allowed;
       pointer-events: none;
     ">WATCH LAST REPLAY</button>
+    <div id="achievements-counter" style="
+      margin-top: 12px;
+      font-size: 12px;
+      color: #ffcc44;
+      cursor: pointer;
+      letter-spacing: 1px;
+    "></div>
+    <div id="achievements-panel" style="
+      display: none;
+      max-width: 400px;
+      margin: 8px auto;
+      text-align: left;
+    ">
+      <div id="achievements-list" style="
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      "></div>
+    </div>
     <div class="footer">Built with TypeScript + PixiJS &mdash; <a href="https://github.com/D-ungvari/swarm-command" target="_blank">Source</a></div>
   </div>
   <div id="game-container"></div>

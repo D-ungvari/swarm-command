@@ -2178,4 +2178,490 @@ The 10 sprints with the highest return-on-investment for playability and portfol
 9.  Sprint 30: N.1-N.2   — Protoss shields + Pylon (third faction foundation)
 10. Sprint 55: Launch    — Deploy, portfolio sync, community post
 ```
+
+---
+
+---
+
+# Iteration S — AI Director System
+
+## S.1 — The Director (Left 4 Dead–Inspired)
+
+Rather than fixed wave timers, implement an **AI Director** that reads the player's current stress level and adjusts spawning in real time. This creates pacing that always feels fair but threatening.
+
+**Stress level formula:**
+```
+stress = (recentDamageReceived / maxHP) * 40
+       + (armyLostValue / totalArmyValue) * 30
+       + (timeWithoutAction / 60) * 20   // boredom increases stress
+       + (currentAPM / 200) * 10         // high APM = player is engaged, Director can push harder
+```
+Range: 0 (relaxed) → 100 (overwhelmed).
+
+**Director states:**
+| State | Stress | Behaviour |
+|-------|--------|-----------|
+| **Build-up** | 0–30 | Spawn slowly, scout, let player get established |
+| **Pressure** | 30–55 | Normal wave cadence, harassment active |
+| **Relentless** | 55–75 | Shorter cooldowns, double harassment squads |
+| **Peak** | 75–90 | Simultaneous 3-prong attack, max army size |
+| **Relief** | 90–100 | Back off — send retreat signal, let player breathe 30s |
+
+**Relief valve:** When stress > 90, the Director deliberately pauses spawning and pulls army back 5 tiles. This prevents the game from feeling unfair — it always gives the player a window to recover.
+
+## S.2 — Director Awareness Events
+
+The Director tracks and reacts to specific player actions:
+
+| Player action | Director response |
+|--------------|-------------------|
+| Player expands | Within 45s, harassment targets the new expansion |
+| Player builds air units | Within 2 waves, AI adds anti-air composition |
+| Player uses all supply | Director holds back for 20s ("you're about to be overwhelmed anyway") |
+| Player's economy drops below 8 workers | Director reduces income (mercy — don't snowball losses) |
+| Player casts Yamato / Psionic Storm | Director notes this tech; adds Zerglings specifically to rush the caster |
+| Player never builds anti-air | After wave 4, Director adds Mutalisks/Phoenix to the spawn pool |
+
+## S.3 — Named Scenario Events ("Special Forces")
+
+Occasionally the Director spawns a "named encounter" — a special unit composition with a 5-second warning:
+
+| Event | Composition | Warning text |
+|-------|------------|--------------|
+| Baneling Bust | 12 Banelings + 8 Zerglings | "BANELING BUST DETECTED" |
+| Mutalisk Harass | 6 Mutalisks strike mineral line | "MUTALISK FLOCK INCOMING" |
+| Ultralisk Charge | 2 Ultralisks + escort | "ULTRALISK DETECTED — EVACUATE" |
+| Drop Pod | 8 Zerglings appear INSIDE player base | "NYDUS WORM DETECTED" |
+| Roach Swarm | 15 Roaches mass | "ROACH WARREN FLOODING" |
+
+Each event has a dedicated sound cue and alert banner. These make the game feel cinematic.
+
+---
+
+# Iteration T — Ranked Matchmaking
+
+## T.1 — Rank Tiers (Bronze → Grandmaster)
+
+| Tier | Points required | Icon colour |
+|------|----------------|-------------|
+| Bronze | 0–999 | Brown |
+| Silver | 1,000–1,999 | Grey |
+| Gold | 2,000–3,499 | Yellow |
+| Platinum | 3,500–5,499 | Cyan |
+| Diamond | 5,500–8,499 | Blue |
+| Master | 8,500–11,999 | Red/Gold |
+| Grandmaster | 12,000+ | Purple |
+
+Point delta per game: +/−50 at Bronze, scaling to +/−15 at Master (smaller swings at the top).
+
+## T.2 — Matchmaking Pool
+
+For a single-player game with no real opponents: matchmaking against AI profiles that simulate different skill levels.
+
+**AI opponent profiles** (named, with avatar icons):
+- "CommanderBlue" — Bronze AI: slow build order, no harassment
+- "ZergRush99" — Silver: 12-pool aggressive, one-dimensional
+- "TacticalOmega" — Gold: Normal AI + occasional multi-prong
+- "ApexPredator" — Platinum: Hard AI full behaviour
+- "NightmareX" — Diamond: Brutal AI + Director System active
+- "VoidReaper" — Master: Brutal AI + Protoss composition + Director
+
+Players queue for "Ranked Match" and are matched to the profile closest to their current points. This simulates the MMR ladder feel without needing real opponents.
+
+## T.3 — Season System
+
+Seasons last 30 days (tracked via localStorage date). At season end:
+- Current rank and season high-water mark displayed on profile
+- Seasonal icon (badge) awarded per tier reached
+- Points soft-reset to 70% of current (prevents rank decay but keeps the ladder fresh)
+- Season history: profile shows all past seasons
+
+## T.4 — Ranked Restrictions
+
+To prevent boosting/abuse:
+- Ranked requires playing 5 placement matches first
+- Replays mandatory for all ranked games (automatically saved)
+- If fog-of-war is disabled: game is "unranked" regardless of setting
+
+---
+
+# Iteration U — Advanced Campaign Features
+
+## U.1 — Branching Narrative
+
+The linear 5-mission campaign becomes a branching tree. After Mission 2, the player chooses one of two paths:
+
+**Terran Path A (Aggressive):** Missions focused on offensive pushes, SCV drops behind enemy lines, siege line advances.
+
+**Terran Path B (Defensive):** Missions focused on holding positions, bunker lines, Planetary Fortress mechanics, surviving waves.
+
+Both paths merge at Mission 5 (final assault). Different dialogue, different unit rewards.
+
+## U.2 — Commander Abilities (SC2 Co-op Inspired)
+
+Each campaign mission rewards a "Commander Ability" permanently unlocked for the player:
+
+| Mission completed | Ability unlocked | Effect |
+|-----------------|-----------------|--------|
+| T1 | Drop Pod | Once per game: drop 6 Marines at any visible location |
+| T2 | Orbital Strike | Once per game: 150 damage AoE anywhere on map |
+| T3 | Fortify | All buildings gain +50% HP for 30s |
+| Z2 | Swarm Call | Spawn 20 free Zerglings at map centre |
+| Z4 | Neural Hijack | Permanently take control of one enemy unit |
+
+Commander abilities use a separate energy bar (top-right corner). Not tied to individual units.
+
+## U.3 — Persistent Campaign Progression
+
+Between missions: a "War Room" screen showing:
+- Current mission briefing (text + map thumbnail)
+- Carried-over veteran units (units that survived the last mission appear in the next one)
+- Upgrade screen: spend "credits" (earned during missions) on passive upgrades:
+  - +1 starting minerals (150 credits)
+  - All Marines start stimmed (300 credits)
+  - Hatcheries spawn with 6 larva instead of 3 (300 credits)
+  - All units gain Veteran status from start (500 credits)
+
+## U.4 — Mission Modifiers
+
+Optional extra difficulty modifiers per mission (cosmetic rewards for completion):
+
+| Modifier | Effect | Reward |
+|----------|--------|--------|
+| Iron Man | No unit can die | Gold portrait frame |
+| Speed Run | Complete in under N minutes | Bronze trophy |
+| No Build | Cannot build new structures | Silver icon |
+| Elite | Enemy units have +50% HP | Diamond icon |
+
+---
+
+# Iteration V — Modding Support
+
+## V.1 — Mod Loader
+
+Allow players to inject custom unit definitions via a JSON mod file loaded from URL:
+
+```json
+{
+  "name": "Marine Corps Pack",
+  "version": "1.0",
+  "units": [
+    {
+      "id": 100,
+      "name": "Heavy Marine",
+      "hp": 120,
+      "damage": 9,
+      "range": 5,
+      "speed": 2.2,
+      "cooldown": 1000,
+      "costMinerals": 75,
+      "costGas": 25,
+      "color": "#ff4400",
+      "isAir": false,
+      "canTargetGround": true,
+      "canTargetAir": true,
+      "abilities": ["stim"]
+    }
+  ],
+  "buildings": [],
+  "balanceOverrides": {
+    "Marine.hp": 50,
+    "Marine.damage": 7
+  }
+}
+```
+
+Load via `?mod=<base64-encoded-json>` URL param. Mods apply on top of base definitions. "Vanilla mode" button resets.
+
+## V.2 — Custom Ability Scripts
+
+Allow simple ability definitions via a mini scripting language embedded in mod JSON:
+
+```json
+"abilities": [{
+  "id": "napalm",
+  "name": "Napalm Drop",
+  "key": "N",
+  "energyCost": 50,
+  "cooldown": 20,
+  "effect": {
+    "type": "aoe_damage",
+    "damage": 40,
+    "radius": 2.5,
+    "delay": 1.0,
+    "damageType": "Explosive"
+  }
+}]
+```
+
+Parsed by `AbilityScriptEngine.ts` — a safe interpreter that only exposes: `deal_damage`, `apply_slow`, `teleport`, `spawn_unit`, `set_flag`.
+
+## V.3 — Mod Gallery
+
+An in-game mod gallery showing available community mods loaded from a GitHub-hosted JSON index:
+
+```json
+[
+  { "name": "Marines Only", "url": "...", "downloads": 142, "rating": 4.2 },
+  { "name": "Giant Units", "url": "...", "downloads": 89, "rating": 3.8 }
+]
+```
+
+Clicking a mod loads it immediately. Rating stored in Supabase with the leaderboard.
+
+---
+
+# Iteration W — Esports & Tournament Infrastructure
+
+## W.1 — Tournament Bracket System
+
+Host an 8 or 16-player single-elimination bracket entirely within the browser:
+
+- Tournament organiser creates a bracket room with a room code
+- Players join, organiser seeds them, starts bracket
+- Match results auto-reported when a player wins a ranked game in that lobby
+- Bracket displayed as an HTML bracket tree, live-updating
+
+## W.2 — Casting Mode
+
+When in spectator mode, add a casting overlay:
+- Large army value comparison bar (top-center): "Terran 847  vs  Zerg 1,243"
+- Unit composition pie charts per player
+- "Interesting event" text feed: "NightmareX: Siege Tank sieged x3", "Player: Yamato fired!"
+- "Casting UI" toggle — hides minimap, enlarges main view for streaming
+
+## W.3 — VOD Review Integration
+
+After a multiplayer game, both players can load the replay into a shared review session:
+- One player controls the timeline scrub
+- Both players see the same view (shared state via data channel)
+- "Annotation mode": click anywhere on map to draw a temporary arrow/circle (visible to partner for 3s)
+- Used for post-game analysis
+
+---
+
+# Iteration X — Data & Analytics
+
+## X.1 — Telemetry (Privacy-first, opt-in)
+
+On game end, with explicit consent, send anonymous game data to Supabase:
+
+```json
+{
+  "version": "1.0",
+  "faction": "Terran",
+  "difficulty": "Hard",
+  "duration": 342,
+  "outcome": "victory",
+  "apm": 87,
+  "wavesDefeated": 6,
+  "unitsProduced": { "Marine": 24, "SiegeTank": 4 },
+  "unitsLost": { "Marine": 11, "SCV": 2 },
+  "techPath": ["Barracks", "Factory", "EngineeringBay"],
+  "firstAttackWave": 3
+}
+```
+
+## X.2 — Analytics Dashboard
+
+A public-facing page (GitHub Pages `/analytics`) showing aggregated stats from all opt-in players:
+
+- Most popular units by faction
+- Average game length by difficulty
+- Win rate by faction
+- Most common tech path
+- APM distribution histogram
+
+Built with Chart.js (CDN import, no build step).
+
+## X.3 — Balance Report
+
+Auto-generated weekly balance report from telemetry:
+
+- Units with < 30% win rate when used: flagged as "under-powered"
+- Units appearing in > 80% of winning compositions: flagged as "dominant"
+- Difficulty curves: if Hard has > 70% win rate, it's too easy; flag for tuning
+
+Displayed in a `BALANCE.md` file auto-committed to the repo by a GitHub Action.
+
+---
+
+# Iteration Y — Long-Term Engine Improvements
+
+## Y.1 — Entity Component System v2
+
+The current hand-rolled ECS uses parallel TypedArrays. Upgrade to a proper archetype-based ECS:
+
+- **Archetypes:** Entities with the same component mask share a tightly-packed array (no sparse slots)
+- **Query performance:** Instead of iterating all 4096 entities and checking masks, iterate only the archetypes that match the query
+- **Expected speedup:** 3–5× for systems with < 10% entity coverage (e.g., BurrowSystem only processes 5% of entities)
+- **API compatibility:** Keep the same `posX[eid]` interface — archetype storage is an internal optimization
+
+## Y.2 — WebGPU Renderer
+
+When WebGPU becomes widely available (Chrome 113+ already supports it), replace the PixiJS WebGL2 renderer with a WebGPU renderer:
+
+- Compute shaders for separation physics (currently O(n²) CPU)
+- GPU-driven occlusion culling for fog of war
+- Bindless texture arrays for sprite rendering
+- Expected: 2–3× render throughput for 200-unit battles
+
+Feature-detect and fall back to WebGL2 if WebGPU unavailable.
+
+## Y.3 — WASM Physics Module
+
+Move the separation pass and pathfinding to WebAssembly via AssemblyScript:
+
+- Compile `separation.ts` → `separation.wasm` via AssemblyScript compiler
+- The WASM module receives pointer to the `posX`/`posY` SharedArrayBuffers
+- Runs at near-native speed for O(n²) separation (10× faster than JS for tight loops)
+
+## Y.4 — Persistent World (Experimental)
+
+An opt-in mode where the map persists between sessions via `localStorage`:
+
+- Buildings remain between play sessions
+- Resources deplete permanently
+- "Day N" counter — the war has been ongoing for N days
+- Each session = 10-minute battle. Between sessions, AI "rebuilds" according to its build order
+- Long-term strategic layer: player slowly expands and eliminates AI one base at a time
+
+---
+
+# Iteration Z — The Complete Vision
+
+## Z.1 — Full SC2 Unit Parity Checklist
+
+**Terran (target: 21 units)**
+```
+Implemented: SCV, Marine, Marauder, Reaper, Ghost, Hellion, Widowmine,
+             Cyclone, Siegetank, Thor, Viking, Medivac, Liberator, Banshee,
+             Raven, Battlecruiser                                [16/21]
+Remaining:   Hellbat (Hellion transform), MULE (Orbital drop),
+             Planetary Fortress (CC transform), Bunker (static defense),
+             Missile Turret (anti-air structure)                  [5 todo]
+```
+
+**Zerg (target: 19 units)**
+```
+Implemented: Drone, Queen, Overlord, Zergling, Baneling, Roach, Ravager,
+             Hydralisk, Lurker, Infestor, Viper, Mutalisk, Corruptor,
+             Brood Lord, Swarm Host, Ultralisk                   [16/19]
+Remaining:   Changeling (Overseer morph), Overseer (Overlord morph),
+             Nydus Worm (Nydus Network unit)                      [3 todo]
+```
+
+**Protoss (target: 17 units)**
+```
+Implemented: Probe, Zealot, Stalker, Sentry, Immortal, Colossus,
+             Phoenix, Carrier                                      [8/17]
+Remaining:   High Templar, Dark Templar, Archon (HT+DT merge),
+             Adept, Disruptor, Oracle, Tempest, Void Ray,
+             Mothership                                            [9 todo]
+```
+
+## Z.2 — Feature Parity Matrix
+
+```
+Feature                         | Implemented | Target Sprint
+--------------------------------|-------------|---------------
+3 factions                      | 2/3         | Sprint 32
+Shield system                   | 0%          | Sprint 30
+Warp-in                         | 0%          | Sprint 31
+Chrono Boost                    | 0%          | Sprint 31
+Multiplayer P2P                 | 0%          | Sprint 17
+Campaign (10 missions)          | 0%          | Sprint 20
+Map editor                      | 0%          | Sprint 21
+Replay system                   | 80%         | Sprint 33
+Spectator mode                  | 0%          | Sprint 34
+Leaderboard                     | 0%          | Sprint 41
+PWA install                     | 0%          | Sprint 38
+Burrowing                       | 60%         | Sprint 22
+Morph system                    | 60%         | Sprint 23
+Orbital Command                 | 0%          | Sprint 24
+AI Director                     | 0%          | Sprint S
+Ranked MMR                      | 0%          | Sprint T
+Modding support                 | 0%          | Sprint V
+```
+
+## Z.3 — The Grand Unified Sprint Plan (Sprints 56–100)
+
+```
+Sprint 56 (2d): S.1-S.2         — AI Director stress system + awareness events
+Sprint 57 (1d): S.3             — Named scenario events (Baneling Bust etc.)
+Sprint 58 (2d): T.1-T.2         — Rank tiers + AI matchmaking profiles
+Sprint 59 (1d): T.3-T.4         — Season system + ranked restrictions
+Sprint 60 (2d): U.1-U.2         — Branching narrative + Commander abilities
+Sprint 61 (2d): U.3-U.4         — War Room progression + mission modifiers
+Sprint 62 (2d): V.1-V.2         — Mod loader + ability scripting engine
+Sprint 63 (1d): V.3             — Mod gallery + community index
+Sprint 64 (2d): W.1-W.2         — Tournament brackets + casting mode
+Sprint 65 (1d): W.3             — VOD review + annotation mode
+Sprint 66 (1d): X.1-X.2         — Telemetry + analytics dashboard
+Sprint 67 (1d): X.3             — Auto-generated balance report CI action
+Sprint 68 (3d): Y.1             — ECS v2 archetype-based storage
+Sprint 69 (2d): Y.2-Y.3         — WebGPU renderer feature flag + WASM separation
+Sprint 70 (1d): Y.4             — Persistent world experimental mode
+Sprint 71 (3d): N ext           — Protoss Tier 2: High Templar (Psionic Storm), Dark Templar (perma-cloak)
+Sprint 72 (2d): N ext           — Protoss Tier 3: Void Ray (charging beam), Tempest (capital anti-air), Mothership
+Sprint 73 (2d): M ext           — Terran full parity: Hellbat, Bunker, Missile Turret, Planetary Fortress
+Sprint 74 (2d): Zerg ext        — Zerg full parity: Overseer, Changeling, Nydus Worm
+Sprint 75 (2d): N AI            — Protoss AI: Gateway expand, Colossus push, Blink Stalker micro
+Sprint 76 (3d): Balance v2      — Full 3-faction balance pass with telemetry data
+Sprint 77 (2d): Campaign ext    — Protoss 5-mission campaign
+Sprint 78 (2d): Map pack 2      — 5 more competitive maps (Lost Temple, Crossfire, etc.)
+Sprint 79 (1d): Replay polish   — Bookmark timestamps, sharable replay clips
+Sprint 80 (2d): UI v2           — Full UI redesign pass — cohesive SC2-inspired aesthetic
+Sprint 81 (1d): Sound v2        — Full audio pass — voice acting (TTS for all unit types)
+Sprint 82 (1d): Tutorial v2     — Context-sensitive hints during first 10 games (not just first game)
+Sprint 83 (1d): Analytics v2    — Live telemetry dashboard, heatmap of player losses
+Sprint 84 (1d): Community tools — Clan/group system, custom room names, invite links
+Sprint 85 (2d): Mobile v2       — Full mobile layout redesign for tablet-first experience
+Sprint 86 (1d): Social v2       — Twitter/X integration, auto-tweet win screenshots
+Sprint 87 (1d): SEO v2          — Blog posts about architecture (ECS, lockstep, WebRTC)
+Sprint 88 (1d): Open source     — Clean up code, write CONTRIBUTING.md, first community PR
+Sprint 89 (2d): Plugin system   — Register custom renderers, systems, commands without forking
+Sprint 90 (1d): API docs        — Full JSDoc + auto-generated docs site (TypeDoc)
+Sprint 91 (1d): Performance v3  — WebAssembly pathfinding, memory pool allocator
+Sprint 92 (3d): Ladder season 1 — First real-time multiplayer event with leaderboard prizes
+Sprint 93 (2d): Observer tools  — In-game stats overlay, unit hotkeys visible to observers
+Sprint 94 (1d): Accessibility v2— Motor accessibility: dwell-click, switch access, reduced motion
+Sprint 95 (1d): Edge cases      — Handle all degenerate states (0 resources, max entities, fog edge)
+Sprint 96 (2d): Regression suite— Automated end-to-end tests for campaign missions, multiplayer lobby
+Sprint 97 (1d): CDN & delivery  — Asset preloading, HTTP/2 push, 90+ Lighthouse score
+Sprint 98 (1d): Security audit  — Input sanitisation for mod JSON, XSS checks in analytics
+Sprint 99 (1d): Legal & licences— MIT licence check on all dependencies, attribution page
+Sprint 100 (1d): v2.0 launch   — Tag v2.0, write full retrospective blog post, submit to GitHub Trending
+```
+
+## Z.4 — The 100-Sprint Vision Statement
+
+```
+v0.1  (Sprint 1–10):   Polished single-player RTS. 2 factions. AI feels alive.
+v0.5  (Sprint 11–30):  Full audio, visual overhaul, campaign foundation.
+v1.0  (Sprint 31–55):  3 factions. Multiplayer. Campaign. Map editor. Launch.
+v1.5  (Sprint 56–70):  AI Director. Ranked MMR. Modding. Analytics.
+v2.0  (Sprint 71–100): Full unit parity. Esports tools. Open source. Community.
+```
+
+**100 sprints. ~120 days. 24 weeks. The most fully-featured SC2 browser clone ever built.**
+
+---
+
+## Architecture Evolution Map
+
+```
+Current (v0.1):
+  PixiJS Graphics → TypedArray ECS → Fixed-step tick → A* pathfinding
+
+v1.0 target:
+  PixiJS Graphics → TypedArray ECS → Fixed-step tick → A* pathfinding
+  + Seeded RNG    + Command queue  + Replay system  + Spatial hash
+  + WebRTC P2P    + Lockstep      + 3 factions     + Campaign engine
+
+v2.0 target:
+  PixiJS (WebGPU) → Archetype ECS → Worker tick → WASM pathfinding
+  + Full mod API  + Analytics    + Tournament    + Open plugin system
+  + Persistent world + CDN delivery + Community tools
+```
 ```

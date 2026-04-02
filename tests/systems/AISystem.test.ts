@@ -74,8 +74,9 @@ describe('AISystem', () => {
 
   function runOneDecision(gameTime: number, spawnFn?: ReturnType<typeof vi.fn>) {
     const fn = spawnFn ?? vi.fn(() => 0);
+    const buildFn = vi.fn(() => 0);
     for (let i = 0; i < DECISION_INTERVAL; i++) {
-      aiSystem(world, dt, gameTime, map, fn, resources);
+      aiSystem(world, dt, gameTime, map, fn, resources, buildFn);
     }
     return fn;
   }

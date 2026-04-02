@@ -4,6 +4,7 @@ import {
   posX, posY, faction, hpCurrent, hpMax, commandMode, unitType,
   buildingType, buildState, targetEntity,
   setPath, movePathIndex,
+  energy, injectTimer, atkDamage,
 } from '../ecs/components';
 import { findNearestCommandCenter } from '../ecs/queries';
 import { isTileVisible } from './FogSystem';
@@ -12,6 +13,7 @@ import {
   AI_SPAWN_BASE_COL, AI_SPAWN_BASE_ROW, BuildingType, BuildState,
   MAP_COLS, MAP_ROWS, UpgradeType,
   Difficulty, DIFFICULTY_CONFIGS,
+  INJECT_LARVA_COST, INJECT_LARVA_TIME,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import {
@@ -198,6 +200,37 @@ const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
 let defenseEids: Set<number> = new Set();
 let lastDefenseTime = 0;
+
+// ─────────────────────────────────────────
+// B.4 — Expanded AI Base (Living Base)
+// ─────────────────────────────────────────
+const AI_BUILDING_SCHEDULE: Array<{ minWave: number; type: number; colOffset: number; rowOffset: number }> = [
+  { minWave: 1, type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 },
+  { minWave: 2, type: BuildingType.EvolutionChamber, colOffset: 0, rowOffset: 5 },
+  { minWave: 3, type: BuildingType.SpawningPool, colOffset: -5, rowOffset: 0 },
+  { minWave: 5, type: BuildingType.HydraliskDen, colOffset: 5, rowOffset: 5 },
+  { minWave: 7, type: BuildingType.Spire, colOffset: -5, rowOffset: 5 },
+];
+let aiBuildingsPlaced: Set<number> = new Set();
+let lastBuildingWaveCheck = -1; // track wave count at last check
+
+// ─────────────────────────────────────────
+// B.6 — Persistent Harassment Squads
+// ─────────────────────────────────────────
+let harassSquad1: Set<number> = new Set();
+let harassSquad2: Set<number> = new Set();
+const HARASS_SQUAD_SIZE = 4;
+const HARASS_TARGET_1 = { col: 12, row: 18 }; // player mineral line
+const HARASS_TARGET_2 = { col: 15, row: 112 }; // opposite flank
+const HARASS_PATROL_OFFSET = 10; // tiles to patrol between target and secondary point
+
+// ─────────────────────────────────────────
+// B.2 — Vanguard Map Presence
+// ─────────────────────────────────────────
+let vanguardEids: Set<number> = new Set();
+const VANGUARD_SIZE = 4;
+const VANGUARD_TILE = { col: 64, row: 64 }; // map center
+
 let hasExpanded = false;
 let currentMap: MapData | null = null;
 
@@ -227,6 +260,11 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   hasExpanded = false;
   defenseEids = new Set();
   lastDefenseTime = 0;
+  aiBuildingsPlaced = new Set();
+  lastBuildingWaveCheck = -1;
+  harassSquad1 = new Set();
+  harassSquad2 = new Set();
+  vanguardEids = new Set();
   terranArmyEids = new Set();
   terranLastSpawnTime = 0;
   terranAIMinerals = 0;
@@ -396,6 +434,194 @@ function checkBaseUnderAttack(world: World, gameTime: number, map: MapData): voi
     }
     defenseEids.add(eid);
     peeled++;
+  }
+}
+
+// ─────────────────────────────────────────
+// B.4 — Auto-build buildings as waves progress
+// ─────────────────────────────────────────
+function checkAIBuildingSchedule(world: World, spawnBuilding: SpawnBuildingFn): void {
+  if (waveCount === lastBuildingWaveCheck) return;
+  lastBuildingWaveCheck = waveCount;
+
+  // Find the AI Hatchery to offset from
+  const hatch = findZergHatchery(world);
+  if (hatch === 0) return;
+  const hatchTile = worldToTile(posX[hatch], posY[hatch]);
+
+  for (let i = 0; i < AI_BUILDING_SCHEDULE.length; i++) {
+    if (aiBuildingsPlaced.has(i)) continue;
+    const entry = AI_BUILDING_SCHEDULE[i];
+    if (waveCount >= entry.minWave) {
+      const col = hatchTile.col + entry.colOffset;
+      const row = hatchTile.row + entry.rowOffset;
+      spawnBuilding(entry.type, currentAIFaction, col, row);
+      aiBuildingsPlaced.add(i);
+    }
+  }
+}
+
+// ─────────────────────────────────────────
+// B.6 — Persistent Harassment Squad Logic
+// ─────────────────────────────────────────
+function runHarassSquads(world: World, map: MapData): void {
+  // Prune dead units from squads
+  for (const eid of harassSquad1) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) harassSquad1.delete(eid);
+  }
+  for (const eid of harassSquad2) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) harassSquad2.delete(eid);
+  }
+
+  // Fill squads from newly spawned units in armyEids
+  fillHarassSquad(harassSquad1, HARASS_SQUAD_SIZE);
+  fillHarassSquad(harassSquad2, HARASS_SQUAD_SIZE);
+
+  // Move squad 1 to player mineral line
+  moveHarassSquadToTarget(world, map, harassSquad1, HARASS_TARGET_1);
+  // Move squad 2 to opposite flank
+  moveHarassSquadToTarget(world, map, harassSquad2, HARASS_TARGET_2);
+}
+
+function fillHarassSquad(squad: Set<number>, maxSize: number): void {
+  if (squad.size >= maxSize) return;
+  const needed = maxSize - squad.size;
+  let assigned = 0;
+  for (const eid of armyEids) {
+    if (assigned >= needed) break;
+    if (unitType[eid] === UnitType.Zergling) {
+      squad.add(eid);
+      armyEids.delete(eid);
+      assigned++;
+    }
+  }
+}
+
+function moveHarassSquadToTarget(
+  world: World,
+  map: MapData,
+  squad: Set<number>,
+  target: { col: number; row: number },
+): void {
+  if (squad.size === 0) return;
+
+  const targetWorld = tileToWorld(target.col, target.row);
+
+  // Check if any enemy workers are at the target area
+  let hasEnemyNearTarget = false;
+  const scanRange = 8 * TILE_SIZE;
+  const scanRangeSq = scanRange * scanRange;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, POSITION | HEALTH)) continue;
+    if (faction[eid] === currentAIFaction || faction[eid] === 0) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    const dx = posX[eid] - targetWorld.x;
+    const dy = posY[eid] - targetWorld.y;
+    if (dx * dx + dy * dy < scanRangeSq) {
+      hasEnemyNearTarget = true;
+      break;
+    }
+  }
+
+  for (const eid of squad) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    // Only re-path units that have finished their path
+    if (movePathIndex[eid] >= 0) continue;
+
+    commandMode[eid] = CommandMode.AttackMove;
+    if (hasEnemyNearTarget) {
+      pathTo(eid, targetWorld.x, targetWorld.y, map);
+    } else {
+      // Patrol between target and a secondary point
+      const patrolTarget = tileToWorld(
+        target.col + HARASS_PATROL_OFFSET,
+        target.row + HARASS_PATROL_OFFSET,
+      );
+      pathTo(eid, patrolTarget.x, patrolTarget.y, map);
+    }
+  }
+}
+
+// ─────────────────────────────────────────
+// B.2 — Vanguard Map Presence
+// ─────────────────────────────────────────
+function updateVanguard(world: World, map: MapData): void {
+  // Prune dead
+  for (const eid of vanguardEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) vanguardEids.delete(eid);
+  }
+
+  const armySizeCap = Math.floor(MAX_WAVE_SIZE * DIFFICULTY_CONFIGS[currentDifficulty].armySizeCapMultiplier);
+  const threshold = Math.min(
+    Math.floor((FIRST_WAVE_SIZE + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
+    armySizeCap,
+  );
+
+  // At 50% wave threshold, split off units to vanguard
+  if (!isAttacking && armyEids.size >= threshold * 0.5 && vanguardEids.size < VANGUARD_SIZE) {
+    const needed = VANGUARD_SIZE - vanguardEids.size;
+    let moved = 0;
+    for (const eid of armyEids) {
+      if (moved >= needed) break;
+      if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+      vanguardEids.add(eid);
+      armyEids.delete(eid);
+      // Send to map center
+      commandMode[eid] = CommandMode.AttackMove;
+      const dest = tileToWorld(VANGUARD_TILE.col, VANGUARD_TILE.row);
+      pathTo(eid, dest.x, dest.y, map);
+      moved++;
+    }
+  }
+}
+
+function mergeVanguardIntoArmy(): void {
+  for (const eid of vanguardEids) {
+    armyEids.add(eid);
+  }
+  vanguardEids.clear();
+}
+
+// ─────────────────────────────────────────
+// B.5 — Reactive Intel-Driven Threat Response
+// ─────────────────────────────────────────
+function estimateThreatLevel(world: World): number {
+  let playerValue = 0, aiValue = 0;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, POSITION | HEALTH)) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    const val = hpCurrent[eid] * Math.max(1, atkDamage[eid]);
+    if (faction[eid] === enemyFaction) playerValue += val;
+    else if (faction[eid] === currentAIFaction) aiValue += val;
+  }
+  return aiValue > 0 ? playerValue / aiValue : 99;
+}
+
+// ─────────────────────────────────────────
+// B.7 — AI Ability Usage
+// ─────────────────────────────────────────
+function runAIAbilities(world: World, gameTime: number): void {
+  for (const eid of armyEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    const ut = unitType[eid];
+
+    // Queen: inject nearest Hatchery when energy >= INJECT_LARVA_COST
+    if (ut === UnitType.Queen && energy[eid] >= INJECT_LARVA_COST) {
+      let nearestHatch = 0, bestDist = Infinity;
+      for (let h = 1; h < world.nextEid; h++) {
+        if (!hasComponents(world, h, BUILDING)) continue;
+        if (faction[h] !== currentAIFaction) continue;
+        if (buildingType[h] !== BuildingType.Hatchery) continue;
+        if (buildState[h] !== BuildState.Complete) continue;
+        if (injectTimer[h] > 0) continue;
+        const d = (posX[h] - posX[eid]) ** 2 + (posY[h] - posY[eid]) ** 2;
+        if (d < bestDist) { bestDist = d; nearestHatch = h; }
+      }
+      if (nearestHatch > 0) {
+        energy[eid] -= INJECT_LARVA_COST;
+        injectTimer[nearestHatch] = gameTime + INJECT_LARVA_TIME;
+      }
+    }
   }
 }
 
@@ -598,13 +824,35 @@ export function aiSystem(
     checkRegroupComplete(world, gameTime, diffConfig.waveIntervalBase);
   }
 
+  // B.4 — Auto-build buildings as waves progress
+  checkAIBuildingSchedule(world, spawnBuildingFn);
+
+  // B.2 — Vanguard map presence
+  updateVanguard(world, map);
+
+  // B.6 — Persistent harassment squads
+  runHarassSquads(world, map);
+
   // Attack or harass
+  const prevWave = waveCount;
   if (!retreating) {
     decideAttack(world, map, gameTime, diffConfig);
     if (gameTime - lastHarassTime > HARASSMENT_INTERVAL * personality.aggressionMult && !isAttacking && armyEids.size >= 3) {
       sendHarassment(world, map, gameTime);
     }
   }
+
+  // B.8 — After wave 12: bonus Ultralisk per wave
+  if (waveCount > prevWave && waveCount >= 12 && world.nextEid < MAX_ENTITIES - 50) {
+    const hatch = findZergHatchery(world);
+    if (hatch > 0) {
+      const eid = spawnFn(UnitType.Ultralisk, currentAIFaction, posX[hatch] + (rng.next() - 0.5) * 48, posY[hatch] + (rng.next() - 0.5) * 48);
+      armyEids.add(eid);
+    }
+  }
+
+  // B.7 — AI ability usage
+  runAIAbilities(world, gameTime);
 
   attemptAIUpgrade(resources, waveCount, diffConfig.upgradeStartWave);
 }
@@ -959,6 +1207,17 @@ function pruneDeadUnits(world: World): void {
   for (const eid of scoutEids) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) scoutEids.delete(eid);
   }
+  // B.6 — Prune persistent harass squads
+  for (const eid of harassSquad1) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) harassSquad1.delete(eid);
+  }
+  for (const eid of harassSquad2) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) harassSquad2.delete(eid);
+  }
+  // B.2 — Prune vanguard
+  for (const eid of vanguardEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) vanguardEids.delete(eid);
+  }
   if (isAttacking && armyEids.size === 0) {
     isAttacking = false;
     attackEndTime = lastDecisionTime;
@@ -992,8 +1251,9 @@ function attemptExpansion(
 
 function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount: number, upgradeStartWave: number): void {
   if (waveCount < upgradeStartWave) return;
-  // Upgrade every 2 waves
-  if (waveCount - lastAIUpgradeWave < 2) return;
+  // B.8 — After wave 8: upgrade every wave instead of every 2
+  const upgradeInterval = waveCount >= 8 ? 1 : 2;
+  if (waveCount - lastAIUpgradeWave < upgradeInterval) return;
 
   const res = resources[currentAIFaction];
   if (!res) return;
@@ -1118,13 +1378,27 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
 
   if (attackEndTime > 0 && gameTime - attackEndTime < diffConfig.waveIntervalBase) return;
 
-  const armySizeCap = Math.floor(MAX_WAVE_SIZE * diffConfig.armySizeCapMultiplier);
+  // B.8 — Escalating Late Game: increase max army size after wave 8
+  const effectiveMaxWaveSize = waveCount >= 8 ? Math.floor(MAX_WAVE_SIZE * 1.5) : MAX_WAVE_SIZE;
+  const armySizeCap = Math.floor(effectiveMaxWaveSize * diffConfig.armySizeCapMultiplier);
   const threshold = Math.min(
     Math.floor((FIRST_WAVE_SIZE + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
     armySizeCap,
   );
 
-  if (armyEids.size < threshold) return;
+  // B.5 — Reactive Intel-Driven Response
+  const threat = estimateThreatLevel(world);
+  if (threat > 1.5) {
+    // Defensive: don't attack, hold army near base
+    return;
+  }
+
+  // Opportunistic attack if threat is very low, even below threshold
+  const shouldAttack = armyEids.size >= threshold || (threat < 0.7 && armyEids.size >= Math.floor(threshold * 0.5));
+  if (!shouldAttack) return;
+
+  // B.2 — Merge vanguard back into attack force
+  mergeVanguardIntoArmy();
 
   // Launch wave!
   isAttacking = true;

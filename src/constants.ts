@@ -96,6 +96,10 @@ export const enum BuildingType {
   Hatchery = 30,
   SpawningPool = 31,
   EvolutionChamber = 32,
+  RoachWarren = 34,
+  HydraliskDen = 35,
+  Spire = 36,
+  InfestationPit = 37,
   // Neutral / Map objects
   Rock = 40,
 }

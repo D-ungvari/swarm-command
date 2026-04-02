@@ -1,4 +1,5 @@
 import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, STIM_DURATION } from '../constants';
+import { hasCompletedBuilding } from '../ecs/queries';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
@@ -30,6 +31,18 @@ const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
   { type: UpgradeType.InfantryArmor,   label: 'Inf Armor'   },
   { type: UpgradeType.VehicleWeapons,  label: 'Veh Weapons' },
 ];
+
+/** Units that require a tech building before they can be trained. */
+const UNIT_TECH_REQUIREMENTS: Partial<Record<number, number>> = {
+  [UnitType.Roach]:     BuildingType.RoachWarren,
+  [UnitType.Ravager]:   BuildingType.RoachWarren,
+  [UnitType.Hydralisk]: BuildingType.HydraliskDen,
+  [UnitType.Lurker]:    BuildingType.HydraliskDen,
+  [UnitType.Mutalisk]:  BuildingType.Spire,
+  [UnitType.Corruptor]: BuildingType.Spire,
+  [UnitType.Infestor]:  BuildingType.InfestationPit,
+  [UnitType.Viper]:     BuildingType.InfestationPit,
+};
 
 const UPGRADE_NAMES: Record<number, string> = {
   [UpgradeType.InfantryWeapons]: 'Inf Weapons',
@@ -387,7 +400,7 @@ export class InfoPanelRenderer {
             this.detailEl.textContent = `${facName} | ${hotkeyParts.join('  ')}`;
 
             // Show clickable production buttons
-            this.updateProductionButtons(eid, def.produces, playerResources);
+            this.updateProductionButtons(eid, def.produces, playerResources, world, fac);
 
             // Show addon buttons if no addon yet (and building is addon-capable)
             if (isAddonBuilding) {
@@ -499,7 +512,13 @@ export class InfoPanelRenderer {
     this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
   }
 
-  private updateProductionButtons(buildingEid: number, produces: readonly number[], playerResources?: PlayerResources): void {
+  private updateProductionButtons(
+    buildingEid: number,
+    produces: readonly number[],
+    playerResources?: PlayerResources,
+    world?: World,
+    fac?: Faction,
+  ): void {
     const hotkeys = ['Q', 'W'];
     // Build a config string to detect changes and avoid unnecessary DOM rebuilds
     const configKey = `${buildingEid}:${produces.join(',')}`;
@@ -550,10 +569,18 @@ export class InfoPanelRenderer {
       }
     }
 
-    // Update button affordability styling
+    // Update button affordability + tech gate styling
     for (let i = 0; i < this.prodButtons.length && i < produces.length; i++) {
-      const uDef = UNIT_DEFS[produces[i]];
+      const uType = produces[i];
+      const uDef = UNIT_DEFS[uType];
       if (!uDef) continue;
+
+      // Check unit tech requirement
+      const requiredBuilding = UNIT_TECH_REQUIREMENTS[uType];
+      const techMet = requiredBuilding === undefined
+        || !world
+        || !fac
+        || hasCompletedBuilding(world, fac, requiredBuilding as BuildingType);
 
       const canAfford = playerResources
         ? playerResources.minerals >= uDef.costMinerals && playerResources.gas >= uDef.costGas
@@ -561,13 +588,33 @@ export class InfoPanelRenderer {
       const supplyCapped = playerResources
         ? playerResources.supplyUsed >= playerResources.supplyProvided
         : false;
-      const enabled = canAfford && !supplyCapped;
+      const enabled = canAfford && !supplyCapped && techMet;
 
       this.prodButtons[i].style.color = enabled ? '#eee' : '#666';
       this.prodButtons[i].style.borderColor = enabled
         ? 'rgba(100, 160, 255, 0.4)'
         : 'rgba(100, 100, 100, 0.2)';
       this.prodButtons[i].style.cursor = enabled ? 'pointer' : 'default';
+
+      // Show tech requirement tooltip below the button name if not met
+      if (!techMet && requiredBuilding !== undefined) {
+        const reqDef = BUILDING_DEFS[requiredBuilding];
+        const reqName = reqDef ? reqDef.name : 'Required building';
+        const uDef2 = UNIT_DEFS[uType];
+        const hotkey = i < 2 ? ['Q', 'W'][i] : '';
+        const costText = uDef2.costGas > 0
+          ? `${uDef2.costMinerals}m ${uDef2.costGas}g`
+          : `${uDef2.costMinerals}m`;
+        this.prodButtons[i].innerHTML = `${hotkey}: ${uDef2.name} ${costText}<br><span style="color:#aa4444;font-size:9px;letter-spacing:0">Req: ${reqName}</span>`;
+      } else {
+        // Restore plain text if tech is met
+        const uDef2 = UNIT_DEFS[uType];
+        const hotkey = i < 2 ? ['Q', 'W'][i] : '';
+        const costText = uDef2.costGas > 0
+          ? `${uDef2.costMinerals}m ${uDef2.costGas}g`
+          : `${uDef2.costMinerals}m`;
+        this.prodButtons[i].textContent = `${hotkey}: ${uDef2.name} ${costText}`;
+      }
     }
 
     this.prodButtonsRow.style.display = produces.length > 0 ? 'flex' : 'none';

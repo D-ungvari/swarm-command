@@ -8,6 +8,12 @@ import { BUILDING_DEFS } from '../data/buildings';
 export class BuildMenuRenderer {
   private panel: HTMLDivElement;
   private options: HTMLDivElement[] = [];
+  /** Prerequisite building name per slot index (empty string = no requirement). */
+  private prereqNames: string[] = [];
+  /** Per-slot flash state: timestamp until which the slot border is bright red. */
+  private flashUntil: number[] = new Array(7).fill(0);
+  private tooltip: HTMLDivElement;
+  private tooltipTimeout = 0;
   private wasVisible = false;
   private playerFaction: Faction = Faction.Terran;
 
@@ -66,9 +72,36 @@ export class BuildMenuRenderer {
         ? `${def.costMinerals}m ${def.costGas}g`
         : `${def.costMinerals}m`;
       opt.textContent = `${entry.key}: ${def.name} (${costText})`;
+      // Store prerequisite name for this slot
+      const prereqName = def.requires !== null && BUILDING_DEFS[def.requires]
+        ? BUILDING_DEFS[def.requires].name
+        : '';
+      this.prereqNames.push(prereqName);
       optionsRow.appendChild(opt);
       this.options.push(opt);
     }
+
+    // Tooltip div shown briefly when a locked slot is pressed
+    this.tooltip = document.createElement('div');
+    this.tooltip.style.cssText = `
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      background: rgba(80, 0, 0, 0.85);
+      color: #ff8888;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(200, 60, 60, 0.5);
+      z-index: 11;
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+    `;
+    container.appendChild(this.tooltip);
 
     container.appendChild(this.panel);
   }
@@ -86,8 +119,11 @@ export class BuildMenuRenderer {
   private static readonly ZERG_BUILDING_TYPES: Array<BuildingType | 0> = [
     BuildingType.Hatchery,
     BuildingType.SpawningPool,
+    BuildingType.RoachWarren,
+    BuildingType.HydraliskDen,
+    BuildingType.Spire,
     BuildingType.EvolutionChamber,
-    0, 0, 0, 0,
+    BuildingType.InfestationPit,
   ];
 
   private get buildingTypes(): Array<BuildingType | 0> {
@@ -100,11 +136,13 @@ export class BuildMenuRenderer {
     this.playerFaction = f;
     const types = this.buildingTypes;
     const keys = ['1', '2', '3', '4', '5', '6', '7'];
+    this.prereqNames = [];
     for (let i = 0; i < this.options.length; i++) {
       const bType = types[i];
       if (bType === 0) {
         this.options[i].textContent = '';
         this.options[i].style.display = 'none';
+        this.prereqNames.push('');
       } else {
         const def = BUILDING_DEFS[bType];
         const costText = def.costGas > 0
@@ -112,6 +150,10 @@ export class BuildMenuRenderer {
           : `${def.costMinerals}m`;
         this.options[i].textContent = `${keys[i]}: ${def.name} (${costText})`;
         this.options[i].style.display = '';
+        const prereqName = def.requires !== null && BUILDING_DEFS[def.requires]
+          ? BUILDING_DEFS[def.requires].name
+          : '';
+        this.prereqNames.push(prereqName);
       }
     }
   }
@@ -129,6 +171,9 @@ export class BuildMenuRenderer {
     }
     if (!visible) return;
 
+    const now = Date.now();
+    const keys = ['1', '2', '3', '4', '5', '6', '7'];
+
     for (let i = 0; i < this.options.length; i++) {
       const bType = this.buildingTypes[i];
       if (bType === 0) continue; // blank slot
@@ -136,8 +181,26 @@ export class BuildMenuRenderer {
       const canAfford = minerals >= def.costMinerals && gas >= def.costGas;
       const techOk = techAvailable ? techAvailable[i] : true;
       const isActive = selectedType === bType;
+      const isFlashing = now < this.flashUntil[i];
 
-      if (isActive) {
+      // Build label text (always update innerHTML to keep req line in sync)
+      const costText = def.costGas > 0
+        ? `${def.costMinerals}m ${def.costGas}g`
+        : `${def.costMinerals}m`;
+      const mainText = `${keys[i]}: ${def.name} (${costText})`;
+      const prereq = this.prereqNames[i] ?? '';
+
+      if (!techOk && prereq) {
+        this.options[i].innerHTML = `${mainText}<br><span style="color:#aa4444;font-size:9px;letter-spacing:0">Req: ${prereq}</span>`;
+      } else {
+        this.options[i].textContent = mainText;
+      }
+
+      if (isFlashing) {
+        this.options[i].style.color = '#ff6666';
+        this.options[i].style.borderColor = 'rgba(255, 60, 60, 0.9)';
+        this.options[i].style.background = 'rgba(80, 0, 0, 0.4)';
+      } else if (isActive) {
         this.options[i].style.color = '#fff';
         this.options[i].style.borderColor = 'rgba(100, 180, 255, 0.8)';
         this.options[i].style.background = 'rgba(40, 80, 160, 0.5)';
@@ -154,5 +217,26 @@ export class BuildMenuRenderer {
         this.options[i].style.background = 'transparent';
       }
     }
+  }
+
+  /**
+   * Flash a locked slot bright red and show a tooltip.
+   * Called when the player presses a digit key for a tech-locked building.
+   */
+  flashLocked(slotIndex: number, requiresName: string): void {
+    this.flashUntil[slotIndex] = Date.now() + 2000;
+
+    // Show tooltip
+    this.tooltip.textContent = `Build ${requiresName} first`;
+    this.tooltip.style.display = 'block';
+
+    // Clear any existing timeout
+    if (this.tooltipTimeout) {
+      clearTimeout(this.tooltipTimeout);
+    }
+    this.tooltipTimeout = window.setTimeout(() => {
+      this.tooltip.style.display = 'none';
+      this.tooltipTimeout = 0;
+    }, 2000);
   }
 }

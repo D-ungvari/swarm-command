@@ -67,6 +67,7 @@ export const BuildingType = {
   Refinery: 23, Factory: 24, Starport: 25,
   EngineeringBay: 26,
   Hatchery: 30, SpawningPool: 31,
+  RoachWarren: 34, HydraliskDen: 35, Spire: 36, InfestationPit: 37,
 } as const;
 export const BuildState = {
   UnderConstruction: 1, Complete: 2,

@@ -647,14 +647,25 @@ export class Game {
     return hasCompletedBuilding(this.world, this.playerFaction, def.requires);
   }
 
+  /** Return the prerequisite building name for a locked slot tooltip. */
+  private getRequiresName(bType: BuildingType): string {
+    const def = BUILDING_DEFS[bType];
+    if (!def || def.requires === null) return '';
+    const reqDef = BUILDING_DEFS[def.requires];
+    return reqDef ? reqDef.name : '';
+  }
+
   /** Get tech availability for all 7 build menu entries */
   private getTechAvailability(): boolean[] {
     if (this.playerFaction === Faction.Zerg) {
       return [
-        true, // Hatchery (always available)
-        true, // SpawningPool (always available)
-        true, // EvolutionChamber (always available)
-        false, false, false, false, // no Terran buildings
+        true,                                                                  // 1: Hatchery (always)
+        true,                                                                  // 2: SpawningPool (always)
+        this.isTechAvailable(BuildingType.RoachWarren),                       // 3: RoachWarren (req SpawningPool)
+        this.isTechAvailable(BuildingType.HydraliskDen),                      // 4: HydraliskDen (req Hatchery)
+        this.isTechAvailable(BuildingType.Spire),                             // 5: Spire (req Hatchery)
+        this.isTechAvailable(BuildingType.EvolutionChamber),                  // 6: EvoChamber (req SpawningPool)
+        this.isTechAvailable(BuildingType.InfestationPit),                    // 7: InfestationPit (req SpawningPool)
       ];
     }
     // Existing Terran logic
@@ -681,13 +692,42 @@ export class Game {
 
     if (this.placementMode) {
       if (this.playerFaction === Faction.Zerg) {
-        // Zerg building select: 1=Hatchery, 2=SpawningPool, 3=EvolutionChamber
+        // Zerg building select: 1=Hatchery, 2=SpawningPool, 3=RoachWarren,
+        // 4=HydraliskDen, 5=Spire, 6=EvolutionChamber, 7=InfestationPit
         if (input.keysJustPressed.has('Digit1')) {
           this.placementBuildingType = BuildingType.Hatchery;
         } else if (input.keysJustPressed.has('Digit2')) {
           this.placementBuildingType = BuildingType.SpawningPool;
         } else if (input.keysJustPressed.has('Digit3')) {
-          this.placementBuildingType = BuildingType.EvolutionChamber;
+          if (this.isTechAvailable(BuildingType.RoachWarren)) {
+            this.placementBuildingType = BuildingType.RoachWarren;
+          } else {
+            this.buildMenuRenderer.flashLocked(2, this.getRequiresName(BuildingType.RoachWarren));
+          }
+        } else if (input.keysJustPressed.has('Digit4')) {
+          if (this.isTechAvailable(BuildingType.HydraliskDen)) {
+            this.placementBuildingType = BuildingType.HydraliskDen;
+          } else {
+            this.buildMenuRenderer.flashLocked(3, this.getRequiresName(BuildingType.HydraliskDen));
+          }
+        } else if (input.keysJustPressed.has('Digit5')) {
+          if (this.isTechAvailable(BuildingType.Spire)) {
+            this.placementBuildingType = BuildingType.Spire;
+          } else {
+            this.buildMenuRenderer.flashLocked(4, this.getRequiresName(BuildingType.Spire));
+          }
+        } else if (input.keysJustPressed.has('Digit6')) {
+          if (this.isTechAvailable(BuildingType.EvolutionChamber)) {
+            this.placementBuildingType = BuildingType.EvolutionChamber;
+          } else {
+            this.buildMenuRenderer.flashLocked(5, this.getRequiresName(BuildingType.EvolutionChamber));
+          }
+        } else if (input.keysJustPressed.has('Digit7')) {
+          if (this.isTechAvailable(BuildingType.InfestationPit)) {
+            this.placementBuildingType = BuildingType.InfestationPit;
+          } else {
+            this.buildMenuRenderer.flashLocked(6, this.getRequiresName(BuildingType.InfestationPit));
+          }
         }
         if (input.keysJustPressed.has('Escape')) {
           this.placementMode = false;
@@ -726,20 +766,48 @@ export class Game {
       }
 
       // Select building type (with tech tree check)
-      if (input.keysJustPressed.has('Digit1') && this.isTechAvailable(BuildingType.CommandCenter)) {
-        this.placementBuildingType = BuildingType.CommandCenter;
-      } else if (input.keysJustPressed.has('Digit2') && this.isTechAvailable(BuildingType.SupplyDepot)) {
-        this.placementBuildingType = BuildingType.SupplyDepot;
-      } else if (input.keysJustPressed.has('Digit3') && this.isTechAvailable(BuildingType.Barracks)) {
-        this.placementBuildingType = BuildingType.Barracks;
-      } else if (input.keysJustPressed.has('Digit4') && this.isTechAvailable(BuildingType.Refinery)) {
-        this.placementBuildingType = BuildingType.Refinery;
-      } else if (input.keysJustPressed.has('Digit5') && this.isTechAvailable(BuildingType.Factory)) {
-        this.placementBuildingType = BuildingType.Factory;
-      } else if (input.keysJustPressed.has('Digit6') && this.isTechAvailable(BuildingType.Starport)) {
-        this.placementBuildingType = BuildingType.Starport;
-      } else if (input.keysJustPressed.has('Digit7') && this.isTechAvailable(BuildingType.EngineeringBay)) {
-        this.placementBuildingType = BuildingType.EngineeringBay;
+      if (input.keysJustPressed.has('Digit1')) {
+        if (this.isTechAvailable(BuildingType.CommandCenter)) {
+          this.placementBuildingType = BuildingType.CommandCenter;
+        } else {
+          this.buildMenuRenderer.flashLocked(0, this.getRequiresName(BuildingType.CommandCenter));
+        }
+      } else if (input.keysJustPressed.has('Digit2')) {
+        if (this.isTechAvailable(BuildingType.SupplyDepot)) {
+          this.placementBuildingType = BuildingType.SupplyDepot;
+        } else {
+          this.buildMenuRenderer.flashLocked(1, this.getRequiresName(BuildingType.SupplyDepot));
+        }
+      } else if (input.keysJustPressed.has('Digit3')) {
+        if (this.isTechAvailable(BuildingType.Barracks)) {
+          this.placementBuildingType = BuildingType.Barracks;
+        } else {
+          this.buildMenuRenderer.flashLocked(2, this.getRequiresName(BuildingType.Barracks));
+        }
+      } else if (input.keysJustPressed.has('Digit4')) {
+        if (this.isTechAvailable(BuildingType.Refinery)) {
+          this.placementBuildingType = BuildingType.Refinery;
+        } else {
+          this.buildMenuRenderer.flashLocked(3, this.getRequiresName(BuildingType.Refinery));
+        }
+      } else if (input.keysJustPressed.has('Digit5')) {
+        if (this.isTechAvailable(BuildingType.Factory)) {
+          this.placementBuildingType = BuildingType.Factory;
+        } else {
+          this.buildMenuRenderer.flashLocked(4, this.getRequiresName(BuildingType.Factory));
+        }
+      } else if (input.keysJustPressed.has('Digit6')) {
+        if (this.isTechAvailable(BuildingType.Starport)) {
+          this.placementBuildingType = BuildingType.Starport;
+        } else {
+          this.buildMenuRenderer.flashLocked(5, this.getRequiresName(BuildingType.Starport));
+        }
+      } else if (input.keysJustPressed.has('Digit7')) {
+        if (this.isTechAvailable(BuildingType.EngineeringBay)) {
+          this.placementBuildingType = BuildingType.EngineeringBay;
+        } else {
+          this.buildMenuRenderer.flashLocked(6, this.getRequiresName(BuildingType.EngineeringBay));
+        }
       }
 
       // Escape cancels

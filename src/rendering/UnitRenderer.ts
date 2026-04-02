@@ -114,7 +114,32 @@ export class UnitRenderer {
         }
         const rt = resourceType[eid] as ResourceType;
         if (rt === ResourceType.Mineral) {
-          // Diamond shape for minerals
+          // Subtle blue glow beneath the crystal cluster
+          g.circle(x, y + 2, Math.max(w, h) * 0.6);
+          g.fill({ color: 0x4488ff, alpha: 0.15 });
+
+          // Crystal cluster: 3 overlapping diamonds
+          // Back-left crystal (slightly smaller)
+          const s1 = 0.7;
+          g.moveTo(x - 4, y - h / 2 * s1 + 1);
+          g.lineTo(x - 4 + w / 2 * s1, y + 1);
+          g.lineTo(x - 4, y + h / 2 * s1 + 1);
+          g.lineTo(x - 4 - w / 2 * s1, y + 1);
+          g.closePath();
+          g.fill({ color: darken(tint, 30) });
+          g.stroke({ color: 0x88ddff, width: 0.5, alpha: 0.4 });
+
+          // Back-right crystal (slightly smaller)
+          const s2 = 0.75;
+          g.moveTo(x + 3, y - h / 2 * s2 + 2);
+          g.lineTo(x + 3 + w / 2 * s2, y + 2);
+          g.lineTo(x + 3, y + h / 2 * s2 + 2);
+          g.lineTo(x + 3 - w / 2 * s2, y + 2);
+          g.closePath();
+          g.fill({ color: darken(tint, 15) });
+          g.stroke({ color: 0x88ddff, width: 0.5, alpha: 0.4 });
+
+          // Front crystal (full size, on top)
           g.moveTo(x, y - h / 2);
           g.lineTo(x + w / 2, y);
           g.lineTo(x, y + h / 2);
@@ -122,12 +147,30 @@ export class UnitRenderer {
           g.closePath();
           g.fill({ color: tint });
           g.stroke({ color: 0x88ddff, width: 1, alpha: 0.5 });
+
+          // White highlight on top-right edge of front crystal
+          g.moveTo(x + 1, y - h / 2 + 2);
+          g.lineTo(x + w / 2 - 2, y - 1);
+          g.stroke({ color: 0xffffff, width: 1, alpha: 0.5 });
         } else {
-          // Pulsing circle for gas
+          // Gas geyser base: pulsing circle
           const pulse = 0.6 + 0.2 * Math.sin(gameTime * 3);
           g.circle(x, y, w / 2);
           g.fill({ color: tint, alpha: pulse });
           g.stroke({ color: 0x88ff88, width: 1, alpha: 0.4 });
+
+          // Rising gas jets: 2-3 small circles drifting upward
+          for (let j = 0; j < 3; j++) {
+            const offsetX = Math.sin(gameTime * 2.5 + j * 2.1) * 3;
+            const rise = ((gameTime * 0.8 + j * 0.33) % 1.0); // 0..1 repeating
+            const jetY = y - rise * 14;
+            const jetAlpha = Math.max(0, 0.5 * (1 - rise));
+            const jetR = 1.5 + (1 - rise) * 1.0;
+            if (jetAlpha > 0.02) {
+              g.circle(x + offsetX, jetY, jetR);
+              g.fill({ color: 0x88ff88, alpha: jetAlpha });
+            }
+          }
         }
         // Depletion bar (reuse health bar pattern)
         if (hpCurrent[eid] < hpMax[eid]) {
@@ -490,10 +533,29 @@ export class UnitRenderer {
       const isSlowed = slowEndTime[eid] > gameTime;
       const sm = siegeMode[eid] as SiegeMode;
 
-      // Selection ring
+      // Selection brackets (SC2-style corner brackets)
       if (isSelected) {
-        g.circle(x, y, Math.max(w, h) * 0.7);
-        g.stroke({ color: SELECTION_COLOR, width: 1.5, alpha: 0.8 });
+        const hw = w / 2;
+        const hh = h / 2;
+        const bracketLen = Math.max(4, Math.min(hw, hh) * 0.4);
+        const bOff = 2;
+        // Top-left
+        g.moveTo(x - hw - bOff, y - hh - bOff + bracketLen);
+        g.lineTo(x - hw - bOff, y - hh - bOff);
+        g.lineTo(x - hw - bOff + bracketLen, y - hh - bOff);
+        // Top-right
+        g.moveTo(x + hw + bOff - bracketLen, y - hh - bOff);
+        g.lineTo(x + hw + bOff, y - hh - bOff);
+        g.lineTo(x + hw + bOff, y - hh - bOff + bracketLen);
+        // Bottom-left
+        g.moveTo(x - hw - bOff, y + hh + bOff - bracketLen);
+        g.lineTo(x - hw - bOff, y + hh + bOff);
+        g.lineTo(x - hw - bOff + bracketLen, y + hh + bOff);
+        // Bottom-right
+        g.moveTo(x + hw + bOff - bracketLen, y + hh + bOff);
+        g.lineTo(x + hw + bOff, y + hh + bOff);
+        g.lineTo(x + hw + bOff, y + hh + bOff - bracketLen);
+        g.stroke({ color: SELECTION_COLOR, width: 1.5 });
 
         // Mode indicator badge
         const halfH = h / 2;
@@ -1676,15 +1738,25 @@ export class UnitRenderer {
         const barX = x - barW / 2;
         const barY = y - h / 2 - 6;
         const hpRatio = Math.max(0, hpCurrent[eid] / hpMax[eid]);
+        const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
+        const fillWidth = barW * hpRatio;
 
         // Background
         g.rect(barX, barY, barW, barH);
         g.fill({ color: 0x333333, alpha: 0.8 });
 
-        // Health fill
-        const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
-        g.rect(barX, barY, barW * hpRatio, barH);
-        g.fill({ color: hpColor });
+        // Segmented health fill (5 segments with 1px gaps)
+        const segments = 5;
+        const segWidth = barW / segments;
+        const gap = 1;
+        for (let s = 0; s < segments; s++) {
+          const segX = barX + s * segWidth;
+          const segFill = Math.min(segWidth - gap, Math.max(0, fillWidth - s * segWidth));
+          if (segFill > 0) {
+            g.rect(segX, barY, segFill, barH);
+            g.fill({ color: hpColor });
+          }
+        }
       }
 
       // Ghost energy bar — shown below the health bar
@@ -1731,6 +1803,18 @@ export class UnitRenderer {
       const h = renderHeight[eid] * scale;
       const tint = renderTint[eid];
       const factionVal = faction[eid] as Faction;
+
+      // Faction-specific death halo
+      const maxDim = Math.max(renderWidth[eid], renderHeight[eid]);
+      if (factionVal === Faction.Terran) {
+        // Terran mechanical death: orange flash
+        g.circle(x, y, maxDim * (1 - progress) * 1.3);
+        g.fill({ color: 0xff8844, alpha: (1 - progress) * 0.4 });
+      } else if (factionVal === Faction.Zerg) {
+        // Zerg death: green acid dissolve
+        g.circle(x, y, maxDim * (1 - progress) * 1.2);
+        g.fill({ color: 0x88ff22, alpha: (1 - progress) * 0.3 });
+      }
 
       if (factionVal === Faction.Zerg) {
         g.ellipse(x, y, w / 2, h / 2);

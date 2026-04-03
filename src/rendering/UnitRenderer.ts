@@ -323,26 +323,35 @@ export class UnitRenderer {
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0x226622, width: 2, alpha: 0.7 * baseAlpha });
 
-            // DNA helix: two intertwined sine waves across the building
+            // Rotating DNA helix: phase shifts over time to simulate rotation
             const helixLen = w * 0.4;
             const helixAmp = h * 0.15;
-            for (let i = 0; i < 12; i++) {
-              const t0 = i / 12;
-              const t1 = (i + 1) / 12;
+            const helixPhase = gameTime * 1.5; // rotation speed
+            for (let i = 0; i < 14; i++) {
+              const t0 = i / 14;
+              const t1 = (i + 1) / 14;
               const x0 = x - helixLen + t0 * helixLen * 2;
               const x1 = x - helixLen + t1 * helixLen * 2;
-              // Strand 1
-              const y0a = y + Math.sin(t0 * Math.PI * 3) * helixAmp;
-              const y1a = y + Math.sin(t1 * Math.PI * 3) * helixAmp;
+              // Strand 1 — depth simulated by alpha variation
+              const y0a = y + Math.sin(t0 * Math.PI * 3 + helixPhase) * helixAmp;
+              const y1a = y + Math.sin(t1 * Math.PI * 3 + helixPhase) * helixAmp;
+              const depth1 = 0.4 + 0.3 * Math.sin(t0 * Math.PI * 3 + helixPhase + Math.PI / 2);
               g.moveTo(x0, y0a);
               g.lineTo(x1, y1a);
-              g.stroke({ color: 0x44cc44, width: 1.5, alpha: 0.6 * baseAlpha });
+              g.stroke({ color: 0x44cc44, width: 1.5, alpha: depth1 * baseAlpha });
               // Strand 2 (offset by PI)
-              const y0b = y + Math.sin(t0 * Math.PI * 3 + Math.PI) * helixAmp;
-              const y1b = y + Math.sin(t1 * Math.PI * 3 + Math.PI) * helixAmp;
+              const y0b = y + Math.sin(t0 * Math.PI * 3 + helixPhase + Math.PI) * helixAmp;
+              const y1b = y + Math.sin(t1 * Math.PI * 3 + helixPhase + Math.PI) * helixAmp;
+              const depth2 = 0.4 + 0.3 * Math.sin(t0 * Math.PI * 3 + helixPhase + Math.PI + Math.PI / 2);
               g.moveTo(x0, y0b);
               g.lineTo(x1, y1b);
-              g.stroke({ color: 0x33aa33, width: 1.5, alpha: 0.6 * baseAlpha });
+              g.stroke({ color: 0x33aa33, width: 1.5, alpha: depth2 * baseAlpha });
+              // Cross-links between strands (rungs of the ladder)
+              if (i % 3 === 0) {
+                g.moveTo(x0, y0a);
+                g.lineTo(x0, y0b);
+                g.stroke({ color: 0x228822, width: 0.8, alpha: 0.3 * baseAlpha });
+              }
             }
 
             // Mutation glow: pulsing green aura
@@ -868,6 +877,15 @@ export class UnitRenderer {
           const pwrGlow = 0.5 + 0.3 * Math.sin(gameTime * 1.5);
           g.circle(x - w / 2 + 6, y + h / 2 - 6, 2.5);
           g.fill({ color: 0x44aaff, alpha: pwrGlow * baseAlpha });
+        }
+
+        // Production glow — pulsing aura when actively training a unit
+        if (bs === BuildState.Complete && prodUnitType[eid] > 0 && prodTimeTotal[eid] > 0) {
+          const prodGlow = 0.15 + 0.1 * Math.sin(gameTime * 4);
+          const glowColor = isZergBuilding ? 0xff6644 : 0x44aaff;
+          const glowR = Math.max(w, h) / 2 + 6;
+          g.circle(x, y, glowR);
+          g.stroke({ color: glowColor, width: 2, alpha: prodGlow });
         }
 
         // Construction progress bar (yellow)

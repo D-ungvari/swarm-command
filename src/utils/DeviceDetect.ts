@@ -1,7 +1,7 @@
-/** True if the current device supports touch input */
+/** True if the primary input is touch (phones/tablets), not touch-capable laptops */
 export const isTouchDevice: boolean =
   typeof window !== 'undefined' &&
-  (('ontouchstart' in window) || navigator.maxTouchPoints > 0);
+  window.matchMedia('(pointer: coarse)').matches;
 
 /** True if the viewport is taller than wide (portrait orientation) */
 export function isPortrait(): boolean {

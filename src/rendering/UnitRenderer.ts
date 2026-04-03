@@ -557,19 +557,33 @@ export class UnitRenderer {
             g.stroke({ color: 0x6699cc, width: 0.6, alpha: 0.25 * baseAlpha });
           }
 
-          // Bright gold star in center (4-pointed)
-          const starR = 10;
-          const starInner = 4;
-          g.moveTo(x, y - starR);
-          g.lineTo(x + starInner, y - starInner);
-          g.lineTo(x + starR, y);
-          g.lineTo(x + starInner, y + starInner);
-          g.lineTo(x, y + starR);
-          g.lineTo(x - starInner, y + starInner);
-          g.lineTo(x - starR, y);
-          g.lineTo(x - starInner, y - starInner);
+          // Rotating radar dish on top
+          const radarAngle = gameTime * 1.5;
+          const radarR = 12;
+          g.moveTo(x, y - hh * 0.15);
+          g.lineTo(x + Math.cos(radarAngle) * radarR, y - hh * 0.15 + Math.sin(radarAngle) * radarR * 0.4);
+          g.stroke({ color: 0xffcc44, width: 2, alpha: 0.7 * baseAlpha });
+          g.circle(x, y - hh * 0.15, 3);
+          g.fill({ color: 0xffcc44, alpha: 0.8 * baseAlpha });
+
+          // Command windows — row of lit windows across center
+          if (bs === BuildState.Complete) {
+            const winY = y + hh * 0.2;
+            for (let wi = -2; wi <= 2; wi++) {
+              const winX = x + wi * 14;
+              const glow = 0.5 + 0.2 * Math.sin(gameTime * 2 + wi * 0.8);
+              g.rect(winX - 4, winY - 2, 8, 4);
+              g.fill({ color: 0x88ccff, alpha: glow * baseAlpha });
+            }
+          }
+
+          // Gold Terran insignia — small diamond
+          g.moveTo(x, y + hh * 0.5 - 5);
+          g.lineTo(x + 4, y + hh * 0.5);
+          g.lineTo(x, y + hh * 0.5 + 5);
+          g.lineTo(x - 4, y + hh * 0.5);
           g.closePath();
-          g.fill({ color: 0xffcc44, alpha: baseAlpha });
+          g.fill({ color: 0xffcc44, alpha: 0.8 * baseAlpha });
         } else if (bt === BuildingType.SupplyDepot) {
           // Crate grid: 2x2 inner supply crates
           const crateGap = 3;
@@ -597,18 +611,31 @@ export class UnitRenderer {
           g.rect(x - doorW / 2, y + hh + 1, doorW, doorH);
           g.stroke({ color: 0x6688aa, width: 0.8, alpha: 0.5 * baseAlpha });
 
-          // X marker in center
-          const xSize = 7;
-          g.moveTo(x - xSize, y - xSize);
-          g.lineTo(x + xSize, y + xSize);
-          g.moveTo(x + xSize, y - xSize);
-          g.lineTo(x - xSize, y + xSize);
-          g.stroke({ color: 0xffffff, width: 2, alpha: 0.4 * baseAlpha });
+          // Military chevron (V-shape pointing up)
+          g.moveTo(x - 10, y + 4);
+          g.lineTo(x, y - 6);
+          g.lineTo(x + 10, y + 4);
+          g.stroke({ color: 0xddddff, width: 2.5, alpha: 0.5 * baseAlpha });
+          g.moveTo(x - 8, y + 8);
+          g.lineTo(x, y - 2);
+          g.lineTo(x + 8, y + 8);
+          g.stroke({ color: 0xddddff, width: 1.5, alpha: 0.35 * baseAlpha });
 
-          // Inner border for structural feel
+          // Inner border + window lights when complete
           const inset = 5;
-          g.rect(x - w / 2 + inset, y - h / 2 + inset, w - inset * 2, h - inset * 2);
+          g.rect(x - hw + inset, y - hh + inset, w - inset * 2, h - inset * 2);
           g.stroke({ color: 0x6644aa, width: 0.8, alpha: 0.3 * baseAlpha });
+          if (bs === BuildState.Complete) {
+            // Two rows of windows
+            for (let wr = 0; wr < 2; wr++) {
+              const winY = y - hh * 0.3 + wr * hh * 0.5;
+              for (let wi = -1; wi <= 1; wi++) {
+                const glow = 0.4 + 0.2 * Math.sin(gameTime * 1.8 + wi * 1.2 + wr * 2);
+                g.rect(x + wi * 16 - 3, winY - 2, 6, 4);
+                g.fill({ color: 0x9988ff, alpha: glow * baseAlpha });
+              }
+            }
+          }
         } else if (bt === BuildingType.Refinery) {
           // Two cylindrical tanks (vertical rectangles with rounded tops)
           const tankW = w * 0.22;
@@ -715,6 +742,19 @@ export class UnitRenderer {
           g.moveTo(x - w * 0.2, y - hh * 0.1);
           g.lineTo(x + w * 0.2, y - hh * 0.1);
           g.stroke({ color: 0x88aaff, width: 2, alpha: 0.4 * baseAlpha });
+
+          // Blinking runway lights on the landing pad
+          if (bs === BuildState.Complete) {
+            const blinkPhase = Math.floor(gameTime * 2) % 4;
+            for (let li = 0; li < 4; li++) {
+              const lAngle = (li / 4) * Math.PI * 2 - Math.PI / 2;
+              const lx = x + Math.cos(lAngle) * 14;
+              const ly = y + hh * 0.1 + Math.sin(lAngle) * 14;
+              const lit = li === blinkPhase;
+              g.circle(lx, ly, 2);
+              g.fill({ color: lit ? 0x44ff88 : 0x224433, alpha: (lit ? 0.9 : 0.3) * baseAlpha });
+            }
+          }
         } else if (bt === BuildingType.EngineeringBay) {
           // Satellite dish shape
           const dishR = 14;

@@ -163,6 +163,11 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // --- Auto-acquire target ---
     if (targetEntity[eid] < 1) {
+      // Move mode: don't auto-acquire — just go to destination (SC2 right-click behavior)
+      if (commandMode[eid] === CommandMode.Move || commandMode[eid] === CommandMode.Gather) {
+        continue;
+      }
+
       // SC2 aggro: weapon range + small buffer (~1.5 tiles)
       // HoldPosition: slightly wider than weapon range (range + 1 tile)
       const aggroRange = commandMode[eid] === CommandMode.HoldPosition
@@ -170,9 +175,13 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         : range + 1.5 * TILE_SIZE;
       const enemy = findBestTarget(world, eid, aggroRange);
       if (enemy > 0) {
-        // Terran units can't auto-acquire targets hidden in fog
+        // Terran units can't auto-acquire targets hidden in deep fog
+        // But allow targeting enemies within weapon range even if fog hasn't refreshed yet
         const myFac = faction[eid] as Faction;
-        if (myFac === Faction.Terran && !isTileVisible(posX[enemy], posY[enemy])) {
+        const edx = posX[enemy] - posX[eid];
+        const edy = posY[enemy] - posY[eid];
+        const enemyDistSq = edx * edx + edy * edy;
+        if (myFac === Faction.Terran && !isTileVisible(posX[enemy], posY[enemy]) && enemyDistSq > range * range) {
           continue;
         }
         targetEntity[eid] = enemy;

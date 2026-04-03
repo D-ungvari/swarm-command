@@ -571,21 +571,21 @@ export class UnitRenderer {
           g.closePath();
           g.fill({ color: 0xffcc44, alpha: baseAlpha });
         } else if (bt === BuildingType.SupplyDepot) {
-          // Subtle cross-hatch inside beveled shape
-          const inset = 6;
-          const step = 12;
-          const chw = hw - inset;
-          const chh = hh - inset;
-          for (let d = -Math.max(chw, chh); d <= Math.max(chw, chh); d += step) {
-            const fx1 = Math.max(-chw, d - chh);
-            const fx2 = Math.min(chw, d + chh);
-            if (fx1 < fx2) {
-              g.moveTo(x + fx1, y + (fx1 - d));
-              g.lineTo(x + fx2, y + (fx2 - d));
-              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.15 * baseAlpha });
-              g.moveTo(x + fx1, y - (fx1 - d));
-              g.lineTo(x + fx2, y - (fx2 - d));
-              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.15 * baseAlpha });
+          // Crate grid: 2x2 inner supply crates
+          const crateGap = 3;
+          const crateW = (w - crateGap * 3) / 2;
+          const crateH = (h - crateGap * 3) / 2;
+          for (let cr = 0; cr < 2; cr++) {
+            for (let cc = 0; cc < 2; cc++) {
+              const cx = x - hw + crateGap + cc * (crateW + crateGap) + crateW / 2;
+              const cy = y - hh + crateGap + cr * (crateH + crateGap) + crateH / 2;
+              g.rect(cx - crateW / 2, cy - crateH / 2, crateW, crateH);
+              g.fill({ color: darken(tint, 10 + cr * 5), alpha: 0.8 * baseAlpha });
+              g.stroke({ color: 0x5577aa, width: 0.8, alpha: 0.4 * baseAlpha });
+              // Strapping line across each crate
+              g.moveTo(cx - crateW / 2 + 2, cy);
+              g.lineTo(cx + crateW / 2 - 2, cy);
+              g.stroke({ color: 0x88aacc, width: 0.6, alpha: 0.3 * baseAlpha });
             }
           }
         } else if (bt === BuildingType.Barracks) {
@@ -610,18 +610,50 @@ export class UnitRenderer {
           g.rect(x - w / 2 + inset, y - h / 2 + inset, w - inset * 2, h - inset * 2);
           g.stroke({ color: 0x6644aa, width: 0.8, alpha: 0.3 * baseAlpha });
         } else if (bt === BuildingType.Refinery) {
-          // Green gas venting pipes — two small circles on top
-          g.circle(x - w * 0.2, y - h * 0.15, 6);
-          g.fill({ color: 0x44ff66, alpha: 0.4 * baseAlpha });
-          g.circle(x + w * 0.2, y - h * 0.15, 6);
-          g.fill({ color: 0x44ff66, alpha: 0.4 * baseAlpha });
-          // Central pipe
-          g.rect(x - 3, y - h * 0.3, 6, h * 0.6);
+          // Two cylindrical tanks (vertical rectangles with rounded tops)
+          const tankW = w * 0.22;
+          const tankH = h * 0.55;
+          // Left tank
+          g.rect(x - w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
+          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          g.rect(x - w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
+          g.stroke({ color: 0x668866, width: 1, alpha: 0.6 * baseAlpha });
+          g.circle(x - w * 0.25, y - tankH / 2, tankW / 2);
+          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          // Right tank
+          g.rect(x + w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
+          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          g.rect(x + w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
+          g.stroke({ color: 0x668866, width: 1, alpha: 0.6 * baseAlpha });
+          g.circle(x + w * 0.25, y - tankH / 2, tankW / 2);
+          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          // Connecting pipe between tanks
+          g.rect(x - w * 0.12, y - 2, w * 0.24, 4);
           g.fill({ color: 0x556655, alpha: 0.6 * baseAlpha });
+          // Green gas venting glow on top of each tank
+          const ventPulse = 0.3 + 0.2 * Math.sin(gameTime * 3);
+          g.circle(x - w * 0.25, y - tankH / 2 - 2, 4);
+          g.fill({ color: 0x44ff66, alpha: ventPulse * baseAlpha });
+          g.circle(x + w * 0.25, y - tankH / 2 - 2, 4);
+          g.fill({ color: 0x44ff66, alpha: ventPulse * baseAlpha });
         } else if (bt === BuildingType.Factory) {
           // Smokestack cap (stack body is part of base shape)
           g.rect(x + hw - 20, y - hh - 18, 16, 3);
           g.fill({ color: TERRAN_METAL, alpha: baseAlpha });
+          // Smoke puffs rising from stack (only when complete)
+          if (bs === BuildState.Complete) {
+            for (let p = 0; p < 3; p++) {
+              const rise = ((gameTime * 0.5 + p * 0.33) % 1.0);
+              const smokeX = x + hw - 12 + Math.sin(gameTime * 1.5 + p * 2) * 3;
+              const smokeY = y - hh - 20 - rise * 18;
+              const smokeAlpha = Math.max(0, 0.25 * (1 - rise));
+              const smokeR = 2 + rise * 3;
+              if (smokeAlpha > 0.02) {
+                g.circle(smokeX, smokeY, smokeR);
+                g.fill({ color: 0x888888, alpha: smokeAlpha * baseAlpha });
+              }
+            }
+          }
 
           // Gear icon shape — circle with teeth
           const gearR = 13;

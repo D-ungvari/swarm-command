@@ -6,6 +6,7 @@
  */
 
 import { createWorld, addEntity, type World } from '../src/ecs/world';
+import { resetCombatEntity } from '../src/systems/CombatSystem';
 import {
   addUnitComponents,
   addWorkerComponent,
@@ -167,6 +168,7 @@ export function spawnUnit(world: World, opts: SpawnOpts = {}): number {
 export function cleanupEntities(eids: number[]): void {
   for (const eid of eids) {
     resetComponents(eid);
+    resetCombatEntity(eid);
   }
 }
 

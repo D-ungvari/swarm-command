@@ -574,66 +574,73 @@ export function issuePathCommand(
   mode: CommandMode,
   shiftQueue: boolean = false,
 ): void {
+  if (units.length === 0) return;
+
   const cols = Math.ceil(Math.sqrt(units.length));
-  const spacing = TILE_SIZE * 0.8;
+  // Scale spacing down for large armies so they don't spread too wide
+  const spacing = TILE_SIZE * Math.max(0.5, 0.8 - units.length / 500);
+
+  // Calculate ONE lead path from the first unit to destination
+  const leadEid = units[0];
+  const leadStart = worldToTile(posX[leadEid], posY[leadEid]);
+  let mainEndTile = worldToTile(tx, ty);
+  if (mainEndTile.col >= 0 && mainEndTile.col < map.cols && mainEndTile.row >= 0 && mainEndTile.row < map.rows) {
+    if (map.walkable[mainEndTile.row * map.cols + mainEndTile.col] !== 1) {
+      const walkable = findNearestWalkableTile(map, mainEndTile.col, mainEndTile.row);
+      if (walkable) mainEndTile = walkable;
+    }
+  }
+
+  const leadTilePath = findPath(map, leadStart.col, leadStart.row, mainEndTile.col, mainEndTile.row);
+  if (leadTilePath.length === 0 && units.length > 0) {
+    // No path found — still set mode and clear state for all units
+    for (const eid of units) {
+      if (!shiftQueue) {
+        targetEntity[eid] = -1;
+        commandMode[eid] = mode;
+        velX[eid] = 0;
+        velY[eid] = 0;
+        workerState[eid] = WorkerState.Idle;
+        workerTargetEid[eid] = -1;
+      }
+    }
+    return;
+  }
+
+  // Convert lead path to world coordinates
+  const leadWorldPath: Array<[number, number]> = leadTilePath.map(([c, r]) => {
+    const wp = tileToWorld(c, r);
+    return [wp.x, wp.y] as [number, number];
+  });
 
   for (let i = 0; i < units.length; i++) {
     const eid = units[i];
 
-    // Sieged tanks can't move
     if (siegeMode[eid] === SiegeMode.Sieged || siegeMode[eid] === SiegeMode.Packing || siegeMode[eid] === SiegeMode.Unpacking) {
       continue;
     }
 
+    // Formation offset applied only to final destination
     const row = Math.floor(i / cols);
     const col = i % cols;
     const offsetX = (col - (cols - 1) / 2) * spacing;
     const offsetY = (row - Math.floor(units.length / cols - 1) / 2) * spacing;
 
-    const destX = tx + offsetX;
-    const destY = ty + offsetY;
+    // Copy the lead path, modify the last waypoint with formation offset
+    const unitPath: Array<[number, number]> = leadWorldPath.map(
+      (wp, idx) => idx === leadWorldPath.length - 1
+        ? [wp[0] + offsetX, wp[1] + offsetY]
+        : [wp[0], wp[1]]
+    );
 
-    const startTile = worldToTile(posX[eid], posY[eid]);
-    let endTile = worldToTile(destX, destY);
-
-    // If destination is unwalkable, find nearest walkable tile
-    if (endTile.col >= 0 && endTile.col < map.cols && endTile.row >= 0 && endTile.row < map.rows) {
-      if (map.walkable[endTile.row * map.cols + endTile.col] !== 1) {
-        const walkable = findNearestWalkableTile(map, endTile.col, endTile.row);
-        if (walkable) endTile = walkable;
-      }
+    if (shiftQueue) {
+      appendPath(eid, unitPath);
+    } else {
+      setPath(eid, unitPath);
     }
 
-    // For shift-queue: path from the END of current path to destination
-    let pathStartCol = startTile.col;
-    let pathStartRow = startTile.row;
-    if (shiftQueue && movePathIndex[eid] >= 0 && pathLengths[eid] > 0) {
-      // Use the last waypoint of the current path as the start
-      const lastIdx = pathLengths[eid] - 1;
-      const lastWp = getPathWaypoint(eid, lastIdx);
-      if (lastWp) {
-        const lastTile = worldToTile(lastWp[0], lastWp[1]);
-        pathStartCol = lastTile.col;
-        pathStartRow = lastTile.row;
-      }
-    }
-
-    const tilePath = findPath(map, pathStartCol, pathStartRow, endTile.col, endTile.row);
-
-    if (tilePath.length > 0) {
-      const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
-        const wp = tileToWorld(c, r);
-        return [wp.x, wp.y] as [number, number];
-      });
-      if (shiftQueue) {
-        appendPath(eid, worldPath);
-      } else {
-        setPath(eid, worldPath);
-      }
-    }
-
-    moveTargetX[eid] = destX;
-    moveTargetY[eid] = destY;
+    moveTargetX[eid] = tx + offsetX;
+    moveTargetY[eid] = ty + offsetY;
     if (!shiftQueue) {
       targetEntity[eid] = -1;
       commandMode[eid] = mode;

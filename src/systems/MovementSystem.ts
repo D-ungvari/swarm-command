@@ -46,8 +46,8 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
 
     const pathIdx = movePathIndex[eid];
 
-    // Stuck detection: if has a path but hasn't moved in 3s, force a repath
-    if (gameTime > 0 && pathIdx >= 0 && gameTime - lastMovedTime[eid] > 3.0) {
+    // Stuck detection: if has a path but hasn't moved in 0.5s, force a repath
+    if (gameTime > 0 && pathIdx >= 0 && gameTime - lastMovedTime[eid] > 0.5) {
       movePathIndex[eid] = -1;
       lastMovedTime[eid] = gameTime;
     }
@@ -170,6 +170,8 @@ function separationPass(world: World, map?: MapData): void {
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (hpCurrent[eid] <= 0) continue;
+    // Skip stationary units for performance — only separate moving units
+    if (velX[eid] === 0 && velY[eid] === 0 && movePathIndex[eid] < 0) continue;
     // Skip buildings and resources
     if (hasComponents(world, eid, BUILDING) || hasComponents(world, eid, RESOURCE)) continue;
 

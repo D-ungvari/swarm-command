@@ -21,6 +21,7 @@ import { soundManager } from '../audio/SoundManager';
 import { type PlayerResources } from '../types';
 import { emitProjectile } from '../rendering/ProjectileRenderer';
 import { triggerCameraShake } from '../rendering/CameraShake';
+import { spatialHash } from '../ecs/SpatialHash';
 
 const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
   [UnitType.Marine]: 700,
@@ -54,6 +55,16 @@ const CHASE_LEASH_SQ = CHASE_LEASH_RANGE * CHASE_LEASH_RANGE;
 /** Per-entity: last known target position we pathed toward */
 const chaseTargetX = new Float32Array(MAX_ENTITIES);
 const chaseTargetY = new Float32Array(MAX_ENTITIES);
+
+/** Per-entity: gameTime when next auto-acquire is allowed */
+const nextAutoAcquireTime = new Float32Array(MAX_ENTITIES);
+
+/** Reset per-entity combat state (for tests / game restart) */
+export function resetCombatEntity(eid: number): void {
+  chaseTargetX[eid] = 0;
+  chaseTargetY[eid] = 0;
+  nextAutoAcquireTime[eid] = 0;
+}
 
 const FLASH_DURATION = 0.12; // seconds
 
@@ -168,6 +179,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         continue;
       }
 
+      // Target commitment: don't retarget too frequently (0.3s cooldown)
+      if (gameTime < nextAutoAcquireTime[eid]) continue;
+
       // SC2 aggro: weapon range + small buffer (~1.5 tiles)
       // HoldPosition: slightly wider than weapon range (range + 1 tile)
       const aggroRange = commandMode[eid] === CommandMode.HoldPosition
@@ -185,9 +199,8 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
           continue;
         }
         targetEntity[eid] = enemy;
-        // Register pending damage for overkill prevention
         pendingDamage[enemy] += atkDamage[eid];
-        // Stop movement to engage
+        nextAutoAcquireTime[eid] = gameTime + 0.3; // 0.3s before next auto-acquire
         movePathIndex[eid] = -1;
       } else if (commandMode[eid] === CommandMode.Idle || commandMode[eid] === CommandMode.AttackTarget) {
         continue; // No target, nothing to do
@@ -294,7 +307,17 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     if (hpCurrent[tgt] <= 0) {
       killCount[eid]++;
       updateVeterancy(eid);
-      pendingDamage[tgt] = 0; // prevent stale pending on entity recycling
+      // Clear pending damage for ALL units targeting this dead entity
+      pendingDamage[tgt] = 0;
+      for (let a = 1; a < world.nextEid; a++) {
+        if (targetEntity[a] === tgt) {
+          targetEntity[a] = -1;
+          // Return to previous command mode (idle or resume attack-move)
+          if (commandMode[a] === CommandMode.AttackTarget) {
+            commandMode[a] = CommandMode.Idle;
+          }
+        }
+      }
     }
 
     // Track Terran under-attack for player alerts
@@ -318,7 +341,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         let nearestEid = 0;
         let nearestDist = Infinity;
         const myFac = faction[eid];
-        for (let other = 1; other < world.nextEid; other++) {
+        spatialHash.ensureBuilt(world);
+        const bounceCandidates = spatialHash.queryRadius(lastX, lastY, bounceRange);
+        for (const other of bounceCandidates) {
           if (bounced.has(other)) continue;
           if (!hasComponents(world, other, POSITION | HEALTH)) continue;
           if (faction[other] === myFac || faction[other] === 0) continue;

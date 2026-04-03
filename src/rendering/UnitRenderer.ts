@@ -354,60 +354,94 @@ export class UnitRenderer {
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0x445522, width: 2, alpha: 0.7 * baseAlpha });
 
-            // Acid pool: inner filled ellipse with green-yellow tint, bubbling
-            g.ellipse(x, y + h * 0.05, w * 0.3, h * 0.2);
+            // Acid pool with animated surface
+            const acidPulse = 1 + 0.04 * Math.sin(gameTime * 2);
+            g.ellipse(x, y + h * 0.05, w * 0.3 * acidPulse, h * 0.2 * acidPulse);
             g.fill({ color: 0x88aa22, alpha: 0.5 * baseAlpha });
-            // Bubbles in acid pool
-            for (let b = 0; b < 4; b++) {
-              const bx = x + (b - 1.5) * (w * 0.12);
-              const by = y + h * 0.05 + Math.sin(gameTime * 3 + b * 1.8) * 2;
+            // Bubbles rising from acid
+            for (let b = 0; b < 5; b++) {
+              const bAngle = (b / 5) * Math.PI * 2;
+              const bDist = w * 0.18;
+              const bx = x + Math.cos(bAngle + gameTime * 0.7) * bDist;
+              const rise = ((gameTime * 0.8 + b * 0.2) % 1.0);
+              const by = y + h * 0.05 - rise * 8;
               const br = 1.5 + Math.sin(gameTime * 4 + b) * 0.5;
-              g.circle(bx, by, br);
-              g.fill({ color: 0xaacc33, alpha: 0.6 * baseAlpha });
+              const bAlpha = Math.max(0, 0.6 * (1 - rise));
+              if (bAlpha > 0.02) {
+                g.circle(bx, by, br);
+                g.fill({ color: 0xaacc33, alpha: bAlpha * baseAlpha });
+              }
             }
 
-            // Carapace arch: thick dark arc on top half
+            // Carapace arch with ridges
             g.arc(x, y, w * 0.3, Math.PI, 0, false);
             g.stroke({ color: 0x334411, width: 3, alpha: 0.7 * baseAlpha });
+            g.arc(x, y, w * 0.25, Math.PI * 0.9, Math.PI * 0.1, false);
+            g.stroke({ color: 0x445522, width: 1.5, alpha: 0.4 * baseAlpha });
           } else if (bt === BuildingType.HydraliskDen) {
-            // HydraliskDen: spine rack + venom drip
+            // HydraliskDen: swaying spine rack + dripping venom
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0x224444, width: 2, alpha: 0.7 * baseAlpha });
 
-            // Spine rack: 4 vertical spine shapes (thin triangles) protruding upward
-            const spineCount = 4;
+            // Spine rack: 5 spines that sway in the wind
+            const spineCount = 5;
             for (let s = 0; s < spineCount; s++) {
-              const sx = x + (s - (spineCount - 1) / 2) * (w * 0.14);
+              const sx = x + (s - (spineCount - 1) / 2) * (w * 0.12);
+              const sway = Math.sin(gameTime * 1.8 + s * 1.2) * 2;
               const spineH = h * 0.3 + Math.sin(gameTime * 2 + s) * 2;
               g.moveTo(sx - 2, y - h * 0.05);
-              g.lineTo(sx, y - h * 0.05 - spineH);
+              g.lineTo(sx + sway, y - h * 0.05 - spineH);
               g.lineTo(sx + 2, y - h * 0.05);
               g.closePath();
               g.fill({ color: 0x33aaaa, alpha: 0.7 * baseAlpha });
+              // Bright tip
+              g.circle(sx + sway, y - h * 0.05 - spineH, 1.5);
+              g.fill({ color: 0x66ffff, alpha: 0.6 * baseAlpha });
             }
 
-            // Venom drip: small circles below spines
-            for (let s = 0; s < spineCount; s++) {
-              const sx = x + (s - (spineCount - 1) / 2) * (w * 0.14);
-              const dripY = y + h * 0.05 + Math.abs(Math.sin(gameTime * 3 + s * 1.5)) * 4;
-              g.circle(sx, dripY, 1.5);
-              g.fill({ color: 0x22cccc, alpha: 0.5 * baseAlpha });
+            // Venom drip trails falling from spine tips
+            if (bs === BuildState.Complete) {
+              for (let s = 0; s < 3; s++) {
+                const sx = x + (s - 1) * (w * 0.12);
+                const fall = ((gameTime * 1.2 + s * 0.4) % 1.0);
+                const dripY = y - h * 0.05 + fall * h * 0.35;
+                const dAlpha = Math.max(0, 0.5 * (1 - fall));
+                if (dAlpha > 0.02) {
+                  g.circle(sx, dripY, 1.5 - fall * 0.8);
+                  g.fill({ color: 0x22cccc, alpha: dAlpha * baseAlpha });
+                }
+              }
             }
           } else if (bt === BuildingType.Spire) {
-            // Spire: tall spire shape + wing motifs
+            // Spire: tall spire with pulsing tip + wing motifs
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0x442244, width: 2, alpha: 0.7 * baseAlpha });
 
-            // Tall spire shape: triangle pointing upward from center
+            // Tall spire shape
             g.moveTo(x - w * 0.12, y + h * 0.15);
             g.lineTo(x, y - h * 0.4);
             g.lineTo(x + w * 0.12, y + h * 0.15);
             g.closePath();
             g.fill({ color: 0x9944aa, alpha: 0.7 * baseAlpha });
+            // Highlight edge
+            g.moveTo(x, y - h * 0.4);
+            g.lineTo(x + w * 0.08, y + h * 0.05);
+            g.stroke({ color: 0xbb66dd, width: 1, alpha: 0.4 * baseAlpha });
 
-            // Wing motifs: small angled lines from center outward
+            // Pulsing tip light
+            if (bs === BuildState.Complete) {
+              const tipGlow = 0.5 + 0.4 * Math.sin(gameTime * 3);
+              g.circle(x, y - h * 0.4, 4);
+              g.fill({ color: 0xcc66ff, alpha: tipGlow * 0.3 * baseAlpha });
+              g.circle(x, y - h * 0.4, 2);
+              g.fill({ color: 0xee88ff, alpha: tipGlow * baseAlpha });
+            }
+
+            // Wing motifs with subtle flap animation
             for (let wg = 0; wg < 4; wg++) {
-              const angle = (wg / 4) * Math.PI * 2 - Math.PI / 4;
+              const baseAngle = (wg / 4) * Math.PI * 2 - Math.PI / 4;
+              const flapOffset = Math.sin(gameTime * 2 + wg * 1.5) * 0.08;
+              const angle = baseAngle + flapOffset;
               const innerR = w * 0.1;
               const outerR = w * 0.3;
               g.moveTo(x + Math.cos(angle) * innerR, y + Math.sin(angle) * innerR);
@@ -415,30 +449,39 @@ export class UnitRenderer {
               g.stroke({ color: 0x7733aa, width: 1.5, alpha: 0.5 * baseAlpha });
             }
           } else if (bt === BuildingType.InfestationPit) {
-            // InfestationPit: tentacles + spore cloud
+            // InfestationPit: writhing tentacles + spore cloud
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0x442233, width: 2, alpha: 0.7 * baseAlpha });
 
-            // Tentacle lines: 4 curving lines from center outward
-            for (let t = 0; t < 4; t++) {
-              const angle = (t / 4) * Math.PI * 2;
-              const midR = w * 0.2;
-              const outerR = w * 0.38;
-              const curve = Math.sin(gameTime * 2 + t) * 0.3;
-              const mx = x + Math.cos(angle + curve) * midR;
-              const my = y + Math.sin(angle + curve) * midR;
-              const ex = x + Math.cos(angle) * outerR;
-              const ey = y + Math.sin(angle) * outerR;
+            // Central maw — dark pulsing pit
+            const mawPulse = 1 + 0.1 * Math.sin(gameTime * 2);
+            g.ellipse(x, y, 6 * mawPulse, 5 * mawPulse);
+            g.fill({ color: 0x110011, alpha: 0.8 * baseAlpha });
+
+            // 6 writhing tentacles
+            for (let t = 0; t < 6; t++) {
+              const baseAngle = (t / 6) * Math.PI * 2;
+              const wave1 = Math.sin(gameTime * 2.5 + t * 1.1) * 0.25;
+              const wave2 = Math.sin(gameTime * 1.8 + t * 2.3) * 0.15;
+              const midR = w * 0.18;
+              const outerR = w * 0.36;
+              const mx = x + Math.cos(baseAngle + wave1) * midR;
+              const my = y + Math.sin(baseAngle + wave1) * midR;
+              const ex = x + Math.cos(baseAngle + wave2) * outerR;
+              const ey = y + Math.sin(baseAngle + wave2) * outerR;
               g.moveTo(x, y);
               g.lineTo(mx, my);
               g.lineTo(ex, ey);
               g.stroke({ color: 0x884466, width: 2, alpha: 0.6 * baseAlpha });
+              // Tentacle tip glow
+              g.circle(ex, ey, 2);
+              g.fill({ color: 0xaa5577, alpha: 0.5 * baseAlpha });
             }
 
-            // Spore cloud: 3 small floating circles with animation
-            for (let s = 0; s < 3; s++) {
-              const sAngle = (s / 3) * Math.PI * 2 + gameTime * 0.8;
-              const sR = w * 0.2 + Math.sin(gameTime * 1.5 + s * 2) * 3;
+            // Spore cloud: 5 floating spores with drift
+            for (let s = 0; s < 5; s++) {
+              const sAngle = (s / 5) * Math.PI * 2 + gameTime * 0.8;
+              const sR = w * 0.2 + Math.sin(gameTime * 1.5 + s * 2) * 4;
               const sx = x + Math.cos(sAngle) * sR;
               const sy = y + Math.sin(sAngle) * sR;
               const sAlpha = 0.3 + 0.2 * Math.sin(gameTime * 3 + s);

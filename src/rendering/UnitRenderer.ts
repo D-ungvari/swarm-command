@@ -230,8 +230,9 @@ export class UnitRenderer {
         if (isZergBuilding) {
           // === Zerg buildings: organic ellipses ===
 
-          // Creep ground indicator (dark patch under building)
-          g.ellipse(x, y, w / 2 + 8, h / 2 + 8);
+          // Creep ground indicator — subtly breathes
+          const creepBreathe = 1 + 0.02 * Math.sin(gameTime * 1.2);
+          g.ellipse(x, y, (w / 2 + 8) * creepBreathe, (h / 2 + 8) * creepBreathe);
           g.fill({ color: 0x331111, alpha: 0.5 * baseAlpha });
 
           // Shadow behind
@@ -243,30 +244,47 @@ export class UnitRenderer {
           g.fill({ color: tint, alpha: baseAlpha });
 
           if (bt === BuildingType.Hatchery) {
-            // Hatchery: large organic shape with inner membrane and veins
+            // Hatchery: large organic shape with breathing veins
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0xaa4444, width: 2, alpha: 0.7 * baseAlpha });
 
-            // Inner membrane ring
-            g.ellipse(x, y, w * 0.3, h * 0.3);
+            // Inner membrane ring — breathes
+            const breathe = 1 + 0.05 * Math.sin(gameTime * 1.5);
+            g.ellipse(x, y, w * 0.3 * breathe, h * 0.3 * breathe);
             g.stroke({ color: 0xcc5555, width: 1.5, alpha: 0.5 * baseAlpha });
 
-            // Pulsing core
+            // Pulsing core with glow halo
             const pulse = 0.4 + 0.3 * Math.sin(gameTime * 2);
+            g.circle(x, y, 10);
+            g.fill({ color: 0xff4422, alpha: pulse * 0.2 * baseAlpha });
             g.circle(x, y, 6);
             g.fill({ color: 0xff6644, alpha: pulse * baseAlpha });
 
-            // Organic vein lines radiating outward
-            for (let v = 0; v < 6; v++) {
-              const angle = (v / 6) * Math.PI * 2;
+            // Pulsing organic veins radiating outward
+            for (let v = 0; v < 8; v++) {
+              const angle = (v / 8) * Math.PI * 2;
+              const veinPulse = 0.3 + 0.2 * Math.sin(gameTime * 2.5 + v * 0.8);
               const innerR = 8;
               const outerR = Math.min(w, h) * 0.4;
               g.moveTo(x + Math.cos(angle) * innerR, y + Math.sin(angle) * innerR);
               g.lineTo(x + Math.cos(angle) * outerR, y + Math.sin(angle) * outerR);
-              g.stroke({ color: 0x993333, width: 1, alpha: 0.4 * baseAlpha });
+              g.stroke({ color: 0x993333, width: 1.5, alpha: veinPulse * baseAlpha });
+            }
+
+            // Larva cocoons around the edge (when complete)
+            if (bs === BuildState.Complete) {
+              for (let lv = 0; lv < 4; lv++) {
+                const lAngle = (lv / 4) * Math.PI * 2 + Math.PI / 4;
+                const lR = Math.min(w, h) * 0.38;
+                const lx = x + Math.cos(lAngle) * lR;
+                const ly = y + Math.sin(lAngle) * lR;
+                const wobble = 2 + Math.sin(gameTime * 3 + lv * 1.5) * 1;
+                g.ellipse(lx, ly, wobble + 1, wobble);
+                g.fill({ color: 0xcc6644, alpha: 0.5 * baseAlpha });
+              }
             }
           } else if (bt === BuildingType.SpawningPool) {
-            // SpawningPool: smaller organic with pulsing glow
+            // SpawningPool: bubbling biomass pool
             g.ellipse(x, y, w / 2, h / 2);
             g.stroke({ color: 0x661111, width: 2, alpha: 0.7 * baseAlpha });
 
@@ -275,12 +293,30 @@ export class UnitRenderer {
             g.ellipse(x, y, w / 2 + 4, h / 2 + 4);
             g.stroke({ color: 0xff4422, width: 2, alpha: glow * baseAlpha });
 
-            // Inner bubbling circles
-            for (let b = 0; b < 3; b++) {
-              const bx = x + (b - 1) * (w * 0.2);
-              const by = y + Math.sin(gameTime * 4 + b * 2) * 3;
-              g.circle(bx, by, 3);
+            // Inner bubbling circles — more and varied
+            for (let b = 0; b < 5; b++) {
+              const bAngle = (b / 5) * Math.PI * 2;
+              const bDist = w * 0.15 + Math.sin(gameTime * 2 + b) * 3;
+              const bx = x + Math.cos(bAngle + gameTime * 0.5) * bDist;
+              const by = y + Math.sin(bAngle + gameTime * 0.5) * bDist * 0.7;
+              const br = 2 + Math.sin(gameTime * 4 + b * 1.3) * 1;
+              g.circle(bx, by, br);
               g.fill({ color: 0xaa3322, alpha: 0.5 * baseAlpha });
+            }
+
+            // Rising vapor/steam when complete
+            if (bs === BuildState.Complete) {
+              for (let v = 0; v < 3; v++) {
+                const rise = ((gameTime * 0.6 + v * 0.33) % 1.0);
+                const vx = x + Math.sin(gameTime * 1.2 + v * 2.1) * 5;
+                const vy = y - rise * 16 - 4;
+                const vAlpha = Math.max(0, 0.35 * (1 - rise));
+                const vr = 2 + rise * 2;
+                if (vAlpha > 0.02) {
+                  g.circle(vx, vy, vr);
+                  g.fill({ color: 0xff6644, alpha: vAlpha * baseAlpha });
+                }
+              }
             }
           } else if (bt === BuildingType.EvolutionChamber) {
             // EvolutionChamber: mutation/upgrade building — DNA helix + mutation glow

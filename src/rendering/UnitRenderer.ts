@@ -2227,68 +2227,113 @@ export class UnitRenderer {
           this.drawHealBeams(g, world, eid, x, y);
 
         } else if (uType === UnitType.Ghost) {
-          // ── Ghost: stealth operative, slim with sniper rifle and scope ──
-          // Shadow
-          g.rect(x - w / 2 - 1, y - h / 2 - 1, w + 2, h + 2);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body — slim rect, slightly narrower than Marines (sniper profile)
+          // ── Ghost: psionic covert operative with C-10 canister rifle ──
+          // SC2: "Ghosts are elite Terran operatives. They cloak, snipe, and call
+          // down nuclear strikes. Sleek hostile environment suit, long rifle."
+          const isCloaked = cloaked[eid] === 1;
+          const ghostAlpha = isCloaked ? 0.25 + 0.1 * Math.sin(gameTime * 3 + eid) : 1.0;
+
+          // Shadow (fades when cloaked)
+          g.ellipse(x, y + h * 0.4, w * 0.35, h * 0.15);
+          g.fill({ color: 0x000000, alpha: 0.25 * ghostAlpha });
+          // Main body — slim profile
           g.rect(x - w * 0.32, y - h * 0.45, w * 0.64, h * 0.9);
-          g.fill({ color: bodyColor });
-          g.rect(x - w * 0.32, y - h * 0.45, w * 0.64, h * 0.9);
-          g.stroke({ color: 0x446688, width: 1, alpha: 0.6 });
-          // Helmet — small rect on top, narrower
+          g.fill({ color: bodyColor, alpha: ghostAlpha });
+          g.stroke({ color: 0x446688, width: 1, alpha: 0.6 * ghostAlpha });
+          // Helmet
           g.rect(x - w * 0.22, y - h * 0.58, w * 0.44, h * 0.18);
-          g.fill({ color: bodyColor });
-          g.rect(x - w * 0.22, y - h * 0.58, w * 0.44, h * 0.18);
-          g.stroke({ color: 0x557799, width: 1, alpha: 0.6 });
-          // Visor slit — dim blue-grey (stealthy, not bright like Marine)
+          g.fill({ color: bodyColor, alpha: ghostAlpha });
+          g.stroke({ color: 0x557799, width: 1, alpha: 0.6 * ghostAlpha });
+          // Visor — dim when cloaked, bright on attack
+          const visorBright = atkFlashTimer[eid] > 0 ? 1.0 : 0.7;
           g.moveTo(x - w * 0.18, y - h * 0.5);
           g.lineTo(x + w * 0.18, y - h * 0.5);
-          g.stroke({ color: 0x8899bb, width: 1.5 });
-          // Long sniper rifle — thin barrel extending from right shoulder, angled up-right
+          g.stroke({ color: 0x8899bb, width: 1.5, alpha: visorBright * ghostAlpha });
+          // C-10 canister rifle
           g.moveTo(x + w * 0.3, y - h * 0.35);
           g.lineTo(x + w * 0.95, y - h * 0.6);
-          g.stroke({ color: 0x556677, width: 1.5 });
-          // Rifle scope — small rect mid-barrel
+          g.stroke({ color: 0x556677, width: 1.5, alpha: ghostAlpha });
+          // Scope with animated glint
           g.rect(x + w * 0.5, y - h * 0.52, w * 0.15, h * 0.08);
-          g.fill({ color: 0x334455 });
-          // Scope lens dot (faint green glow)
+          g.fill({ color: 0x334455, alpha: ghostAlpha });
+          const scopeGlint = 0.5 + 0.5 * Math.sin(gameTime * 2 + eid * 3);
           g.circle(x + w * 0.57, y - h * 0.48, 1.5);
-          g.fill({ color: 0x44ff88, alpha: 0.7 });
-          // X crosshair at unit center — sniper scope reticle
-          g.moveTo(x - 4, y - 4);
-          g.lineTo(x + 4, y + 4);
-          g.moveTo(x + 4, y - 4);
-          g.lineTo(x - 4, y + 4);
-          g.stroke({ color: 0xccddff, width: 1, alpha: 0.6 });
-          // Ghost suit seam — a single thin vertical line down the center
+          g.fill({ color: 0x44ff88, alpha: scopeGlint * ghostAlpha });
+          // Cloak shimmer effect — diagonal scan lines when cloaked
+          if (isCloaked) {
+            for (let s = 0; s < 3; s++) {
+              const shimmerY = y - h * 0.4 + ((gameTime * 2 + s * 0.33) % 1.0) * h * 0.8;
+              g.moveTo(x - w * 0.3, shimmerY);
+              g.lineTo(x + w * 0.3, shimmerY - 2);
+              g.stroke({ color: 0x88ccff, width: 0.5, alpha: 0.3 });
+            }
+          }
+          // Suit seam
           g.moveTo(x, y - h * 0.38);
           g.lineTo(x, y + h * 0.38);
-          g.stroke({ color: 0x334466, width: 0.8, alpha: 0.5 });
+          g.stroke({ color: 0x334466, width: 0.8, alpha: 0.5 * ghostAlpha });
 
         } else if (uType === UnitType.Hellion) {
-          // ── Hellion: fast fire vehicle with flame nozzles and wheels ──
+          // ── Hellion: fast attack buggy with Infernal flamethrower ──
+          // SC2: "Lightly armored, fast-moving vehicle. Burns groups of
+          // light units with a line of fire from its Infernal flamethrower."
           const hw = w / 2;
           const hh = h / 2;
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+
           // Shadow
-          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body rect (wider than tall — vehicle profile)
-          g.rect(x - hw, y - hh, w, h);
+          g.ellipse(x, y + hh + 2, hw * 1.1, hh * 0.3);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+          // Main body — angular vehicle profile
+          g.moveTo(x - hw, y - hh * 0.7);
+          g.lineTo(x + hw * 0.6, y - hh);
+          g.lineTo(x + hw, y);
+          g.lineTo(x + hw * 0.6, y + hh);
+          g.lineTo(x - hw, y + hh * 0.7);
+          g.closePath();
           g.fill({ color: bodyColor });
-          g.rect(x - hw, y - hh, w, h);
           g.stroke({ color: 0xcc4400, width: 1, alpha: 0.7 });
-          // Flame nozzles (right side = front)
-          g.moveTo(posX[eid] + hw, posY[eid] - 3);
-          g.lineTo(posX[eid] + hw + 6, posY[eid] - 5);
-          g.moveTo(posX[eid] + hw, posY[eid] + 3);
-          g.lineTo(posX[eid] + hw + 6, posY[eid] + 5);
+          // Flame nozzle (front-facing)
+          g.moveTo(x + hw, y - 3);
+          g.lineTo(x + hw + 7, y - 5);
+          g.moveTo(x + hw, y + 3);
+          g.lineTo(x + hw + 7, y + 5);
           g.stroke({ color: 0xffcc44, width: 2, alpha: 0.9 });
-          // Wheel circles at corners
-          const wheelPositions = [[-hw + 3, hh + 2], [hw - 3, hh + 2], [-hw + 3, -hh - 2], [hw - 3, -hh - 2]] as const;
+          // Flame burst on attack
+          if (atkFlashTimer[eid] > 0) {
+            const flameLen = hw * 0.8;
+            for (let f = 0; f < 3; f++) {
+              const fx = x + hw + 4 + f * flameLen * 0.3;
+              const fy = y + (Math.random() - 0.5) * 6;
+              const fr = 3 - f * 0.8;
+              g.circle(fx, fy, fr);
+              g.fill({ color: f === 0 ? 0xffdd44 : 0xff6622, alpha: 0.7 - f * 0.2 });
+            }
+          }
+          // Wheels with spin animation
+          const wheelSpin = isMoving ? gameTime * 15 : 0;
+          const wheelPositions = [[-hw + 3, hh + 2], [hw - 5, hh + 2], [-hw + 3, -hh - 2], [hw - 5, -hh - 2]] as const;
           for (const [wx, wy] of wheelPositions) {
-            g.circle(posX[eid] + wx, posY[eid] + wy, 2.5);
+            g.circle(x + wx, y + wy, 2.5);
             g.fill({ color: 0x444444, alpha: 0.9 });
+            // Spoke line (rotates when moving)
+            const spokeX = Math.cos(wheelSpin) * 2;
+            const spokeY = Math.sin(wheelSpin) * 2;
+            g.moveTo(x + wx - spokeX, y + wy - spokeY);
+            g.lineTo(x + wx + spokeX, y + wy + spokeY);
+            g.stroke({ color: 0x666666, width: 0.6, alpha: 0.7 });
+          }
+          // Dust trail when moving fast
+          if (isMoving) {
+            for (let d = 0; d < 2; d++) {
+              const dustAge = ((gameTime * 3 + d * 0.5) % 1.0);
+              const dx2 = x - hw - 3 - dustAge * 8;
+              const dAlpha = Math.max(0, 0.3 * (1 - dustAge));
+              if (dAlpha > 0.02) {
+                g.circle(dx2, y + (d === 0 ? hh : -hh) + 2, 2 + dustAge * 2);
+                g.fill({ color: 0x887766, alpha: dAlpha });
+              }
+            }
           }
 
         } else if (uType === UnitType.Reaper) {

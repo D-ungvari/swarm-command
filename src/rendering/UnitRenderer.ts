@@ -1120,51 +1120,87 @@ export class UnitRenderer {
           g.stroke({ color: tint, width: 1 });
 
         } else if (uType === UnitType.Zergling) {
-          // ── Zergling: fast, elongated, predatory with mandibles and spines ──
+          // ── Zergling: insectoid raptor-dog, 6 scythe-legs, mandibles, dorsal spines ──
+          // SC2: "Zerglings are small, fast, and attack in swarms. They have
+          // blade-like forearms and insectoid legs that skitter rapidly."
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const legCycle = isMoving ? gameTime * 12 + eid * 1.7 : 0;
+
           // Shadow
-          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body — elongated horizontal ellipse (wider than tall)
-          g.ellipse(x, y, w * 0.6, h * 0.35);
+          g.ellipse(x, y + 1, w * 0.5, h * 0.2);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+
+          // 6 skittering legs (3 per side) — animate when moving
+          for (let leg = 0; leg < 3; leg++) {
+            const lx = x - w * 0.25 + leg * w * 0.2;
+            // Alternate leg phase: even legs forward when odd legs back
+            const phase = legCycle + leg * (Math.PI * 2 / 3);
+            const legSwing = Math.sin(phase) * (isMoving ? h * 0.2 : 0);
+            // Top legs
+            const topKneeX = lx - w * 0.12;
+            const topKneeY = y - h * 0.35 + legSwing * 0.3;
+            const topFootY = y - h * 0.6 + legSwing;
+            g.moveTo(lx, y - h * 0.25);
+            g.lineTo(topKneeX, topKneeY);
+            g.lineTo(topKneeX - w * 0.05, topFootY);
+            g.stroke({ color: tint, width: 0.9 });
+            // Bottom legs (mirror)
+            const botKneeX = lx - w * 0.12;
+            const botKneeY = y + h * 0.35 - legSwing * 0.3;
+            const botFootY = y + h * 0.6 - legSwing;
+            g.moveTo(lx, y + h * 0.25);
+            g.lineTo(botKneeX, botKneeY);
+            g.lineTo(botKneeX - w * 0.05, botFootY);
+            g.stroke({ color: tint, width: 0.9 });
+          }
+
+          // Main body — elongated horizontal ellipse
+          g.ellipse(x, y, w * 0.55, h * 0.3);
           g.fill({ color: bodyColor });
-          // V-shaped jaw mandibles at front (right side = forward)
-          g.moveTo(x + w * 0.5, y - h * 0.1);
-          g.lineTo(x + w * 0.85, y - h * 0.35);
-          g.stroke({ color: 0xdd5544, width: 1.5 });
-          g.moveTo(x + w * 0.5, y + h * 0.1);
-          g.lineTo(x + w * 0.85, y + h * 0.35);
-          g.stroke({ color: 0xdd5544, width: 1.5 });
-          // Spine ridge — 4 small triangular spikes along top
+          g.ellipse(x, y, w * 0.55, h * 0.3);
+          g.stroke({ color: darken(tint, 20), width: 0.8, alpha: 0.5 });
+
+          // V-shaped scythe mandibles (blade-like forearms)
+          const mandibleSnap = isMoving ? Math.sin(gameTime * 6 + eid) * h * 0.05 : 0;
+          g.moveTo(x + w * 0.45, y - h * 0.08);
+          g.lineTo(x + w * 0.8, y - h * 0.3 + mandibleSnap);
+          g.stroke({ color: 0xdd5544, width: 1.8 });
+          g.moveTo(x + w * 0.45, y + h * 0.08);
+          g.lineTo(x + w * 0.8, y + h * 0.3 - mandibleSnap);
+          g.stroke({ color: 0xdd5544, width: 1.8 });
+
+          // Dorsal spine ridge — 4 spikes
           for (let s = 0; s < 4; s++) {
-            const sx = x - w * 0.3 + s * w * 0.2;
-            g.moveTo(sx - w * 0.05, y - h * 0.3);
-            g.lineTo(sx, y - h * 0.55);
-            g.lineTo(sx + w * 0.05, y - h * 0.3);
+            const sx = x - w * 0.25 + s * w * 0.18;
+            g.moveTo(sx - w * 0.04, y - h * 0.28);
+            g.lineTo(sx, y - h * 0.5);
+            g.lineTo(sx + w * 0.04, y - h * 0.28);
             g.closePath();
             g.fill({ color: tint, alpha: 0.9 });
           }
-          // Legs — 2 thin lines on each side
-          g.moveTo(x - w * 0.2, y + h * 0.3);
-          g.lineTo(x - w * 0.4, y + h * 0.65);
-          g.stroke({ color: tint, width: 0.8 });
-          g.moveTo(x + w * 0.1, y + h * 0.3);
-          g.lineTo(x - w * 0.05, y + h * 0.65);
-          g.stroke({ color: tint, width: 0.8 });
-          g.moveTo(x - w * 0.2, y - h * 0.3);
-          g.lineTo(x - w * 0.4, y - h * 0.65);
-          g.stroke({ color: tint, width: 0.8 });
-          g.moveTo(x + w * 0.1, y - h * 0.3);
-          g.lineTo(x - w * 0.05, y - h * 0.65);
-          g.stroke({ color: tint, width: 0.8 });
-          // Tail — thin curved line extending backward
-          g.moveTo(x - w * 0.55, y);
-          g.lineTo(x - w * 0.75, y + h * 0.1);
-          g.lineTo(x - w * 0.9, y + h * 0.05);
-          g.stroke({ color: tint, width: 1 });
+
+          // Glowing eyes (2 small dots at front)
+          g.circle(x + w * 0.35, y - h * 0.1, 1.5);
+          g.fill({ color: ZERG_EYE, alpha: 0.9 });
+          g.circle(x + w * 0.35, y + h * 0.1, 1.5);
+          g.fill({ color: ZERG_EYE, alpha: 0.9 });
+
+          // Segmented tail
+          g.moveTo(x - w * 0.5, y);
+          g.lineTo(x - w * 0.7, y + h * 0.08);
+          g.lineTo(x - w * 0.85, y + h * 0.03);
+          g.stroke({ color: tint, width: 1.2 });
 
         } else if (uType === UnitType.Baneling) {
-          // ── Baneling: round, glowing, explosive with pulsing animation ──
-          const pulseGlow = 0.5 + 0.4 * Math.sin(gameTime * 5);
+          // ── Baneling: volatile acid sac, rolls toward enemies and detonates ──
+          // SC2: "Morphed from Zerglings. Living bomb filled with corrosive acid.
+          // Rolls rapidly toward enemies and detonates on contact."
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          // Pulse faster and brighter when moving (about to detonate!)
+          const pulseSpeed = isMoving ? 8 : 5;
+          const pulseGlow = isMoving
+            ? 0.7 + 0.3 * Math.sin(gameTime * pulseSpeed + eid)
+            : 0.5 + 0.4 * Math.sin(gameTime * pulseSpeed);
           // Shadow
           g.circle(x, y, w / 2 + 2);
           g.fill({ color: 0x000000, alpha: 0.4 });
@@ -1199,24 +1235,30 @@ export class UnitRenderer {
           g.stroke({ color: 0x338833, width: 0.8, alpha: 0.6 });
 
         } else if (uType === UnitType.Hydralisk) {
-          // ── Hydralisk: tall, upright, snake-like with cobra hood ──
+          // ── Hydralisk: upright serpent with cobra hood, spine needle attack ──
+          // SC2: "Snake-like upper body rising from a coiled lower half.
+          // Fires volleys of needle spines. Iconic cobra hood flares when attacking."
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const sway = isMoving ? Math.sin(gameTime * 4 + eid * 2.1) * 1.5 : 0;
+
           // Shadow
-          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body — tall ellipse (taller than wide, upright posture)
-          g.ellipse(x, y, w * 0.4, h * 0.55);
+          g.ellipse(x, y + 2, w * 0.4, h * 0.18);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+          // Main body — swaying when moving (serpentine)
+          g.ellipse(x + sway, y, w * 0.4, h * 0.55);
           g.fill({ color: bodyColor });
-          // Cobra hood — wide V-shape spreading outward from head
-          g.moveTo(x, y - h * 0.35);
-          g.lineTo(x - w * 0.6, y - h * 0.65);
+          // Cobra hood — flares with attack flash
+          const hoodFlare = atkFlashTimer[eid] > 0 ? 1.2 : 1.0;
+          g.moveTo(x + sway, y - h * 0.35);
+          g.lineTo(x - w * 0.6 * hoodFlare + sway, y - h * 0.65);
           g.stroke({ color: tint, width: 2 });
-          g.moveTo(x, y - h * 0.35);
-          g.lineTo(x + w * 0.6, y - h * 0.65);
+          g.moveTo(x + sway, y - h * 0.35);
+          g.lineTo(x + w * 0.6 * hoodFlare + sway, y - h * 0.65);
           g.stroke({ color: tint, width: 2 });
-          // Hood fill (triangular area)
-          g.moveTo(x - w * 0.55, y - h * 0.6);
-          g.lineTo(x, y - h * 0.3);
-          g.lineTo(x + w * 0.55, y - h * 0.6);
+          // Hood fill
+          g.moveTo(x - w * 0.55 * hoodFlare + sway, y - h * 0.6);
+          g.lineTo(x + sway, y - h * 0.3);
+          g.lineTo(x + w * 0.55 * hoodFlare + sway, y - h * 0.6);
           g.closePath();
           g.fill({ color: bodyColor, alpha: 0.6 });
           // Spine needle ridge — 3 small spikes on the back (left side)
@@ -1242,44 +1284,56 @@ export class UnitRenderer {
           g.fill({ color: 0xff6644, alpha: 0.9 });
 
         } else if (uType === UnitType.Roach) {
-          // ── Roach: wide, armored beetle with carapace and segments ──
+          // ── Roach: armored insectoid with thick carapace, acid-spitting maw ──
+          // SC2: "Heavily armored beetle-like creature. Regenerates rapidly.
+          // Fires corrosive acid from its mouth."
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const legCycle = isMoving ? gameTime * 8 + eid * 1.3 : 0;
+
           // Shadow
-          g.ellipse(x, y, w / 2 + 2, h / 2 + 2);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body — wide ellipse (wider than tall, low tanky)
+          g.ellipse(x, y + 2, w * 0.5, h * 0.2);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+
+          // Animated legs — 3 per side, slower cycle than Zergling (heavier)
+          for (let l = 0; l < 3; l++) {
+            const lx = x - w * 0.25 + l * w * 0.22;
+            const phase = legCycle + l * (Math.PI * 2 / 3);
+            const swing = Math.sin(phase) * (isMoving ? h * 0.12 : 0);
+            g.moveTo(lx, y + h * 0.35);
+            g.lineTo(lx - w * 0.12, y + h * 0.6 + swing);
+            g.stroke({ color: tint, width: 1 });
+            g.moveTo(lx, y - h * 0.35);
+            g.lineTo(lx - w * 0.12, y - h * 0.6 - swing);
+            g.stroke({ color: tint, width: 1 });
+          }
+
+          // Main body — wide ellipse
           g.ellipse(x, y, w * 0.55, h * 0.4);
           g.fill({ color: bodyColor });
-          // Carapace — filled arc covering top half, darker shade
+          // Thick carapace — armored half-dome on top
           g.arc(x, y - h * 0.05, w * 0.5, Math.PI, 0, false);
           g.closePath();
           g.fill({ color: 0x662222, alpha: 0.5 });
           g.arc(x, y - h * 0.05, w * 0.5, Math.PI, 0, false);
           g.stroke({ color: 0x886644, width: 2, alpha: 0.7 });
-          // Armor segment lines — 3 horizontal lines across body
+          // Armor segment lines
           for (let s = 0; s < 3; s++) {
             const sy = y - h * 0.15 + s * h * 0.15;
             g.moveTo(x - w * 0.35, sy);
             g.lineTo(x + w * 0.35, sy);
             g.stroke({ color: 0x884422, width: 1, alpha: 0.4 });
           }
-          // Mandibles — two short thick lines at front
+          // Acid mandibles
           g.moveTo(x + w * 0.4, y - h * 0.1);
           g.lineTo(x + w * 0.65, y - h * 0.25);
           g.stroke({ color: 0xaa6644, width: 2 });
           g.moveTo(x + w * 0.4, y + h * 0.1);
           g.lineTo(x + w * 0.65, y + h * 0.25);
           g.stroke({ color: 0xaa6644, width: 2 });
-          // Legs — 3 on each side going down
-          for (let l = 0; l < 3; l++) {
-            const lx = x - w * 0.3 + l * w * 0.25;
-            g.moveTo(lx, y + h * 0.35);
-            g.lineTo(lx - w * 0.1, y + h * 0.65);
-            g.stroke({ color: tint, width: 0.8 });
-            g.moveTo(lx, y - h * 0.35);
-            g.lineTo(lx - w * 0.1, y - h * 0.65);
-            g.stroke({ color: tint, width: 0.8 });
-          }
-          // Regen indicator (keep existing)
+          // Glowing acid maw
+          g.circle(x + w * 0.42, y, 2.5);
+          g.fill({ color: 0x88aa22, alpha: 0.6 });
+          // Regen indicator
           if (hpCurrent[eid] < hpMax[eid] && hpCurrent[eid] > 0) {
             const pulse = 0.3 + 0.3 * Math.sin(gameTime * 4);
             g.circle(x, y - h / 2 - 4, 3);
@@ -1287,39 +1341,48 @@ export class UnitRenderer {
           }
 
         } else if (uType === UnitType.Mutalisk) {
-          // ── Mutalisk: flying flyer with swept wings and glaive beak ──
-          // Faint ground shadow (elevated)
-          g.ellipse(x, y + 4, w * 0.35, h * 0.15);
-          g.fill({ color: 0x000000, alpha: 0.2 });
-          // Shadow behind body
-          g.ellipse(x, y, w * 0.3 + 2, h * 0.35 + 2);
-          g.fill({ color: 0x000000, alpha: 0.35 });
-          // Main body — narrow vertical ellipse (streamlined)
-          g.ellipse(x, y, w * 0.28, h * 0.42);
-          g.fill({ color: bodyColor });
-          g.ellipse(x, y, w * 0.28, h * 0.42);
-          g.stroke({ color: 0x9966cc, width: 1, alpha: 0.6 });
-          // Left wing — two-segment swept back diagonally
+          // ── Mutalisk: agile flying predator with leathery wings, glaive wurm attack ──
+          // SC2: "Fast flying unit with a unique glaive wurm attack that bounces
+          // between targets. Bat-like wings, serpentine body."
+          const wingFlap = Math.sin(gameTime * 6 + eid * 1.9) * 0.15;
+
+          // Faint ground shadow (elevated — bobs with wing flap)
+          g.ellipse(x, y + 5 + wingFlap * 8, w * 0.3, h * 0.12);
+          g.fill({ color: 0x000000, alpha: 0.15 });
+
+          // Left wing — animated flap
+          const lwTipY = y - h * 0.38 + wingFlap * h * 0.5;
           g.moveTo(x - w * 0.22, y - h * 0.05);
-          g.lineTo(x - w * 0.7, y - h * 0.38);
-          g.lineTo(x - w * 0.85, y - h * 0.25);
+          g.lineTo(x - w * 0.7, lwTipY);
+          g.lineTo(x - w * 0.85, lwTipY + h * 0.13);
           g.stroke({ color: 0xcc88ff, width: 1.8 });
-          // Right wing
-          g.moveTo(x + w * 0.22, y - h * 0.05);
-          g.lineTo(x + w * 0.7, y - h * 0.38);
-          g.lineTo(x + w * 0.85, y - h * 0.25);
-          g.stroke({ color: 0xcc88ff, width: 1.8 });
-          // Wing membrane fill (semi-transparent triangles)
+          // Left wing membrane
           g.moveTo(x - w * 0.2, y - h * 0.05);
-          g.lineTo(x - w * 0.7, y - h * 0.36);
+          g.lineTo(x - w * 0.7, lwTipY);
           g.lineTo(x - w * 0.3, y + h * 0.12);
           g.closePath();
-          g.fill({ color: bodyColor, alpha: 0.35 });
+          g.fill({ color: bodyColor, alpha: 0.3 });
+
+          // Right wing — animated flap (mirror)
+          const rwTipY = y - h * 0.38 + wingFlap * h * 0.5;
+          g.moveTo(x + w * 0.22, y - h * 0.05);
+          g.lineTo(x + w * 0.7, rwTipY);
+          g.lineTo(x + w * 0.85, rwTipY + h * 0.13);
+          g.stroke({ color: 0xcc88ff, width: 1.8 });
+          // Right wing membrane
           g.moveTo(x + w * 0.2, y - h * 0.05);
-          g.lineTo(x + w * 0.7, y - h * 0.36);
+          g.lineTo(x + w * 0.7, rwTipY);
           g.lineTo(x + w * 0.3, y + h * 0.12);
           g.closePath();
-          g.fill({ color: bodyColor, alpha: 0.35 });
+          g.fill({ color: bodyColor, alpha: 0.3 });
+
+          // Main body — narrow vertical ellipse (serpentine)
+          const bodyBob = wingFlap * 2;
+          g.ellipse(x, y + bodyBob, w * 0.28, h * 0.42);
+          g.fill({ color: bodyColor });
+          g.ellipse(x, y + bodyBob, w * 0.28, h * 0.42);
+          g.stroke({ color: 0x9966cc, width: 1, alpha: 0.6 });
+
           // Glaive beak — sharp spike pointing upward from head
           g.moveTo(x, y - h * 0.38);
           g.lineTo(x - 3, y - h * 0.55);

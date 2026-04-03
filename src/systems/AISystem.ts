@@ -1,10 +1,10 @@
 import { type World, entityExists, hasComponents } from '../ecs/world';
 import {
-  POSITION, BUILDING, HEALTH, UNIT_TYPE,
+  POSITION, BUILDING, HEALTH, UNIT_TYPE, ATTACK,
   posX, posY, faction, hpCurrent, hpMax, commandMode, unitType,
   buildingType, buildState, targetEntity,
   setPath, movePathIndex,
-  energy, injectTimer, atkDamage,
+  energy, injectTimer, atkDamage, atkRange, atkCooldown, atkLastTime,
 } from '../ecs/components';
 import { findNearestCommandCenter } from '../ecs/queries';
 import { isTileVisible } from './FogSystem';
@@ -96,6 +96,47 @@ const EMERGENCY_SPAWN_THRESHOLD = 3;
 const EMERGENCY_SPAWN_COUNT = 2;
 
 // ─────────────────────────────────────────
+// Iteration 1: APM-based difficulty system
+// ─────────────────────────────────────────
+// Actions Per Minute budget — the core difficulty lever.
+// Every AI action (spawn, move command, micro, ability) costs action points.
+// The budget refills per decision tick based on difficulty.
+// This makes Easy feel slow/deliberate, Brutal feel overwhelming.
+const APM_BUDGETS: Record<Difficulty, number> = {
+  [Difficulty.Easy]:   30,    // ~30 APM — beginner, can barely macro
+  [Difficulty.Normal]: 80,    // ~80 APM — casual player, decent macro
+  [Difficulty.Hard]:   180,   // ~180 APM — good player, macro + some micro
+  [Difficulty.Brutal]: 400,   // ~400 APM — pro-level, full micro + macro
+};
+
+// Action costs (in APM points per action)
+const APM_COST_SPAWN = 2;        // spawning a unit
+const APM_COST_MOVE_CMD = 1;     // issuing a move/attack-move command
+const APM_COST_MICRO = 3;        // kiting, splitting, pulling back wounded
+const APM_COST_ABILITY = 2;      // using an ability (inject, etc.)
+const APM_COST_SCOUT = 1;        // sending a scout
+const APM_COST_ATTACK_DECISION = 5; // committing to an attack wave
+
+let apmBudget = 0;       // current action points available this tick
+let apmSpentTotal = 0;   // lifetime APM spent (for stats)
+
+function refillAPM(elapsed: number): void {
+  const maxApm = APM_BUDGETS[currentDifficulty];
+  // Convert APM (per minute) to points per elapsed seconds
+  const pointsPerSecond = maxApm / 60;
+  apmBudget = Math.min(maxApm / 4, apmBudget + pointsPerSecond * elapsed);
+}
+
+function spendAPM(cost: number): boolean {
+  if (apmBudget >= cost) {
+    apmBudget -= cost;
+    apmSpentTotal += cost;
+    return true;
+  }
+  return false;
+}
+
+// ─────────────────────────────────────────
 // Tuning constants
 // ─────────────────────────────────────────
 const INITIAL_DELAYS: Record<Difficulty, number> = {
@@ -129,6 +170,41 @@ const SCOUT_INTERVAL = 25;        // seconds between scout sends
 const RETREAT_HP_RATIO = 0.35;    // retreat if army HP drops below 35% of max
 const RETREAT_MIN_REGROUP_TIME = 15; // seconds before re-attacking after retreat
 const RETREAT_REBUILT_RATIO = 0.5;   // army must be >= 50% rebuilt to re-attack
+
+// ─────────────────────────────────────────
+// Iteration 2: Micro behavior constants
+// ─────────────────────────────────────────
+const KITE_RANGE_BUFFER = 1.5;     // tiles beyond attack range to kite back to
+const STUTTER_STEP_WINDOW = 0.3;   // seconds — fraction of attack cooldown to move during
+const BANELING_CLUMP_THRESHOLD = 3; // enemies within splash range to detonate on
+const SURROUND_SPREAD_ANGLE = 0.4;  // radians — spread angle for zergling surround
+const WOUNDED_PULL_RATIO = 0.25;   // pull unit back when HP drops below 25%
+const ROACH_REGEN_PULL_RATIO = 0.3; // pull Roaches back at 30% to regen
+
+// ─────────────────────────────────────────
+// Iteration 3: Engagement constants
+// ─────────────────────────────────────────
+const CONCAVE_SPREAD = 0.12;       // radians per unit in concave formation
+const ENGAGEMENT_ADVANTAGE_THRESHOLD = 0.8;  // attack if our value >= 80% of enemy
+const DISENGAGE_THRESHOLD = 0.4;   // disengage if our value drops below 40%
+const FLANK_SPLIT_RATIO = 0.3;     // 30% of fast units flank
+
+// ─────────────────────────────────────────
+// Iteration 4: Adaptive strategy constants
+// ─────────────────────────────────────────
+const TIMING_ATTACK_WINDOW = 30;   // seconds after scouting enemy expand to punish
+const TECH_SWITCH_COOLDOWN = 60;   // seconds between tech switches
+let lastTechSwitchTime = 0;
+let currentStrategy: 'standard' | 'anti-bio' | 'anti-mech' | 'timing-attack' | 'economy-punish' = 'standard';
+let strategySetTime = 0;
+
+// ─────────────────────────────────────────
+// Iteration 5: Combat awareness constants
+// ─────────────────────────────────────────
+const SPLASH_SPREAD_DIST = 2.5;    // tiles to spread apart vs splash
+const THREAT_ZONE_RANGE = 14;      // tiles — avoid walking into siege tank range
+const SNIPE_HP_THRESHOLD = 0.2;    // focus units below 20% HP for kills
+const COORDINATED_ENGAGE_RANGE = 8; // tiles — all units must be within this to engage
 
 // Alternate attack entry point for Hard/Brutal harass squad (far side of map from player base)
 function getHarassTarget() {
@@ -295,6 +371,11 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   terranAIGas = 0;
   personality = randomPersonality();
   intel = resetIntel();
+  apmBudget = 0;
+  apmSpentTotal = 0;
+  lastTechSwitchTime = 0;
+  currentStrategy = 'standard';
+  strategySetTime = 0;
 
   // Select build order
   activeBuildOrder = null;
@@ -320,7 +401,7 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
 }
 
 export function getAIState() {
-  return { aiMinerals, aiGas, waveCount, isAttacking, armySize: armyEids.size, defenseSize: defenseEids.size };
+  return { aiMinerals, aiGas, waveCount, isAttacking, armySize: armyEids.size, defenseSize: defenseEids.size, apmBudget: Math.round(apmBudget), strategy: currentStrategy };
 }
 
 export function setAIMinerals(m: number, g: number = 0): void {
@@ -704,6 +785,7 @@ function runAIAbilities(world: World, gameTime: number): void {
 
     // Queen: inject nearest Hatchery when energy >= INJECT_LARVA_COST
     if (ut === UnitType.Queen && energy[eid] >= INJECT_LARVA_COST) {
+      if (!spendAPM(APM_COST_ABILITY)) continue; // APM-gated
       let nearestHatch = 0, bestDist = Infinity;
       for (let h = 1; h < world.nextEid; h++) {
         if (!hasComponents(world, h, BUILDING)) continue;
@@ -742,6 +824,10 @@ function runTerranAI(
   currentMap = map;
   const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
 
+  // ── APM refill for Terran AI ──
+  const terranElapsed = gameTime - lastDecisionTime;
+  if (terranElapsed > 0) refillAPM(terranElapsed);
+
   // Build order execution (runs first, takes priority)
   executeBuildOrder(world, resources, gameTime, spawnUnit);
 
@@ -758,8 +844,8 @@ function runTerranAI(
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) terranArmyEids.delete(eid);
   }
 
-  // Spawn Marines and Marauders
-  if (gameTime - terranLastSpawnTime > 15 && terranAIMinerals >= 50 && world.nextEid < MAX_ENTITIES - 50) {
+  // Spawn Marines and Marauders (APM-gated)
+  if (gameTime - terranLastSpawnTime > 15 && terranAIMinerals >= 50 && world.nextEid < MAX_ENTITIES - 50 && spendAPM(APM_COST_SPAWN)) {
     // Find a Terran Barracks
     let barracksEid = 0;
     for (let eid = 1; eid < world.nextEid; eid++) {
@@ -879,10 +965,13 @@ export function aiSystem(
   lastDecisionTime = gameTime;
   if (elapsed <= 0) return;
 
+  // ── Iteration 1: Refill APM budget ──
+  refillAPM(elapsed);
+
   pruneDeadUnits(world);
   gatherIntelFromUnits(world);
 
-  // Base defense check (B.1)
+  // Base defense check (B.1) — free, always runs (survival instinct)
   checkBaseUnderAttack(world, gameTime, map, spawnFn);
 
   const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
@@ -906,16 +995,22 @@ export function aiSystem(
   // Build order execution (runs first, takes priority)
   executeBuildOrder(world, resources, gameTime, spawnFn);
 
-  // Spawn units
+  // Spawn units (APM-gated)
   const spawnsThisTick = Math.min(MAX_SPAWNS_PER_DECISION, 1 + Math.floor(waveCount / 2));
   for (let i = 0; i < spawnsThisTick; i++) {
+    if (!spendAPM(APM_COST_SPAWN)) break;
     trySpawnUnit(world, map, spawnFn);
   }
 
-  // Scouting
+  // Scouting (APM-gated)
   if (gameTime - lastScoutSendTime > SCOUT_INTERVAL && scoutEids.size < 2) {
-    sendScout(world, map, gameTime);
+    if (spendAPM(APM_COST_SCOUT)) {
+      sendScout(world, map, gameTime);
+    }
   }
+
+  // ── Iteration 4: Adaptive strategy ──
+  updateStrategy(world, gameTime);
 
   // Retreat check (before attack decision)
   if (isAttacking && !retreating) {
@@ -952,7 +1047,22 @@ export function aiSystem(
     }
   }
 
-  // B.7 — AI ability usage
+  // ── Iteration 2: Tactical micro (APM-gated) ──
+  if (isAttacking || defenseEids.size > 0) {
+    runTacticalMicro(world, map, gameTime);
+  }
+
+  // ── Iteration 3: Engagement positioning ──
+  if (isAttacking) {
+    runEngagementPositioning(world, map, gameTime);
+  }
+
+  // ── Iteration 5: Combat awareness ──
+  if (isAttacking || defenseEids.size > 0) {
+    runCombatAwareness(world, map, gameTime);
+  }
+
+  // B.7 — AI ability usage (APM-gated)
   runAIAbilities(world, gameTime);
 
   attemptAIUpgrade(resources, waveCount, diffConfig.upgradeStartWave);
@@ -1436,8 +1546,9 @@ function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
   const hatchery = findZergHatchery(world);
   if (hatchery === 0) return;
 
-  // Use reactive composition (intel-driven)
-  const options = getReactiveWeights();
+  // Iteration 4: Strategy-driven composition takes priority, then reactive, then phase
+  const stratWeights = getStrategyWeights();
+  const options = stratWeights ?? getReactiveWeights();
   const totalWeight = options.reduce((s, o) => s + o.weight, 0);
   let roll = rng.next() * totalWeight;
   let chosen = options[0];
@@ -1498,9 +1609,17 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
     return;
   }
 
+  // Iteration 4: Timing attack strategy forces earlier attacks
+  const timingBonus = currentStrategy === 'timing-attack' ? 0.6 : 1.0;
+  const economyPunishBonus = currentStrategy === 'economy-punish' ? 0.7 : 1.0;
+  const adjustedThreshold = Math.floor(threshold * timingBonus * economyPunishBonus);
+
   // Opportunistic attack if threat is very low, even below threshold
-  const shouldAttack = armyEids.size >= threshold || (threat < 0.7 && armyEids.size >= Math.floor(threshold * 0.5));
+  const shouldAttack = armyEids.size >= adjustedThreshold || (threat < 0.7 && armyEids.size >= Math.floor(adjustedThreshold * 0.5));
   if (!shouldAttack) return;
+
+  // APM-gated: committing to an attack wave costs action points
+  if (!spendAPM(APM_COST_ATTACK_DECISION)) return;
 
   // B.2 — Merge vanguard back into attack force
   mergeVanguardIntoArmy();
@@ -1663,6 +1782,630 @@ function sendUnitsToAttack(
       }
     }
   }
+}
+
+// ═══════════════════════════════════════════
+// ITERATION 2: Tactical Micro Behaviors
+// ═══════════════════════════════════════════
+function runTacticalMicro(world: World, map: MapData, gameTime: number): void {
+  // Only run micro for difficulties that have APM budget for it
+  if (currentDifficulty === Difficulty.Easy) return;
+
+  const activeUnits = isAttacking ? armyEids : defenseEids;
+  let microActions = 0;
+  const maxMicroPerTick = currentDifficulty === Difficulty.Brutal ? 8 : currentDifficulty === Difficulty.Hard ? 4 : 2;
+
+  for (const eid of activeUnits) {
+    if (microActions >= maxMicroPerTick) break;
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+
+    const ut = unitType[eid] as UnitType;
+
+    // ── Ranged kiting (Hydralisks, Roaches) ──
+    if ((ut === UnitType.Hydralisk || ut === UnitType.Roach) && atkRange[eid] > 0) {
+      if (tryKiteBack(world, eid, map, gameTime)) {
+        microActions++;
+        continue;
+      }
+    }
+
+    // ── Baneling target optimization ──
+    if (ut === UnitType.Baneling) {
+      if (tryBanelingClumpTarget(world, eid, map)) {
+        microActions++;
+        continue;
+      }
+    }
+
+    // ── Zergling surround ──
+    if (ut === UnitType.Zergling) {
+      if (trySurroundTarget(world, eid, map)) {
+        microActions++;
+        continue;
+      }
+    }
+
+    // ── Pull wounded units back (not Zerglings — expendable) ──
+    if (ut !== UnitType.Zergling && ut !== UnitType.Baneling) {
+      const hpRatio = hpCurrent[eid] / Math.max(1, hpMax[eid]);
+      const pullThreshold = ut === UnitType.Roach ? ROACH_REGEN_PULL_RATIO : WOUNDED_PULL_RATIO;
+      if (hpRatio < pullThreshold && hpRatio > 0) {
+        if (tryPullBack(world, eid, map)) {
+          microActions++;
+          continue;
+        }
+      }
+    }
+  }
+}
+
+/** Ranged units stutter-step: attack then back off during cooldown */
+function tryKiteBack(world: World, eid: number, map: MapData, gameTime: number): boolean {
+  const tgtEid = targetEntity[eid];
+  if (tgtEid < 1 || !entityExists(world, tgtEid) || hpCurrent[tgtEid] <= 0) return false;
+
+  // Only kite if we recently attacked (within cooldown window)
+  const cooldown = atkCooldown[eid] / 1000; // ms to seconds
+  const timeSinceAttack = gameTime - atkLastTime[eid];
+  if (timeSinceAttack < 0.05 || timeSinceAttack > cooldown * STUTTER_STEP_WINDOW) return false;
+
+  if (!spendAPM(APM_COST_MICRO)) return false;
+
+  // Move away from target
+  const dx = posX[eid] - posX[tgtEid];
+  const dy = posY[eid] - posY[tgtEid];
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.01) return false;
+
+  const kiteDistPx = (atkRange[eid] + KITE_RANGE_BUFFER) * TILE_SIZE;
+  if (dist >= kiteDistPx) return false; // already at max range
+
+  const nx = dx / dist;
+  const ny = dy / dist;
+  const retreatX = posX[eid] + nx * TILE_SIZE * 2;
+  const retreatY = posY[eid] + ny * TILE_SIZE * 2;
+
+  commandMode[eid] = CommandMode.AttackMove; // will re-engage after moving
+  pathTo(eid, retreatX, retreatY, map);
+  return true;
+}
+
+/** Banelings seek the densest enemy clump to maximize splash */
+function tryBanelingClumpTarget(world: World, eid: number, map: MapData): boolean {
+  let bestClump = 0;
+  let bestX = 0, bestY = 0;
+  const scanRange = 10 * TILE_SIZE;
+  const scanRangeSq = scanRange * scanRange;
+  const splashRange = 2 * TILE_SIZE;
+  const splashRangeSq = splashRange * splashRange;
+
+  // Find enemy with most nearby allies
+  for (let other = 1; other < world.nextEid; other++) {
+    if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+    if (faction[other] === currentAIFaction || faction[other] === 0) continue;
+    if (hpCurrent[other] <= 0) continue;
+
+    const dx = posX[other] - posX[eid];
+    const dy = posY[other] - posY[eid];
+    if (dx * dx + dy * dy > scanRangeSq) continue;
+
+    // Count enemies near this one
+    let clumpCount = 1;
+    for (let n = 1; n < world.nextEid; n++) {
+      if (n === other) continue;
+      if (!hasComponents(world, n, POSITION | HEALTH)) continue;
+      if (faction[n] === currentAIFaction || faction[n] === 0) continue;
+      if (hpCurrent[n] <= 0) continue;
+      const cdx = posX[n] - posX[other];
+      const cdy = posY[n] - posY[other];
+      if (cdx * cdx + cdy * cdy < splashRangeSq) clumpCount++;
+    }
+
+    if (clumpCount > bestClump) {
+      bestClump = clumpCount;
+      bestX = posX[other];
+      bestY = posY[other];
+    }
+  }
+
+  if (bestClump >= BANELING_CLUMP_THRESHOLD) {
+    if (!spendAPM(APM_COST_MICRO)) return false;
+    commandMode[eid] = CommandMode.AttackMove;
+    pathTo(eid, bestX, bestY, map);
+    return true;
+  }
+  return false;
+}
+
+/** Zerglings try to surround the target instead of a-moving head-on */
+function trySurroundTarget(world: World, eid: number, map: MapData): boolean {
+  const tgtEid = targetEntity[eid];
+  if (tgtEid < 1 || !entityExists(world, tgtEid) || hpCurrent[tgtEid] <= 0) return false;
+
+  const dx = posX[eid] - posX[tgtEid];
+  const dy = posY[eid] - posY[tgtEid];
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  // Only surround when approaching (3-6 tiles out)
+  if (dist < 2 * TILE_SIZE || dist > 6 * TILE_SIZE) return false;
+
+  if (!spendAPM(APM_COST_MICRO)) return false;
+
+  // Calculate angle to target and offset perpendicular
+  const baseAngle = Math.atan2(dy, dx);
+  const offset = (rng.next() > 0.5 ? 1 : -1) * (Math.PI * 0.5 + rng.next() * SURROUND_SPREAD_ANGLE);
+  const surroundAngle = baseAngle + offset;
+
+  // Move to a flanking position near the target
+  const surroundDist = 1.5 * TILE_SIZE;
+  const sx = posX[tgtEid] + Math.cos(surroundAngle) * surroundDist;
+  const sy = posY[tgtEid] + Math.sin(surroundAngle) * surroundDist;
+
+  commandMode[eid] = CommandMode.AttackMove;
+  pathTo(eid, sx, sy, map);
+  return true;
+}
+
+/** Pull a wounded unit back toward the nearest hatchery for regen */
+function tryPullBack(world: World, eid: number, map: MapData): boolean {
+  if (!spendAPM(APM_COST_MICRO)) return false;
+
+  // Find safe point (hatchery or army center)
+  const hatch = findZergHatchery(world);
+  let safeX: number, safeY: number;
+  if (hatch > 0) {
+    safeX = posX[hatch];
+    safeY = posY[hatch];
+  } else {
+    const center = getArmyCenter(world);
+    if (!center) return false;
+    safeX = center.x;
+    safeY = center.y;
+  }
+
+  // Move toward safe point but not all the way — just behind the front line
+  const dx = safeX - posX[eid];
+  const dy = safeY - posY[eid];
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 3 * TILE_SIZE) return false; // already near safe zone
+
+  const pullDist = Math.min(4 * TILE_SIZE, dist * 0.5);
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  commandMode[eid] = CommandMode.Move;
+  pathTo(eid, posX[eid] + nx * pullDist, posY[eid] + ny * pullDist, map);
+  return true;
+}
+
+// ═══════════════════════════════════════════
+// ITERATION 3: Smart Engagement Decisions
+// ═══════════════════════════════════════════
+function runEngagementPositioning(world: World, map: MapData, _gameTime: number): void {
+  if (currentDifficulty < Difficulty.Normal) return;
+
+  const center = getArmyCenter(world);
+  if (!center) return;
+
+  // ── Pre-engagement: form concave before contact ──
+  if (!hasEnemyContact(world)) {
+    formConcave(world, map, center);
+    return;
+  }
+
+  // ── During engagement: flank with fast units ──
+  if (currentDifficulty >= Difficulty.Hard) {
+    sendFlankingUnits(world, map);
+  }
+
+  // ── Disengage check: if we're losing badly, pull out ──
+  const armyValue = calculateArmyValue(world, currentAIFaction);
+  const enemyValue = calculateArmyValue(world, enemyFaction);
+  if (enemyValue > 0 && armyValue / enemyValue < DISENGAGE_THRESHOLD && armyEids.size > 3) {
+    if (currentMap) {
+      // Force retreat
+      checkRetreat(world, currentMap, _gameTime);
+    }
+  }
+}
+
+/** Check if any army unit is within engagement range of an enemy */
+function hasEnemyContact(world: World): boolean {
+  const contactRange = COORDINATED_ENGAGE_RANGE * TILE_SIZE;
+  const contactRangeSq = contactRange * contactRange;
+
+  for (const eid of armyEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    for (let other = 1; other < world.nextEid; other++) {
+      if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+      if (faction[other] === currentAIFaction || faction[other] === 0) continue;
+      if (hpCurrent[other] <= 0) continue;
+      const dx = posX[other] - posX[eid];
+      const dy = posY[other] - posY[eid];
+      if (dx * dx + dy * dy < contactRangeSq) return true;
+    }
+    break; // only check from first living unit for perf
+  }
+  return false;
+}
+
+/** Form a concave arc facing the enemy before engaging */
+function formConcave(world: World, map: MapData, center: { x: number; y: number }): void {
+  // Find direction toward the nearest known enemy
+  let enemyX = 0, enemyY = 0;
+  let found = false;
+
+  if (intel.lastKnownEnemyX >= 0) {
+    enemyX = intel.lastKnownEnemyX;
+    enemyY = intel.lastKnownEnemyY;
+    found = true;
+  }
+  if (!found) {
+    const target = tileToWorld(playerBaseTile.col, playerBaseTile.row);
+    enemyX = target.x;
+    enemyY = target.y;
+  }
+
+  const dx = enemyX - center.x;
+  const dy = enemyY - center.y;
+  const baseAngle = Math.atan2(dy, dx);
+  const unitCount = armyEids.size;
+  if (unitCount < 3) return;
+
+  let i = 0;
+  let actionsSpent = 0;
+  const maxActions = currentDifficulty >= Difficulty.Hard ? 6 : 3;
+
+  for (const eid of armyEids) {
+    if (actionsSpent >= maxActions) break;
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    // Skip units already pathing
+    if (movePathIndex[eid] >= 0) { i++; continue; }
+
+    if (!spendAPM(APM_COST_MOVE_CMD)) break;
+
+    // Arc from -60° to +60° relative to enemy direction
+    const arcOffset = ((i / (unitCount - 1)) - 0.5) * Math.PI * CONCAVE_SPREAD * unitCount;
+    const angle = baseAngle + arcOffset;
+    const radius = 3 * TILE_SIZE; // formation radius from center
+    const fx = center.x + Math.cos(angle + Math.PI) * radius; // behind center, facing enemy
+    const fy = center.y + Math.sin(angle + Math.PI) * radius;
+
+    commandMode[eid] = CommandMode.AttackMove;
+    pathTo(eid, fx, fy, map);
+    i++;
+    actionsSpent++;
+  }
+}
+
+/** Send fast units (Zerglings) to flank while main army engages head-on */
+function sendFlankingUnits(world: World, map: MapData): void {
+  if (armyEids.size < 8) return;
+
+  const flankCount = Math.floor(armyEids.size * FLANK_SPLIT_RATIO);
+  let flanked = 0;
+
+  // Find enemy center
+  let enemyX = 0, enemyY = 0, enemyCount = 0;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, POSITION | HEALTH)) continue;
+    if (faction[eid] !== enemyFaction || hpCurrent[eid] <= 0) continue;
+    enemyX += posX[eid];
+    enemyY += posY[eid];
+    enemyCount++;
+    if (enemyCount > 10) break; // sample
+  }
+  if (enemyCount === 0) return;
+  enemyX /= enemyCount;
+  enemyY /= enemyCount;
+
+  for (const eid of armyEids) {
+    if (flanked >= flankCount) break;
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    const ut = unitType[eid] as UnitType;
+    if (ut !== UnitType.Zergling) continue; // only fast units flank
+    if (movePathIndex[eid] >= 0) continue; // already pathing
+
+    if (!spendAPM(APM_COST_MOVE_CMD)) break;
+
+    // Flank: approach from 90° offset
+    const center = getArmyCenter(world);
+    if (!center) break;
+    const dx = enemyX - center.x;
+    const dy = enemyY - center.y;
+    const baseAngle = Math.atan2(dy, dx);
+    const flankSide = flanked % 2 === 0 ? 1 : -1;
+    const flankAngle = baseAngle + flankSide * (Math.PI * 0.5);
+
+    const flankX = enemyX + Math.cos(flankAngle) * 4 * TILE_SIZE;
+    const flankY = enemyY + Math.sin(flankAngle) * 4 * TILE_SIZE;
+
+    commandMode[eid] = CommandMode.AttackMove;
+    pathTo(eid, flankX, flankY, map);
+    flanked++;
+  }
+}
+
+/** Calculate combined army value (HP * damage) for a faction */
+function calculateArmyValue(world: World, fac: number): number {
+  let value = 0;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, POSITION | HEALTH)) continue;
+    if (faction[eid] !== fac || hpCurrent[eid] <= 0) continue;
+    if (hasComponents(world, eid, BUILDING)) continue; // skip buildings
+    value += hpCurrent[eid] * Math.max(1, atkDamage[eid]);
+  }
+  return value;
+}
+
+// ═══════════════════════════════════════════
+// ITERATION 4: Adaptive Strategy & Tech Switching
+// ═══════════════════════════════════════════
+function updateStrategy(world: World, gameTime: number): void {
+  if (currentDifficulty < Difficulty.Normal) return;
+  if (gameTime - lastTechSwitchTime < TECH_SWITCH_COOLDOWN) return;
+
+  const totalSeen = intel.marineSeen + intel.marauderSeen + intel.tankSeen + intel.medivacSeen;
+  if (totalSeen === 0) return;
+
+  const oldStrategy = currentStrategy;
+  const bioRatio = (intel.marineSeen + intel.medivacSeen) / Math.max(1, totalSeen);
+  const mechRatio = (intel.tankSeen) / Math.max(1, totalSeen);
+
+  // ── Detect player expanding (buildings scouted in non-base location) ──
+  if (intel.buildingsSeen > 2 && waveCount <= 3 && currentStrategy !== 'timing-attack') {
+    currentStrategy = 'timing-attack';
+  }
+  // ── Heavy bio → Banelings + splash ──
+  else if (bioRatio > 0.6 && intel.marineSeen >= 5) {
+    currentStrategy = 'anti-bio';
+  }
+  // ── Heavy mech → Zergling runby + Hydra range ──
+  else if (mechRatio > 0.3 && intel.tankSeen >= 2) {
+    currentStrategy = 'anti-mech';
+  }
+  // ── Economy punishment (few army units scouted, they're greedy) ──
+  else if (totalSeen < 4 && waveCount >= 2) {
+    currentStrategy = 'economy-punish';
+  }
+  else {
+    currentStrategy = 'standard';
+  }
+
+  if (currentStrategy !== oldStrategy) {
+    lastTechSwitchTime = gameTime;
+    strategySetTime = gameTime;
+  }
+}
+
+/** Get strategy-adjusted unit weights — overrides reactive weights when strategy is active */
+function getStrategyWeights(): Array<{ type: UnitType; costM: number; costG: number; weight: number }> | null {
+  switch (currentStrategy) {
+    case 'anti-bio':
+      // Mass Banelings + Hydras to counter Marines
+      return [
+        { type: UnitType.Baneling, costM: 50, costG: 25, weight: 40 },
+        { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 25 },
+        { type: UnitType.Roach, costM: 75, costG: 25, weight: 15 },
+        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 10 },
+        { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 10 },
+      ];
+
+    case 'anti-mech':
+      // Zergling swarm (surround tanks) + Hydras (outrange unsieged)
+      return [
+        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 35 },
+        { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 25 },
+        { type: UnitType.Ravager, costM: 25, costG: 75, weight: 15 },
+        { type: UnitType.Roach, costM: 75, costG: 25, weight: 15 },
+        { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 10 },
+      ];
+
+    case 'timing-attack':
+      // Cheap, fast army for immediate aggression
+      return [
+        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 50 },
+        { type: UnitType.Roach, costM: 75, costG: 25, weight: 30 },
+        { type: UnitType.Baneling, costM: 50, costG: 25, weight: 20 },
+      ];
+
+    case 'economy-punish':
+      // Fast harass units to punish greed
+      return [
+        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 40 },
+        { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 25 },
+        { type: UnitType.Baneling, costM: 50, costG: 25, weight: 20 },
+        { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 15 },
+      ];
+
+    default:
+      return null; // use default phase-based weights
+  }
+}
+
+// ═══════════════════════════════════════════
+// ITERATION 5: Advanced Combat Awareness
+// ═══════════════════════════════════════════
+function runCombatAwareness(world: World, map: MapData, _gameTime: number): void {
+  if (currentDifficulty < Difficulty.Hard) return;
+
+  let actionsThisTick = 0;
+  const maxActions = currentDifficulty === Difficulty.Brutal ? 6 : 3;
+
+  const activeUnits = isAttacking ? armyEids : defenseEids;
+
+  for (const eid of activeUnits) {
+    if (actionsThisTick >= maxActions) break;
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+
+    // ── Splash avoidance: spread out near siege tanks ──
+    if (trySplashAvoidance(world, eid, map)) {
+      actionsThisTick++;
+      continue;
+    }
+
+    // ── Snipe low-HP targets for quick kills ──
+    if (trySnipeLowHP(world, eid)) {
+      actionsThisTick++;
+      continue;
+    }
+
+    // ── Threat zone avoidance: don't walk into siege tank range ──
+    if (tryAvoidThreatZone(world, eid, map)) {
+      actionsThisTick++;
+      continue;
+    }
+  }
+}
+
+/** Spread apart when near enemy splash damage sources (Siege Tanks) */
+function trySplashAvoidance(world: World, eid: number, map: MapData): boolean {
+  const ut = unitType[eid] as UnitType;
+  // Only spread ranged/squishy units — Zerglings are expendable
+  if (ut === UnitType.Zergling || ut === UnitType.Baneling) return false;
+
+  // Check if any siege tank is in range
+  let hasSplashThreat = false;
+  let threatX = 0, threatY = 0;
+  const dangerRange = THREAT_ZONE_RANGE * TILE_SIZE;
+  const dangerRangeSq = dangerRange * dangerRange;
+
+  for (let other = 1; other < world.nextEid; other++) {
+    if (!hasComponents(world, other, POSITION | HEALTH | ATTACK)) continue;
+    if (faction[other] === currentAIFaction || faction[other] === 0) continue;
+    if (hpCurrent[other] <= 0) continue;
+    if (unitType[other] !== UnitType.SiegeTank) continue;
+
+    const dx = posX[other] - posX[eid];
+    const dy = posY[other] - posY[eid];
+    if (dx * dx + dy * dy < dangerRangeSq) {
+      hasSplashThreat = true;
+      threatX = posX[other];
+      threatY = posY[other];
+      break;
+    }
+  }
+
+  if (!hasSplashThreat) return false;
+
+  // Check for nearby friendly clumping
+  let nearbyFriendlies = 0;
+  const clumpRange = SPLASH_SPREAD_DIST * TILE_SIZE;
+  const clumpRangeSq = clumpRange * clumpRange;
+
+  for (const otherEid of armyEids) {
+    if (otherEid === eid) continue;
+    if (!entityExists(world, otherEid) || hpCurrent[otherEid] <= 0) continue;
+    const dx = posX[otherEid] - posX[eid];
+    const dy = posY[otherEid] - posY[eid];
+    if (dx * dx + dy * dy < clumpRangeSq) nearbyFriendlies++;
+  }
+
+  if (nearbyFriendlies < 2) return false; // not clumped enough to worry
+
+  if (!spendAPM(APM_COST_MICRO)) return false;
+
+  // Move perpendicular to threat direction to spread out
+  const dx = posX[eid] - threatX;
+  const dy = posY[eid] - threatY;
+  const angle = Math.atan2(dy, dx);
+  const spreadDir = rng.next() > 0.5 ? 1 : -1;
+  const spreadAngle = angle + spreadDir * Math.PI * 0.5;
+
+  const spreadX = posX[eid] + Math.cos(spreadAngle) * SPLASH_SPREAD_DIST * TILE_SIZE;
+  const spreadY = posY[eid] + Math.sin(spreadAngle) * SPLASH_SPREAD_DIST * TILE_SIZE;
+
+  commandMode[eid] = CommandMode.AttackMove;
+  pathTo(eid, spreadX, spreadY, map);
+  return true;
+}
+
+/** Retarget to an enemy with very low HP for a guaranteed kill */
+function trySnipeLowHP(world: World, eid: number): boolean {
+  if (atkRange[eid] <= 0) return false; // melee units don't snipe
+
+  const scanRange = (atkRange[eid] + 2) * TILE_SIZE;
+  const scanRangeSq = scanRange * scanRange;
+
+  let bestTarget = 0;
+  let bestHpRatio = SNIPE_HP_THRESHOLD;
+
+  for (let other = 1; other < world.nextEid; other++) {
+    if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+    if (faction[other] === currentAIFaction || faction[other] === 0) continue;
+    if (hpCurrent[other] <= 0) continue;
+    if (hasComponents(world, other, BUILDING)) continue; // don't snipe buildings
+
+    const dx = posX[other] - posX[eid];
+    const dy = posY[other] - posY[eid];
+    if (dx * dx + dy * dy > scanRangeSq) continue;
+
+    const ratio = hpCurrent[other] / Math.max(1, hpMax[other]);
+    if (ratio < bestHpRatio) {
+      bestHpRatio = ratio;
+      bestTarget = other;
+    }
+  }
+
+  if (bestTarget > 0 && bestTarget !== targetEntity[eid]) {
+    if (!spendAPM(APM_COST_MICRO)) return false;
+    targetEntity[eid] = bestTarget;
+    commandMode[eid] = CommandMode.AttackTarget;
+    return true;
+  }
+  return false;
+}
+
+/** Avoid walking into siege tank range — path around if possible */
+function tryAvoidThreatZone(world: World, eid: number, map: MapData): boolean {
+  const ut = unitType[eid] as UnitType;
+  // Only avoid with non-melee units or high-value units
+  if (ut === UnitType.Zergling || ut === UnitType.Baneling) return false;
+  if (movePathIndex[eid] < 0) return false; // not currently moving
+
+  // Check for siege tanks in path
+  const dangerRange = 13 * TILE_SIZE; // siege range
+  const dangerRangeSq = dangerRange * dangerRange;
+  const warningRange = (13 + 3) * TILE_SIZE; // a bit beyond siege range
+  const warningRangeSq = warningRange * warningRange;
+
+  let threatFound = false;
+  let threatX = 0, threatY = 0;
+
+  for (let other = 1; other < world.nextEid; other++) {
+    if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+    if (faction[other] === currentAIFaction || faction[other] === 0) continue;
+    if (hpCurrent[other] <= 0) continue;
+    if (unitType[other] !== UnitType.SiegeTank) continue;
+
+    const dx = posX[other] - posX[eid];
+    const dy = posY[other] - posY[eid];
+    const distSq = dx * dx + dy * dy;
+    if (distSq < warningRangeSq && distSq > dangerRangeSq * 0.25) {
+      threatFound = true;
+      threatX = posX[other];
+      threatY = posY[other];
+      break;
+    }
+  }
+
+  if (!threatFound) return false;
+
+  if (!spendAPM(APM_COST_MICRO)) return false;
+
+  // Path around: move perpendicular to threat direction
+  const dx = posX[eid] - threatX;
+  const dy = posY[eid] - threatY;
+  const angle = Math.atan2(dy, dx);
+  const avoidDir = rng.next() > 0.5 ? 1 : -1;
+  const avoidAngle = angle + avoidDir * Math.PI * 0.4;
+
+  const avoidX = posX[eid] + Math.cos(avoidAngle) * 5 * TILE_SIZE;
+  const avoidY = posY[eid] + Math.sin(avoidAngle) * 5 * TILE_SIZE;
+
+  commandMode[eid] = CommandMode.AttackMove;
+  pathTo(eid, avoidX, avoidY, map);
+  return true;
 }
 
 // ─────────────────────────────────────────

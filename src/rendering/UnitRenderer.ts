@@ -1120,22 +1120,31 @@ export class UnitRenderer {
           g.stroke({ color: tint, width: 1 });
 
         } else if (uType === UnitType.Zergling) {
-          // ── Zergling: insectoid raptor-dog, 6 scythe-legs, mandibles, dorsal spines ──
-          // SC2: "Zerglings are small, fast, and attack in swarms. They have
-          // blade-like forearms and insectoid legs that skitter rapidly."
+          // ── Zergling: insectoid raptor-dog — power fantasy: OVERWHELMING SWARM ──
+          // Fast, twitchy, aggressive. Speed blur when sprinting, mandibles snap wider near enemies.
           const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
-          const legCycle = isMoving ? gameTime * 12 + eid * 1.7 : 0;
+          const speed = Math.sqrt(velX[eid] * velX[eid] + velY[eid] * velY[eid]);
+          const isFast = speed > 2.0;
+          const legCycle = isMoving ? gameTime * 14 + eid * 1.7 : 0; // faster skitter
+
+          // Speed blur / after-image when sprinting
+          if (isFast) {
+            const blurAlpha = Math.min(0.25, speed * 0.02);
+            g.ellipse(x - velX[eid] * 2, y - velY[eid] * 2, w * 0.45, h * 0.25);
+            g.fill({ color: tint, alpha: blurAlpha });
+            g.ellipse(x - velX[eid] * 4, y - velY[eid] * 4, w * 0.35, h * 0.2);
+            g.fill({ color: tint, alpha: blurAlpha * 0.5 });
+          }
 
           // Shadow
           g.ellipse(x, y + 1, w * 0.5, h * 0.2);
           g.fill({ color: 0x000000, alpha: 0.3 });
 
-          // 6 skittering legs (3 per side) — animate when moving
+          // 6 skittering legs (3 per side) — faster animation
           for (let leg = 0; leg < 3; leg++) {
             const lx = x - w * 0.25 + leg * w * 0.2;
-            // Alternate leg phase: even legs forward when odd legs back
             const phase = legCycle + leg * (Math.PI * 2 / 3);
-            const legSwing = Math.sin(phase) * (isMoving ? h * 0.2 : 0);
+            const legSwing = Math.sin(phase) * (isMoving ? h * 0.25 : 0); // wider swing
             // Top legs
             const topKneeX = lx - w * 0.12;
             const topKneeY = y - h * 0.35 + legSwing * 0.3;
@@ -1160,14 +1169,23 @@ export class UnitRenderer {
           g.ellipse(x, y, w * 0.55, h * 0.3);
           g.stroke({ color: darken(tint, 20), width: 0.8, alpha: 0.5 });
 
-          // V-shaped scythe mandibles (blade-like forearms)
-          const mandibleSnap = isMoving ? Math.sin(gameTime * 6 + eid) * h * 0.05 : 0;
+          // V-shaped scythe mandibles — WIDER snap when attacking or near enemies
+          const isAttacking = atkFlashTimer[eid] > 0;
+          const mandibleSpread = isAttacking ? h * 0.15 : (isMoving ? Math.sin(gameTime * 8 + eid) * h * 0.07 : 0);
           g.moveTo(x + w * 0.45, y - h * 0.08);
-          g.lineTo(x + w * 0.8, y - h * 0.3 + mandibleSnap);
-          g.stroke({ color: 0xdd5544, width: 1.8 });
+          g.lineTo(x + w * 0.85, y - h * 0.35 + mandibleSpread);
+          g.stroke({ color: 0xdd5544, width: isAttacking ? 2.2 : 1.8 });
           g.moveTo(x + w * 0.45, y + h * 0.08);
-          g.lineTo(x + w * 0.8, y + h * 0.3 - mandibleSnap);
-          g.stroke({ color: 0xdd5544, width: 1.8 });
+          g.lineTo(x + w * 0.85, y + h * 0.35 - mandibleSpread);
+          g.stroke({ color: 0xdd5544, width: isAttacking ? 2.2 : 1.8 });
+          // Attack slash effect
+          if (isAttacking) {
+            const slashAlpha = atkFlashTimer[eid] / 0.12;
+            g.moveTo(x + w * 0.6, y - h * 0.3);
+            g.lineTo(x + w * 0.9, y);
+            g.lineTo(x + w * 0.6, y + h * 0.3);
+            g.stroke({ color: 0xff8866, width: 1.5, alpha: slashAlpha * 0.5 });
+          }
 
           // Dorsal spine ridge — 4 spikes
           for (let s = 0; s < 4; s++) {
@@ -1179,50 +1197,91 @@ export class UnitRenderer {
             g.fill({ color: tint, alpha: 0.9 });
           }
 
-          // Glowing eyes (2 small dots at front)
-          g.circle(x + w * 0.35, y - h * 0.1, 1.5);
-          g.fill({ color: ZERG_EYE, alpha: 0.9 });
-          g.circle(x + w * 0.35, y + h * 0.1, 1.5);
-          g.fill({ color: ZERG_EYE, alpha: 0.9 });
+          // Glowing eyes — brighter during engagement
+          const eyeGlow = isAttacking ? 1.0 : 0.9;
+          const eyeSize = isAttacking ? 2.0 : 1.5;
+          g.circle(x + w * 0.35, y - h * 0.1, eyeSize);
+          g.fill({ color: ZERG_EYE, alpha: eyeGlow });
+          g.circle(x + w * 0.35, y + h * 0.1, eyeSize);
+          g.fill({ color: ZERG_EYE, alpha: eyeGlow });
+          // Eye glow halo when attacking
+          if (isAttacking) {
+            g.circle(x + w * 0.35, y, 4);
+            g.fill({ color: ZERG_EYE, alpha: 0.15 });
+          }
 
-          // Segmented tail
+          // Segmented tail — whips faster when moving fast
+          const tailWhip = isFast ? Math.sin(gameTime * 10 + eid) * 2 : 0;
           g.moveTo(x - w * 0.5, y);
-          g.lineTo(x - w * 0.7, y + h * 0.08);
-          g.lineTo(x - w * 0.85, y + h * 0.03);
+          g.lineTo(x - w * 0.7, y + h * 0.08 + tailWhip);
+          g.lineTo(x - w * 0.85, y + h * 0.03 - tailWhip * 0.5);
           g.stroke({ color: tint, width: 1.2 });
 
         } else if (uType === UnitType.Baneling) {
-          // ── Baneling: volatile acid sac, rolls toward enemies and detonates ──
-          // SC2: "Morphed from Zerglings. Living bomb filled with corrosive acid.
-          // Rolls rapidly toward enemies and detonates on contact."
+          // ── Baneling: volatile acid bomb — power fantasy: GLORIOUS EXPLOSION ──
+          // Gets more unstable (faster pulse, brighter glow) as HP drops
           const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
-          // Pulse faster and brighter when moving (about to detonate!)
-          const pulseSpeed = isMoving ? 8 : 5;
+          const hpRatio = hpCurrent[eid] / Math.max(1, hpMax[eid]);
+          // Volatility escalation: lower HP = faster pulse, brighter glow
+          const volatility = 1 + (1 - hpRatio) * 2; // 1x at full HP, 3x at critical
+          const pulseSpeed = (isMoving ? 8 : 5) * volatility;
           const pulseGlow = isMoving
             ? 0.7 + 0.3 * Math.sin(gameTime * pulseSpeed + eid)
             : 0.5 + 0.4 * Math.sin(gameTime * pulseSpeed);
-          // Shadow
+          const glowIntensity = 0.5 + (1 - hpRatio) * 0.5; // brighter when damaged
+
+          // Acid drip trail when moving
+          if (isMoving) {
+            const trailPhase = (gameTime * 6 + eid) % 1;
+            if (trailPhase < 0.3) {
+              const dripAlpha = (0.3 - trailPhase) * 1.5;
+              g.circle(x - velX[eid] * 3, y - velY[eid] * 3 + 1, 1.5);
+              g.fill({ color: 0x66cc22, alpha: dripAlpha * 0.4 });
+            }
+          }
+
+          // Shadow — green-tinted (acid glow reflects)
           g.circle(x, y, w / 2 + 2);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Outer glow ring (pulsing)
-          g.circle(x, y, w / 2 + 3);
-          g.stroke({ color: 0xaaff44, width: 2, alpha: pulseGlow * 0.5 });
+          g.fill({ color: 0x112200, alpha: 0.4 });
+
+          // Danger aura — grows with volatility
+          if (hpRatio < 0.6) {
+            const auraR = w / 2 + 6 + volatility * 2;
+            g.circle(x, y, auraR);
+            g.fill({ color: 0x88ff22, alpha: (1 - hpRatio) * 0.08 });
+          }
+
+          // Outer glow ring (pulsing — faster when volatile)
+          g.circle(x, y, w / 2 + 3 + volatility);
+          g.stroke({ color: 0xaaff44, width: 2 + volatility * 0.5, alpha: pulseGlow * 0.5 * glowIntensity });
+          // Second ring when critical
+          if (hpRatio < 0.4) {
+            g.circle(x, y, w / 2 + 6);
+            g.stroke({ color: 0xffff44, width: 1, alpha: pulseGlow * 0.3 });
+          }
+
           // Main body — perfect circle
           g.circle(x, y, w / 2);
           g.fill({ color: bodyColor });
-          // Vein lines — 4 lines radiating from center (crack pattern)
-          for (let v = 0; v < 4; v++) {
-            const angle = (v / 4) * Math.PI * 2 + 0.3;
+
+          // Vein lines — 6 lines radiating from center (crack pattern, more at low HP)
+          const veinCount = hpRatio < 0.5 ? 6 : 4;
+          for (let v = 0; v < veinCount; v++) {
+            const angle = (v / veinCount) * Math.PI * 2 + 0.3;
+            const veinWidth = 1 + (1 - hpRatio) * 0.8;
             g.moveTo(x + Math.cos(angle) * w * 0.1, y + Math.sin(angle) * w * 0.1);
             g.lineTo(x + Math.cos(angle) * w * 0.45, y + Math.sin(angle) * w * 0.45);
-            g.stroke({ color: 0x88ff44, width: 1, alpha: 0.6 });
+            g.stroke({ color: 0x88ff44, width: veinWidth, alpha: 0.6 + (1 - hpRatio) * 0.3 });
           }
-          // Bright inner glow spot (pulsing)
-          g.circle(x, y, w * 0.2);
-          g.fill({ color: 0xddff88, alpha: pulseGlow * 0.7 });
-          // Bright center point
-          g.circle(x, y, w * 0.08);
-          g.fill({ color: 0xffffff, alpha: pulseGlow * 0.5 });
+
+          // Bright inner glow spot (pulsing — bigger when volatile)
+          const innerR = w * (0.2 + (1 - hpRatio) * 0.1);
+          g.circle(x, y, innerR);
+          g.fill({ color: 0xddff88, alpha: pulseGlow * 0.7 * glowIntensity });
+          // White-hot center point
+          g.circle(x, y, w * 0.08 + (1 - hpRatio) * w * 0.04);
+          g.fill({ color: 0xffffff, alpha: pulseGlow * 0.6 * glowIntensity });
+
           // Small legs underneath (barely visible)
           g.moveTo(x - w * 0.3, y + h * 0.35);
           g.lineTo(x - w * 0.4, y + h * 0.6);
@@ -1235,11 +1294,12 @@ export class UnitRenderer {
           g.stroke({ color: 0x338833, width: 0.8, alpha: 0.6 });
 
         } else if (uType === UnitType.Hydralisk) {
-          // ── Hydralisk: upright serpent with cobra hood, spine needle attack ──
-          // SC2: "Snake-like upper body rising from a coiled lower half.
-          // Fires volleys of needle spines. Iconic cobra hood flares when attacking."
+          // ── Hydralisk: upright serpent — power fantasy: SPINE VOLLEY ──
+          // Iconic hood flare, visible spine needles ejecting, intimidating presence.
           const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
           const sway = isMoving ? Math.sin(gameTime * 4 + eid * 2.1) * 1.5 : 0;
+          const isAttacking = atkFlashTimer[eid] > 0;
+          const attackIntensity = isAttacking ? atkFlashTimer[eid] / 0.12 : 0;
 
           // Shadow
           g.ellipse(x, y + 2, w * 0.4, h * 0.18);
@@ -1247,21 +1307,32 @@ export class UnitRenderer {
           // Main body — swaying when moving (serpentine)
           g.ellipse(x + sway, y, w * 0.4, h * 0.55);
           g.fill({ color: bodyColor });
-          // Cobra hood — flares with attack flash
-          const hoodFlare = atkFlashTimer[eid] > 0 ? 1.2 : 1.0;
+          // Cobra hood — DRAMATIC flare on attack (1.5x expand)
+          const hoodFlare = isAttacking ? 1.0 + attackIntensity * 0.5 : 1.0;
+          const hoodWidth = w * 0.6 * hoodFlare;
           g.moveTo(x + sway, y - h * 0.35);
-          g.lineTo(x - w * 0.6 * hoodFlare + sway, y - h * 0.65);
-          g.stroke({ color: tint, width: 2 });
+          g.lineTo(x - hoodWidth + sway, y - h * 0.65);
+          g.stroke({ color: tint, width: 2 + attackIntensity });
           g.moveTo(x + sway, y - h * 0.35);
-          g.lineTo(x + w * 0.6 * hoodFlare + sway, y - h * 0.65);
-          g.stroke({ color: tint, width: 2 });
-          // Hood fill
-          g.moveTo(x - w * 0.55 * hoodFlare + sway, y - h * 0.6);
+          g.lineTo(x + hoodWidth + sway, y - h * 0.65);
+          g.stroke({ color: tint, width: 2 + attackIntensity });
+          // Hood fill — glows brighter when attacking
+          g.moveTo(x - hoodWidth * 0.92 + sway, y - h * 0.6);
           g.lineTo(x + sway, y - h * 0.3);
-          g.lineTo(x + w * 0.55 * hoodFlare + sway, y - h * 0.6);
+          g.lineTo(x + hoodWidth * 0.92 + sway, y - h * 0.6);
           g.closePath();
-          g.fill({ color: bodyColor, alpha: 0.6 });
-          // Spine needle ridge — 3 small spikes on the back (left side)
+          g.fill({ color: bodyColor, alpha: 0.6 + attackIntensity * 0.2 });
+          // Hood inner pattern (threat display)
+          if (isAttacking) {
+            g.moveTo(x + sway, y - h * 0.35);
+            g.lineTo(x - hoodWidth * 0.5 + sway, y - h * 0.55);
+            g.stroke({ color: ZERG_EYE, width: 1, alpha: attackIntensity * 0.4 });
+            g.moveTo(x + sway, y - h * 0.35);
+            g.lineTo(x + hoodWidth * 0.5 + sway, y - h * 0.55);
+            g.stroke({ color: ZERG_EYE, width: 1, alpha: attackIntensity * 0.4 });
+          }
+
+          // Spine needle ridge — 3 small spikes on the back
           for (let s = 0; s < 3; s++) {
             const sy = y - h * 0.15 + s * h * 0.2;
             g.moveTo(x - w * 0.35, sy);
@@ -1270,6 +1341,30 @@ export class UnitRenderer {
             g.closePath();
             g.fill({ color: tint, alpha: 0.8 });
           }
+
+          // Spine volley visual — visible needles ejecting on attack
+          if (isAttacking && targetEntity[eid] >= 1 && entityExists(world, targetEntity[eid])) {
+            const tx = posX[targetEntity[eid]];
+            const ty = posY[targetEntity[eid]];
+            const tdx = tx - x;
+            const tdy = ty - y;
+            const tDist = Math.sqrt(tdx * tdx + tdy * tdy);
+            if (tDist > 1) {
+              const nx = tdx / tDist;
+              const ny = tdy / tDist;
+              // Multiple spine needles fanning out
+              for (let n = -1; n <= 1; n++) {
+                const spread = n * 0.08;
+                const needleLen = Math.min(tDist * 0.3, 20) * attackIntensity;
+                const sx = x + sway + nx * 8;
+                const sy2 = y - h * 0.32 + ny * 8;
+                g.moveTo(sx, sy2);
+                g.lineTo(sx + (nx + spread) * needleLen, sy2 + (ny + spread) * needleLen);
+                g.stroke({ color: ZERG_ACID, width: 1.2, alpha: attackIntensity * 0.6 });
+              }
+            }
+          }
+
           // Arms — two curved lines on sides ending in needle claws
           g.moveTo(x - w * 0.35, y - h * 0.05);
           g.lineTo(x - w * 0.55, y + h * 0.15);
@@ -1279,9 +1374,14 @@ export class UnitRenderer {
           g.lineTo(x + w * 0.55, y + h * 0.15);
           g.lineTo(x + w * 0.65, y + h * 0.1);
           g.stroke({ color: tint, width: 1.2 });
-          // Mouth — bright dot at face area
-          g.circle(x, y - h * 0.32, 1.5);
+          // Mouth — opens wider on attack (hiss!)
+          const mouthSize = isAttacking ? 2.5 : 1.5;
+          g.circle(x + sway, y - h * 0.32, mouthSize);
           g.fill({ color: 0xff6644, alpha: 0.9 });
+          if (isAttacking) {
+            g.circle(x + sway, y - h * 0.32, mouthSize + 2);
+            g.fill({ color: 0xff4422, alpha: attackIntensity * 0.2 });
+          }
 
         } else if (uType === UnitType.Roach) {
           // ── Roach: armored insectoid with thick carapace, acid-spitting maw ──
@@ -1330,28 +1430,62 @@ export class UnitRenderer {
           g.moveTo(x + w * 0.4, y + h * 0.1);
           g.lineTo(x + w * 0.65, y + h * 0.25);
           g.stroke({ color: 0xaa6644, width: 2 });
-          // Glowing acid maw
-          g.circle(x + w * 0.42, y, 2.5);
-          g.fill({ color: 0x88aa22, alpha: 0.6 });
-          // Regen indicator
+          // Glowing acid maw — drips acid when idle or moving
+          g.circle(x + w * 0.42, y, 3);
+          g.fill({ color: 0x88cc22, alpha: 0.7 });
+          // Acid drool dripping from maw
+          const dripPhase = (gameTime * 2 + eid * 0.7) % 2;
+          if (dripPhase < 1) {
+            const dripY = y + dripPhase * h * 0.3;
+            const dripAlpha = (1 - dripPhase) * 0.4;
+            g.circle(x + w * 0.45, dripY + h * 0.1, 1);
+            g.fill({ color: 0x66aa22, alpha: dripAlpha });
+          }
+          // Second drip (offset timing)
+          const drip2 = (gameTime * 2 + eid * 0.7 + 1) % 2;
+          if (drip2 < 0.8) {
+            const dripY2 = y + drip2 * h * 0.25;
+            g.circle(x + w * 0.38, dripY2 + h * 0.15, 0.8);
+            g.fill({ color: 0x66aa22, alpha: (0.8 - drip2) * 0.3 });
+          }
+
+          // Regen indicator — VISIBLE healing particles rising
           if (hpCurrent[eid] < hpMax[eid] && hpCurrent[eid] > 0) {
-            const pulse = 0.3 + 0.3 * Math.sin(gameTime * 4);
+            const regenPulse = 0.4 + 0.4 * Math.sin(gameTime * 4);
+            // Base glow (existing)
             g.circle(x, y - h / 2 - 4, 3);
-            g.fill({ color: 0x44ff44, alpha: pulse });
+            g.fill({ color: 0x44ff44, alpha: regenPulse });
+            // Rising heal particles (3 at different phases)
+            for (let p = 0; p < 3; p++) {
+              const pPhase = ((gameTime * 1.5 + p * 0.33 + eid * 0.1) % 1);
+              const px = x + Math.sin(gameTime * 3 + p * 2) * w * 0.2;
+              const py = y - pPhase * h * 0.4;
+              const pAlpha = (1 - pPhase) * 0.35;
+              if (pAlpha > 0.05) {
+                g.circle(px, py, 1.2);
+                g.fill({ color: 0x44ff44, alpha: pAlpha });
+              }
+            }
+            // Carapace glow (healing shimmer on body)
+            g.ellipse(x, y, w * 0.5, h * 0.35);
+            g.stroke({ color: 0x44ff44, width: 1, alpha: regenPulse * 0.15 });
           }
 
         } else if (uType === UnitType.Mutalisk) {
-          // ── Mutalisk: agile flying predator with leathery wings, glaive wurm attack ──
-          // SC2: "Fast flying unit with a unique glaive wurm attack that bounces
-          // between targets. Bat-like wings, serpentine body."
-          const wingFlap = Math.sin(gameTime * 6 + eid * 1.9) * 0.15;
+          // ── Mutalisk: agile predator — power fantasy: DEATH FROM ABOVE ──
+          // Swooping dive on attack, glaive trail, predatory presence.
+          const isAttacking = atkFlashTimer[eid] > 0;
+          const attackDive = isAttacking ? (atkFlashTimer[eid] / 0.12) * 3 : 0;
+          const wingFlap = Math.sin(gameTime * 7 + eid * 1.9) * 0.18; // faster flap
+          const wingSpeed = isAttacking ? 0.25 : 0.18;
 
-          // Faint ground shadow (elevated — bobs with wing flap)
-          g.ellipse(x, y + 5 + wingFlap * 8, w * 0.3, h * 0.12);
-          g.fill({ color: 0x000000, alpha: 0.15 });
+          // Faint ground shadow (elevated — bobs with wing flap, closer during dive)
+          const shadowOffset = 5 + wingFlap * 8 - attackDive;
+          g.ellipse(x, y + shadowOffset, w * (0.3 + attackDive * 0.02), h * 0.12);
+          g.fill({ color: 0x000000, alpha: 0.15 + attackDive * 0.02 });
 
-          // Left wing — animated flap
-          const lwTipY = y - h * 0.38 + wingFlap * h * 0.5;
+          // Left wing — animated flap (faster when attacking)
+          const lwTipY = y - h * 0.38 + Math.sin(gameTime * 7 + eid * 1.9) * wingSpeed * h * 2.8;
           g.moveTo(x - w * 0.22, y - h * 0.05);
           g.lineTo(x - w * 0.7, lwTipY);
           g.lineTo(x - w * 0.85, lwTipY + h * 0.13);
@@ -1364,7 +1498,7 @@ export class UnitRenderer {
           g.fill({ color: bodyColor, alpha: 0.3 });
 
           // Right wing — animated flap (mirror)
-          const rwTipY = y - h * 0.38 + wingFlap * h * 0.5;
+          const rwTipY = y - h * 0.38 + Math.sin(gameTime * 7 + eid * 1.9) * wingSpeed * h * 2.8;
           g.moveTo(x + w * 0.22, y - h * 0.05);
           g.lineTo(x + w * 0.7, rwTipY);
           g.lineTo(x + w * 0.85, rwTipY + h * 0.13);
@@ -1376,60 +1510,87 @@ export class UnitRenderer {
           g.closePath();
           g.fill({ color: bodyColor, alpha: 0.3 });
 
-          // Main body — narrow vertical ellipse (serpentine)
-          const bodyBob = wingFlap * 2;
+          // Air disturbance under wings (subtle)
+          if (Math.abs(wingFlap) > 0.1) {
+            const distAlpha = Math.abs(wingFlap) * 0.15;
+            g.ellipse(x, y + 2, w * 0.5, h * 0.08);
+            g.stroke({ color: 0xccccff, width: 0.5, alpha: distAlpha });
+          }
+
+          // Main body — narrow vertical ellipse, dips on attack dive
+          const bodyBob = wingFlap * 2 + attackDive;
           g.ellipse(x, y + bodyBob, w * 0.28, h * 0.42);
           g.fill({ color: bodyColor });
           g.ellipse(x, y + bodyBob, w * 0.28, h * 0.42);
           g.stroke({ color: 0x9966cc, width: 1, alpha: 0.6 });
 
-          // Glaive beak — sharp spike pointing upward from head
-          g.moveTo(x, y - h * 0.38);
-          g.lineTo(x - 3, y - h * 0.55);
-          g.lineTo(x + 3, y - h * 0.55);
+          // Glaive beak — glows on attack
+          g.moveTo(x, y - h * 0.38 + bodyBob);
+          g.lineTo(x - 3, y - h * 0.55 + bodyBob);
+          g.lineTo(x + 3, y - h * 0.55 + bodyBob);
           g.closePath();
-          g.fill({ color: 0xddaaff, alpha: 0.9 });
-          // Eye — bright dot
-          g.circle(x, y - h * 0.15, 1.5);
-          g.fill({ color: 0xff44cc, alpha: 0.9 });
-          // Tail spine curving backward (downward)
-          g.moveTo(x, y + h * 0.38);
-          g.lineTo(x - 3, y + h * 0.58);
-          g.lineTo(x + 2, y + h * 0.65);
+          g.fill({ color: isAttacking ? 0xffccff : 0xddaaff, alpha: 0.9 });
+          // Glaive trail on attack
+          if (isAttacking) {
+            const trailAlpha = atkFlashTimer[eid] / 0.12;
+            g.moveTo(x, y - h * 0.55 + bodyBob);
+            g.lineTo(x, y - h * 0.75 + bodyBob);
+            g.stroke({ color: 0xffaaff, width: 2, alpha: trailAlpha * 0.5 });
+            g.circle(x, y - h * 0.55 + bodyBob, 3);
+            g.fill({ color: 0xffccff, alpha: trailAlpha * 0.3 });
+          }
+
+          // Eye — brighter during engagement
+          const eyeAlpha = isAttacking ? 1.0 : 0.9;
+          g.circle(x, y - h * 0.15 + bodyBob, isAttacking ? 2 : 1.5);
+          g.fill({ color: 0xff44cc, alpha: eyeAlpha });
+
+          // Tail spine curving backward — sways more aggressively
+          const tailSway = Math.sin(gameTime * 5 + eid) * 2;
+          g.moveTo(x, y + h * 0.38 + bodyBob);
+          g.lineTo(x - 3 + tailSway, y + h * 0.58 + bodyBob);
+          g.lineTo(x + 2 - tailSway * 0.5, y + h * 0.65 + bodyBob);
           g.stroke({ color: tint, width: 1.2 });
 
         } else if (uType === UnitType.Ravager) {
-          // ── Ravager: evolved Roach — wide carapace, bile launcher, acid vents ──
+          // ── Ravager: bile artillery — power fantasy: CORROSIVE BARRAGE ──
+          // Evolved Roach with a back-mounted bile cannon. Lobs devastating acid.
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const ravAttacking = atkFlashTimer[eid] > 0;
+          const ravAttackT = ravAttacking ? atkFlashTimer[eid] / 0.12 : 0;
+          const legCycle = isMoving ? gameTime * 6 + eid * 1.1 : 0;
 
           // Shadow
           g.ellipse(x, y + 2, w * 0.75, h * 0.3);
           g.fill({ color: 0x000000, alpha: 0.35 });
 
-          // 6 stubby legs (3 per side, angled outward)
+          // 6 stubby legs — NOW ANIMATED
           for (let l = 0; l < 3; l++) {
             const lx = x - w * 0.25 + l * w * 0.22;
+            const phase = legCycle + l * (Math.PI * 2 / 3);
+            const swing = Math.sin(phase) * (isMoving ? h * 0.08 : 0);
             // Bottom legs
             g.moveTo(lx, y + h * 0.3);
-            g.lineTo(lx - w * 0.08, y + h * 0.55);
+            g.lineTo(lx - w * 0.08, y + h * 0.55 + swing);
             g.stroke({ color: darken(tint, 20), width: 1.2 });
             // Top legs
             g.moveTo(lx, y - h * 0.3);
-            g.lineTo(lx - w * 0.08, y - h * 0.55);
+            g.lineTo(lx - w * 0.08, y - h * 0.55 - swing);
             g.stroke({ color: darken(tint, 20), width: 1.2 });
           }
 
-          // Wide squat body ellipse (wider than Roach)
+          // Wide squat body ellipse
           g.ellipse(x, y, w * 0.7, h * 0.4);
           g.fill({ color: bodyColor });
 
-          // Dark carapace arc on top half
+          // Dark carapace arc
           g.arc(x, y - h * 0.05, w * 0.65, Math.PI, 0, false);
           g.closePath();
           g.fill({ color: darken(bodyColor, 40), alpha: 0.5 });
           g.arc(x, y - h * 0.05, w * 0.65, Math.PI, 0, false);
           g.stroke({ color: 0x886644, width: 2, alpha: 0.7 });
 
-          // 4 armored segment lines across body
+          // 4 armored segment lines
           for (let s = 0; s < 4; s++) {
             const sy = y - h * 0.2 + s * h * 0.12;
             g.moveTo(x - w * 0.45, sy);
@@ -1437,7 +1598,7 @@ export class UnitRenderer {
             g.stroke({ color: 0x884422, width: 1, alpha: 0.35 });
           }
 
-          // 2 forward mandibles (short, thick)
+          // 2 forward mandibles
           g.moveTo(x + w * 0.5, y - h * 0.12);
           g.lineTo(x + w * 0.75, y - h * 0.3);
           g.stroke({ color: 0xaa6644, width: 2.5 });
@@ -1445,47 +1606,82 @@ export class UnitRenderer {
           g.lineTo(x + w * 0.75, y + h * 0.3);
           g.stroke({ color: 0xaa6644, width: 2.5 });
 
-          // Back-mounted bile launcher: thick rect extending upward
-          g.rect(x - w * 0.12, y - h * 0.4 - 8, w * 0.24, 10);
+          // Back-mounted bile launcher — recoils on fire
+          const bileRecoil = ravAttacking ? ravAttackT * 3 : 0;
+          g.rect(x - w * 0.12, y - h * 0.4 - 8 + bileRecoil, w * 0.24, 10);
           g.fill({ color: 0x663311, alpha: 0.9 });
-          g.rect(x - w * 0.12, y - h * 0.4 - 8, w * 0.24, 10);
+          g.rect(x - w * 0.12, y - h * 0.4 - 8 + bileRecoil, w * 0.24, 10);
           g.stroke({ color: 0x884422, width: 1, alpha: 0.6 });
-          // Glowing bile tip (pulsing orange-green)
-          const bilePulse = 0.5 + 0.4 * Math.sin(gameTime * 3.5 + eid * 1.7);
-          g.circle(x, y - h * 0.4 - 10, 3);
-          g.fill({ color: ZERG_ACID, alpha: bilePulse * 0.8 });
-          g.circle(x, y - h * 0.4 - 10, 5);
-          g.stroke({ color: 0xaacc44, width: 1.5, alpha: bilePulse * 0.4 });
 
-          // Acid glow vents on each side
-          g.circle(x - w * 0.45, y, 2.5);
-          g.fill({ color: ZERG_ACID, alpha: 0.5 + 0.2 * Math.sin(gameTime * 2 + 1) });
-          g.circle(x + w * 0.45, y, 2.5);
-          g.fill({ color: ZERG_ACID, alpha: 0.5 + 0.2 * Math.sin(gameTime * 2 + 3) });
+          // Bile launch FLASH
+          if (ravAttacking) {
+            const tipY = y - h * 0.4 - 10 + bileRecoil;
+            // Bile splash at muzzle
+            g.circle(x, tipY, 5 + ravAttackT * 6);
+            g.fill({ color: ZERG_ACID, alpha: ravAttackT * 0.6 });
+            g.circle(x, tipY, 8 + ravAttackT * 4);
+            g.fill({ color: 0xaacc44, alpha: ravAttackT * 0.15 });
+            // Acid spray droplets
+            for (let d = 0; d < 3; d++) {
+              const dAngle = (d / 3) * Math.PI - Math.PI * 0.5;
+              const dDist = 4 + ravAttackT * 8;
+              g.circle(x + Math.cos(dAngle) * dDist, tipY + Math.sin(dAngle) * dDist, 1.5);
+              g.fill({ color: ZERG_ACID, alpha: ravAttackT * 0.4 });
+            }
+          } else {
+            // Glowing bile tip (pulsing, ready state)
+            const bilePulse = 0.5 + 0.4 * Math.sin(gameTime * 3.5 + eid * 1.7);
+            g.circle(x, y - h * 0.4 - 10, 3);
+            g.fill({ color: ZERG_ACID, alpha: bilePulse * 0.8 });
+            g.circle(x, y - h * 0.4 - 10, 5);
+            g.stroke({ color: 0xaacc44, width: 1.5, alpha: bilePulse * 0.4 });
+          }
 
-          // Border stroke on body
+          // Acid glow vents — FLARE on attack
+          const ventFlare = ravAttacking ? 1.5 : 1.0;
+          g.circle(x - w * 0.45, y, 2.5 * ventFlare);
+          g.fill({ color: ZERG_ACID, alpha: (0.5 + 0.2 * Math.sin(gameTime * 2 + 1)) * ventFlare });
+          g.circle(x + w * 0.45, y, 2.5 * ventFlare);
+          g.fill({ color: ZERG_ACID, alpha: (0.5 + 0.2 * Math.sin(gameTime * 2 + 3)) * ventFlare });
+
+          // Border stroke
           g.ellipse(x, y, w * 0.7, h * 0.4);
           g.stroke({ color: lighten(bodyColor, 15), width: 1, alpha: 0.5 });
 
         } else if (uType === UnitType.Lurker) {
-          // ── Lurker: flat segmented body, long fanning spines, ambush predator ──
+          // ── Lurker: ambush predator — power fantasy: SUBTERRANEAN DEATH ──
+          // Flat, menacing, spines ERUPT on attack. The ground itself is dangerous.
+          const lurkerAttacking = atkFlashTimer[eid] > 0;
+          const lurkerAttackT = lurkerAttacking ? atkFlashTimer[eid] / 0.12 : 0;
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const lurkerIdle = !isMoving && !lurkerAttacking;
 
-          // Shadow
-          g.ellipse(x, y + 2, w * 0.6, h * 0.25);
+          // Shadow — wider when idle (hugging the ground)
+          g.ellipse(x, y + 2, w * (lurkerIdle ? 0.65 : 0.6), h * 0.25);
           g.fill({ color: 0x000000, alpha: 0.35 });
 
-          // 4 legs tucked underneath (barely visible)
+          // Ground tremor ring on attack (spines erupting from earth)
+          if (lurkerAttacking) {
+            const tremor = lurkerAttackT;
+            g.circle(x, y, w * 0.5 + tremor * 15);
+            g.stroke({ color: 0x886644, width: 1.5, alpha: tremor * 0.3 });
+            g.circle(x, y, w * 0.3 + tremor * 10);
+            g.stroke({ color: 0xaa8866, width: 1, alpha: tremor * 0.2 });
+          }
+
+          // 4 legs — subtle movement animation
+          const legSway = isMoving ? Math.sin(gameTime * 6 + eid) * 1.5 : 0;
           g.moveTo(x - w * 0.25, y + h * 0.25);
-          g.lineTo(x - w * 0.35, y + h * 0.42);
+          g.lineTo(x - w * 0.35, y + h * 0.42 + legSway);
           g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
           g.moveTo(x + w * 0.15, y + h * 0.25);
-          g.lineTo(x + w * 0.25, y + h * 0.42);
+          g.lineTo(x + w * 0.25, y + h * 0.42 - legSway);
           g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
           g.moveTo(x - w * 0.1, y + h * 0.28);
-          g.lineTo(x - w * 0.18, y + h * 0.45);
+          g.lineTo(x - w * 0.18, y + h * 0.45 + legSway * 0.5);
           g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
           g.moveTo(x + w * 0.3, y + h * 0.25);
-          g.lineTo(x + w * 0.38, y + h * 0.42);
+          g.lineTo(x + w * 0.38, y + h * 0.42 - legSway * 0.5);
           g.stroke({ color: darken(tint, 15), width: 0.8, alpha: 0.5 });
 
           // Dark underbelly shading
@@ -1504,31 +1700,41 @@ export class UnitRenderer {
             g.stroke({ color: darken(tint, 25), width: 1, alpha: 0.45 });
           }
 
-          // 6 long spines fanning outward from top (spread at angles)
+          // 6 long spines — ANIMATE on attack (thrust outward dramatically)
           const spineAngles = [-1.8, -1.35, -0.9, -0.45, 0.0, 0.45];
+          const spineExtend = lurkerAttacking ? 1.0 + lurkerAttackT * 0.6 : 1.0;
+          const spineSway = lurkerIdle ? Math.sin(gameTime * 1.5) * 0.03 : 0;
           for (let i = 0; i < 6; i++) {
-            const angle = spineAngles[i] - Math.PI / 2;
+            const angle = spineAngles[i] - Math.PI / 2 + spineSway;
             const baseX = x - w * 0.15 + i * w * 0.08;
             const baseY = y - h * 0.25;
-            const tipX = baseX + Math.cos(angle) * h * 0.55;
-            const tipY = baseY + Math.sin(angle) * h * 0.55;
-            // Spine shaft
+            const spineLen = h * 0.55 * spineExtend;
+            const tipX = baseX + Math.cos(angle) * spineLen;
+            const tipY = baseY + Math.sin(angle) * spineLen;
+            // Spine shaft — thicker on attack
+            const spineWidth = lurkerAttacking ? 2.2 + lurkerAttackT : 1.8;
             g.moveTo(baseX, baseY);
             g.lineTo(tipX, tipY);
-            g.stroke({ color: 0x998866, width: 1.8, alpha: 0.85 });
-            // Spine tip glow (light bone color)
-            g.circle(tipX, tipY, 1.5);
-            g.fill({ color: 0xccbb99, alpha: 0.6 });
+            g.stroke({ color: 0x998866, width: spineWidth, alpha: 0.85 });
+            // Spine tip — GLOWS on attack
+            const tipGlow = lurkerAttacking ? 0.9 : 0.6;
+            g.circle(tipX, tipY, lurkerAttacking ? 2.5 : 1.5);
+            g.fill({ color: lurkerAttacking ? 0xffddaa : 0xccbb99, alpha: tipGlow });
+            // Spine impact dust on attack
+            if (lurkerAttacking && lurkerAttackT > 0.5) {
+              g.circle(tipX, tipY, 3 * lurkerAttackT);
+              g.fill({ color: 0x8a7a5a, alpha: lurkerAttackT * 0.2 });
+            }
           }
 
-          // Small head protrusion at front with mandible dots
+          // Small head protrusion with mandible dots — eyes glow brighter when attacking
           g.ellipse(x + w * 0.45, y, w * 0.12, h * 0.15);
           g.fill({ color: darken(bodyColor, 15) });
-          // Mandible dots
-          g.circle(x + w * 0.55, y - h * 0.06, 1.2);
-          g.fill({ color: ZERG_EYE, alpha: 0.7 });
-          g.circle(x + w * 0.55, y + h * 0.06, 1.2);
-          g.fill({ color: ZERG_EYE, alpha: 0.7 });
+          const eyeGlow = lurkerAttacking ? 1.0 : 0.7;
+          g.circle(x + w * 0.55, y - h * 0.06, lurkerAttacking ? 1.8 : 1.2);
+          g.fill({ color: ZERG_EYE, alpha: eyeGlow });
+          g.circle(x + w * 0.55, y + h * 0.06, lurkerAttacking ? 1.8 : 1.2);
+          g.fill({ color: ZERG_EYE, alpha: eyeGlow });
 
           // Body border stroke
           g.ellipse(x, y, w * 0.55, h * 0.3);
@@ -1577,17 +1783,46 @@ export class UnitRenderer {
 
         } else if (uType === UnitType.Ultralisk) {
           // ── Ultralisk: unstoppable armored behemoth with kaiser blades ──
-          // SC2: "Massive Zerg war beast. Nearly indestructible carapace.
-          // Kaiser blades cleave through entire armies. Shakes the earth."
+          // Power fantasy: EARTHQUAKE. Every step shakes the ground. Blades cleave arcs.
           const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
           const stompCycle = isMoving ? gameTime * 4 + eid * 1.3 : 0;
-          const bodyShake = isMoving ? Math.sin(stompCycle * 2) * 1.5 : 0;
-          // Kaiser blade swing on attack
-          const bladeSwing = atkFlashTimer[eid] > 0 ? (atkFlashTimer[eid] / 0.12) * 0.2 : 0;
+          const bodyShake = isMoving ? Math.sin(stompCycle * 2) * 2.0 : 0;
+          // Kaiser blade swing on attack — longer, more dramatic arc
+          const bladeSwing = atkFlashTimer[eid] > 0 ? (atkFlashTimer[eid] / 0.12) * 0.35 : 0;
 
-          // Heavy shadow
-          g.ellipse(x, y + 3, w / 2 + 5, h / 2 * 0.4);
-          g.fill({ color: 0x000000, alpha: 0.5 });
+          // Stomp dust clouds — puffs at each foot when moving
+          if (isMoving) {
+            const stompPhase = Math.sin(stompCycle);
+            if (stompPhase > 0.7) {
+              // Left foot stomp dust
+              const dustAlpha = (stompPhase - 0.7) * 2.0;
+              const dustR = 4 + dustAlpha * 6;
+              g.circle(x - w * 0.4, y + h * 0.55, dustR);
+              g.fill({ color: 0x8a7a5a, alpha: dustAlpha * 0.3 });
+              g.circle(x - w * 0.4, y + h * 0.55, dustR * 1.5);
+              g.fill({ color: 0x8a7a5a, alpha: dustAlpha * 0.12 });
+            }
+            if (stompPhase < -0.7) {
+              // Right foot stomp dust
+              const dustAlpha = (-stompPhase - 0.7) * 2.0;
+              const dustR = 4 + dustAlpha * 6;
+              g.circle(x + w * 0.4, y + h * 0.55, dustR);
+              g.fill({ color: 0x8a7a5a, alpha: dustAlpha * 0.3 });
+              g.circle(x + w * 0.4, y + h * 0.55, dustR * 1.5);
+              g.fill({ color: 0x8a7a5a, alpha: dustAlpha * 0.12 });
+            }
+          }
+
+          // Heavy shadow — darker and wider than any other unit
+          g.ellipse(x, y + 4, w / 2 + 8, h / 2 * 0.45);
+          g.fill({ color: 0x000000, alpha: 0.55 });
+
+          // Ground impact ring (subtle rumble indicator)
+          if (isMoving) {
+            const ringPulse = Math.abs(Math.sin(stompCycle * 2));
+            g.circle(x, y + 3, w * 0.55);
+            g.stroke({ color: 0x6a5a3a, width: 1.5, alpha: ringPulse * 0.15 });
+          }
 
           // Animated legs — 4 legs with stomping
           const legPairs = [
@@ -1597,32 +1832,40 @@ export class UnitRenderer {
             { bx: 0.15, by: 0.35, fx: 0.3, fy: 0.6, phase: Math.PI * 1.5 },
           ];
           for (const leg of legPairs) {
-            const swing = isMoving ? Math.sin(stompCycle + leg.phase) * h * 0.06 : 0;
+            const swing = isMoving ? Math.sin(stompCycle + leg.phase) * h * 0.08 : 0;
             g.moveTo(x + leg.bx * w, y + leg.by * h + bodyShake);
             g.lineTo(x + leg.fx * w, y + leg.fy * h + swing);
-            g.stroke({ color: bodyColor, width: 2 });
-            // Claw fork
+            g.stroke({ color: bodyColor, width: 2.5 });
+            // Claw fork — thicker, meaner
             g.moveTo(x + leg.fx * w, y + leg.fy * h + swing);
-            g.lineTo(x + (leg.fx - 0.05) * w, y + (leg.fy + 0.07) * h + swing);
+            g.lineTo(x + (leg.fx - 0.06) * w, y + (leg.fy + 0.09) * h + swing);
             g.moveTo(x + leg.fx * w, y + leg.fy * h + swing);
-            g.lineTo(x + (leg.fx + 0.05) * w, y + (leg.fy + 0.07) * h + swing);
-            g.stroke({ color: bodyColor, width: 1 });
+            g.lineTo(x + (leg.fx + 0.06) * w, y + (leg.fy + 0.09) * h + swing);
+            g.stroke({ color: lighten(bodyColor, 10), width: 1.5 });
           }
 
-          // Large body
+          // Large body — slightly more menacing
           g.ellipse(x, y + bodyShake, w / 2, h / 2);
           g.fill({ color: bodyColor, alpha: 0.95 });
-          // Dorsal spines
+          // Carapace armor ridges
+          g.ellipse(x, y + bodyShake, w * 0.42, h * 0.42);
+          g.stroke({ color: lighten(bodyColor, 8), width: 1.2, alpha: 0.4 });
+
+          // Dorsal spines — taller, more menacing wave pattern
           for (let ds = 0; ds < 5; ds++) {
             const dsx = x - w * 0.3 + ds * w * 0.15;
-            const spineH = h * 0.16 + Math.sin(gameTime * 2 + ds) * 1;
+            const spineH = h * 0.2 + Math.sin(gameTime * 2.5 + ds * 0.8) * 1.5;
             g.moveTo(dsx - 3, y - h * 0.4 + bodyShake);
             g.lineTo(dsx, y - h * 0.4 - spineH + bodyShake);
             g.lineTo(dsx + 3, y - h * 0.4 + bodyShake);
             g.closePath();
             g.fill({ color: lighten(bodyColor, 15), alpha: 0.85 });
+            // Spine glow tip
+            g.circle(dsx, y - h * 0.4 - spineH + bodyShake, 1);
+            g.fill({ color: ZERG_EYE, alpha: 0.3 });
           }
-          // Kaiser blade (left) — swings outward on attack
+
+          // Kaiser blade (left) — swings outward on attack with arc trail
           g.moveTo(x - w * 0.35, y - h * 0.3 + bodyShake);
           g.lineTo(x - w * (0.5 + bladeSwing), y - h * (0.55 + bladeSwing * 0.3) + bodyShake);
           g.lineTo(x - w * (0.65 + bladeSwing), y - h * (0.7 + bladeSwing * 0.2) + bodyShake);
@@ -1640,12 +1883,38 @@ export class UnitRenderer {
           g.closePath();
           g.fill({ color: 0x887755, alpha: 0.9 });
           g.stroke({ color: 0xaa9966, width: 1.5, alpha: 0.7 });
-          // Glowing red eyes
+
+          // Blade arc trail on attack — glowing sweep
+          if (bladeSwing > 0.05) {
+            const arcAlpha = bladeSwing * 2.5;
+            // Left blade arc
+            g.moveTo(x - w * 0.5, y - h * 0.55 + bodyShake);
+            g.lineTo(x - w * 0.75, y - h * 0.4 + bodyShake);
+            g.lineTo(x - w * 0.6, y - h * 0.15 + bodyShake);
+            g.stroke({ color: 0xffddaa, width: 3, alpha: arcAlpha * 0.5 });
+            // Right blade arc
+            g.moveTo(x + w * 0.5, y - h * 0.55 + bodyShake);
+            g.lineTo(x + w * 0.75, y - h * 0.4 + bodyShake);
+            g.lineTo(x + w * 0.6, y - h * 0.15 + bodyShake);
+            g.stroke({ color: 0xffddaa, width: 3, alpha: arcAlpha * 0.5 });
+            // Impact flash at blade tips
+            g.circle(x - w * 0.65, y - h * 0.7 + bodyShake, 4);
+            g.fill({ color: 0xffeecc, alpha: arcAlpha * 0.4 });
+            g.circle(x + w * 0.65, y - h * 0.7 + bodyShake, 4);
+            g.fill({ color: 0xffeecc, alpha: arcAlpha * 0.4 });
+          }
+
+          // Glowing red eyes — more menacing, pulsing with aggression
           const eyePulse = 0.7 + 0.3 * Math.sin(gameTime * 3 + eid);
           g.circle(x - w * 0.12, y - h * 0.25 + bodyShake, 2.5);
           g.fill({ color: ZERG_EYE, alpha: eyePulse });
           g.circle(x + w * 0.12, y - h * 0.25 + bodyShake, 2.5);
           g.fill({ color: ZERG_EYE, alpha: eyePulse });
+          // Eye glow halo
+          g.circle(x - w * 0.12, y - h * 0.25 + bodyShake, 5);
+          g.fill({ color: ZERG_EYE, alpha: eyePulse * 0.15 });
+          g.circle(x + w * 0.12, y - h * 0.25 + bodyShake, 5);
+          g.fill({ color: ZERG_EYE, alpha: eyePulse * 0.15 });
 
         } else if (uType === UnitType.Corruptor) {
           // ── Corruptor: floating crab-like air parasite ──
@@ -1743,56 +2012,91 @@ export class UnitRenderer {
           g.fill({ color: ZERG_EYE, alpha: 0.9 });
 
         } else if (uType === UnitType.Queen) {
-          // ── Queen: tall upright matriarch with scythe arms and crown spines ──
+          // ── Queen: matriarch — power fantasy: COMMANDING PRESENCE ──
+          // The hive mother. Scythes slash, crown spines flare, eye commands.
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const queenAttacking = atkFlashTimer[eid] > 0;
+          const queenAttackT = queenAttacking ? atkFlashTimer[eid] / 0.12 : 0;
+          const bodySway = isMoving ? Math.sin(gameTime * 3 + eid) * 1.2 : 0;
           const membranePulse = 0.7 + Math.sin(gameTime * 1.5) * 0.2;
-          // Shadow
-          g.ellipse(x, y, w / 2 + 3, h / 2 + 3);
-          g.fill({ color: 0x000000, alpha: 0.45 });
-          // Egg sac abdomen — larger circle at bottom blending into body
-          g.ellipse(x, y + h * 0.2, w * 0.45, h * 0.35);
+
+          // Shadow — regal, wider
+          g.ellipse(x, y + 2, w / 2 + 4, h / 2 + 3);
+          g.fill({ color: 0x220022, alpha: 0.4 });
+
+          // Egg sac abdomen — pulses more when spawning
+          g.ellipse(x + bodySway * 0.3, y + h * 0.2, w * 0.45, h * 0.35);
           g.fill({ color: darken(bodyColor, 15), alpha: membranePulse });
-          g.ellipse(x, y + h * 0.2, w * 0.45, h * 0.35);
+          g.ellipse(x + bodySway * 0.3, y + h * 0.2, w * 0.45, h * 0.35);
           g.stroke({ color: ZERG_FLESH, width: 1, alpha: 0.5 });
-          // Main body — tall upright ellipse (taller than wide)
-          g.ellipse(x, y - h * 0.05, w * 0.35, h * 0.45);
+          // Egg sac inner detail (veins)
+          g.moveTo(x - w * 0.15, y + h * 0.1);
+          g.lineTo(x + w * 0.1, y + h * 0.35);
+          g.stroke({ color: ZERG_FLESH, width: 0.5, alpha: 0.3 });
+
+          // Main body — tall, sways when moving
+          g.ellipse(x + bodySway, y - h * 0.05, w * 0.35, h * 0.45);
           g.fill({ color: bodyColor, alpha: membranePulse });
-          g.ellipse(x, y - h * 0.05, w * 0.35, h * 0.45);
+          g.ellipse(x + bodySway, y - h * 0.05, w * 0.35, h * 0.45);
           g.stroke({ color: lighten(bodyColor, 20), width: 1, alpha: 0.5 });
-          // Crown of 5 spines radiating from the top
+
+          // Crown of 5 spines — flare outward on attack
+          const crownFlare = queenAttacking ? 1.0 + queenAttackT * 0.3 : 1.0;
           for (let s = 0; s < 5; s++) {
-            const spineAngle = -Math.PI / 2 + (s - 2) * 0.35;
-            const baseX = x + Math.cos(spineAngle) * w * 0.15;
+            const spineAngle = -Math.PI / 2 + (s - 2) * 0.35 * crownFlare;
+            const baseX = x + bodySway + Math.cos(spineAngle) * w * 0.15;
             const baseY = y - h * 0.42 + Math.sin(spineAngle) * h * 0.05;
-            const tipX = x + Math.cos(spineAngle) * w * 0.4;
-            const tipY = y - h * 0.42 + Math.sin(spineAngle) * h * 0.2 - h * 0.15;
-            // Triangular spine
+            const tipX = x + bodySway + Math.cos(spineAngle) * w * 0.4 * crownFlare;
+            const tipY = y - h * 0.42 + Math.sin(spineAngle) * h * 0.2 * crownFlare - h * 0.15;
             g.moveTo(baseX - 2, baseY);
             g.lineTo(tipX, tipY);
             g.lineTo(baseX + 2, baseY);
             g.closePath();
             g.fill({ color: lighten(bodyColor, 10), alpha: 0.85 });
+            // Crown tip glow on attack
+            if (queenAttacking) {
+              g.circle(tipX, tipY, 1.5);
+              g.fill({ color: 0xcc44cc, alpha: queenAttackT * 0.5 });
+            }
           }
-          // Left scythe arm — curved line extending from mid-body, tapering
-          g.moveTo(x - w * 0.3, y - h * 0.1);
-          g.lineTo(x - w * 0.6, y - h * 0.25);
-          g.lineTo(x - w * 0.75, y - h * 0.15);
-          g.stroke({ color: lighten(bodyColor, 15), width: 2 });
-          g.moveTo(x - w * 0.75, y - h * 0.15);
-          g.lineTo(x - w * 0.82, y - h * 0.08);
+
+          // Scythe arms — SLASH on attack (wider sweep)
+          const scytheSwing = queenAttacking ? queenAttackT * w * 0.15 : 0;
+          // Left scythe
+          g.moveTo(x - w * 0.3 + bodySway, y - h * 0.1);
+          g.lineTo(x - w * 0.6 - scytheSwing + bodySway, y - h * 0.25 - scytheSwing * 0.3);
+          g.lineTo(x - w * 0.75 - scytheSwing + bodySway, y - h * 0.15);
+          g.stroke({ color: lighten(bodyColor, 15), width: queenAttacking ? 2.5 : 2 });
+          g.moveTo(x - w * 0.75 - scytheSwing + bodySway, y - h * 0.15);
+          g.lineTo(x - w * 0.82 - scytheSwing + bodySway, y - h * 0.08);
           g.stroke({ color: lighten(bodyColor, 15), width: 1 });
-          // Right scythe arm
-          g.moveTo(x + w * 0.3, y - h * 0.1);
-          g.lineTo(x + w * 0.6, y - h * 0.25);
-          g.lineTo(x + w * 0.75, y - h * 0.15);
-          g.stroke({ color: lighten(bodyColor, 15), width: 2 });
-          g.moveTo(x + w * 0.75, y - h * 0.15);
-          g.lineTo(x + w * 0.82, y - h * 0.08);
+          // Right scythe
+          g.moveTo(x + w * 0.3 + bodySway, y - h * 0.1);
+          g.lineTo(x + w * 0.6 + scytheSwing + bodySway, y - h * 0.25 - scytheSwing * 0.3);
+          g.lineTo(x + w * 0.75 + scytheSwing + bodySway, y - h * 0.15);
+          g.stroke({ color: lighten(bodyColor, 15), width: queenAttacking ? 2.5 : 2 });
+          g.moveTo(x + w * 0.75 + scytheSwing + bodySway, y - h * 0.15);
+          g.lineTo(x + w * 0.82 + scytheSwing + bodySway, y - h * 0.08);
           g.stroke({ color: lighten(bodyColor, 15), width: 1 });
-          // Large glowing purple eye at center
-          g.circle(x, y - h * 0.15, 3);
-          g.fill({ color: 0xbb44bb, alpha: 0.9 });
-          g.circle(x, y - h * 0.15, 5);
-          g.stroke({ color: 0xbb44bb, width: 1.5, alpha: 0.3 });
+          // Scythe slash arcs on attack
+          if (queenAttacking) {
+            g.moveTo(x - w * 0.6 + bodySway, y - h * 0.3);
+            g.lineTo(x - w * 0.8 + bodySway, y - h * 0.1);
+            g.stroke({ color: 0xcc88cc, width: 1.5, alpha: queenAttackT * 0.4 });
+            g.moveTo(x + w * 0.6 + bodySway, y - h * 0.3);
+            g.lineTo(x + w * 0.8 + bodySway, y - h * 0.1);
+            g.stroke({ color: 0xcc88cc, width: 1.5, alpha: queenAttackT * 0.4 });
+          }
+
+          // Large glowing purple eye — PULSES with authority
+          const eyeIntensity = queenAttacking ? 1.0 : 0.75 + Math.sin(gameTime * 2 + eid) * 0.15;
+          g.circle(x + bodySway, y - h * 0.15, queenAttacking ? 3.5 : 3);
+          g.fill({ color: 0xcc44cc, alpha: eyeIntensity });
+          g.circle(x + bodySway, y - h * 0.15, queenAttacking ? 7 : 5);
+          g.stroke({ color: 0xbb44bb, width: 1.5, alpha: eyeIntensity * 0.3 });
+          // Command aura (faint halo around queen)
+          g.circle(x + bodySway, y - h * 0.15, 8);
+          g.fill({ color: 0xbb44bb, alpha: 0.06 });
 
         } else {
           // Fallback for any unknown Zerg unit
@@ -2007,13 +2311,47 @@ export class UnitRenderer {
           g.circle(bx + hw * 1.0, by + hh * 0.12, 2);
           g.fill({ color: TERRAN_METAL });
 
-          // Layer 17: Muzzle flash (when attacking)
+          // Layer 17: Muzzle flash + tracer rounds (when attacking)
+          // Power fantasy: WALL OF BULLETS — rapid fire, visible tracer lines
           if (atkFlashTimer[eid] > 0) {
             const fa = atkFlashTimer[eid] / 0.12;
-            g.circle(bx + hw * 1.0, by + hh * 0.12, 4 + fa * 3);
-            g.fill({ color: 0xffdd44, alpha: fa * 0.9 });
-            g.circle(bx + hw * 1.0, by + hh * 0.12, 2 + fa * 2);
-            g.fill({ color: 0xffffff, alpha: fa });
+            // Directional muzzle flash cone (not just a circle)
+            const muzzX = bx + hw * 1.0;
+            const muzzY = by + hh * 0.12;
+            g.moveTo(muzzX, muzzY - 2);
+            g.lineTo(muzzX + 6 * fa, muzzY - 4 * fa);
+            g.lineTo(muzzX + 8 * fa, muzzY);
+            g.lineTo(muzzX + 6 * fa, muzzY + 4 * fa);
+            g.lineTo(muzzX, muzzY + 2);
+            g.closePath();
+            g.fill({ color: 0xffdd44, alpha: fa * 0.85 });
+            // White core
+            g.circle(muzzX + 2, muzzY, 2.5 + fa * 2);
+            g.fill({ color: 0xffffff, alpha: fa * 0.9 });
+            // Tracer line toward target
+            if (targetEntity[eid] >= 1 && entityExists(world, targetEntity[eid])) {
+              const tx = posX[targetEntity[eid]];
+              const ty = posY[targetEntity[eid]];
+              const tdx = tx - muzzX;
+              const tdy = ty - muzzY;
+              const tDist = Math.sqrt(tdx * tdx + tdy * tdy);
+              if (tDist > 1) {
+                const tracerLen = Math.min(tDist, 40) * fa;
+                const nx = tdx / tDist;
+                const ny = tdy / tDist;
+                g.moveTo(muzzX, muzzY);
+                g.lineTo(muzzX + nx * tracerLen, muzzY + ny * tracerLen);
+                g.stroke({ color: 0xeeeeff, width: 1.5, alpha: fa * 0.6 });
+                // Tracer glow
+                g.moveTo(muzzX, muzzY);
+                g.lineTo(muzzX + nx * tracerLen * 0.6, muzzY + ny * tracerLen * 0.6);
+                g.stroke({ color: 0x88aaff, width: 3, alpha: fa * 0.15 });
+              }
+            }
+            // Shell casing ejection (tiny dot flying up-left)
+            const casingT = 1 - fa;
+            g.circle(muzzX - 3 - casingT * 4, muzzY - 2 - casingT * 6, 0.8);
+            g.fill({ color: 0xddbb66, alpha: fa * 0.7 });
           }
 
           // Layer 18: Left arm (bracing rifle)
@@ -2031,71 +2369,105 @@ export class UnitRenderer {
           }
 
         } else if (uType === UnitType.Marauder) {
-          // ── Marauder: heavy armored, bulky with concussion grenades ──
-          // Shadow
-          g.rect(x - w / 2 - 3, y - h / 2 - 2, w + 6, h + 4);
-          g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body — wider rect (emphasize bulk)
-          g.rect(x - w * 0.5, y - h * 0.4, w, h * 0.8);
+          // ── Marauder: heavy armored — power fantasy: UNSTOPPABLE FORCE ──
+          // Heavy footfalls, concussive grenade impact rings, immovable presence.
+          const marBreath = Math.sin(gameTime * 1.0 + eid * 1.8) * 0.5; // slower, heavier breathing
+          const marAttacking = atkFlashTimer[eid] > 0;
+          const marRecoil = marAttacking ? (atkFlashTimer[eid] / 0.12) * 1.5 : 0;
+
+          // Shadow — heavier than Marine
+          g.rect(x - w / 2 - 4, y - h / 2 - 2 + marBreath, w + 8, h + 5);
+          g.fill({ color: 0x000000, alpha: 0.45 });
+          // Main body — wider rect (emphasize bulk) with recoil
+          g.rect(x - w * 0.5 + marRecoil * 0.3, y - h * 0.4 + marBreath, w, h * 0.8);
           g.fill({ color: bodyColor });
           // Armor plate outline
-          g.rect(x - w * 0.5, y - h * 0.4, w, h * 0.8);
+          g.rect(x - w * 0.5 + marRecoil * 0.3, y - h * 0.4 + marBreath, w, h * 0.8);
           g.stroke({ color: 0x5577aa, width: 1.2, alpha: 0.7 });
-          // Central chest plate — inner rect with slightly different shade
-          g.rect(x - w * 0.25, y - h * 0.25, w * 0.5, h * 0.5);
+          // Central chest plate
+          g.rect(x - w * 0.25, y - h * 0.25 + marBreath, w * 0.5, h * 0.5);
           g.fill({ color: 0x2266aa, alpha: 0.4 });
-          g.rect(x - w * 0.25, y - h * 0.25, w * 0.5, h * 0.5);
+          g.rect(x - w * 0.25, y - h * 0.25 + marBreath, w * 0.5, h * 0.5);
           g.stroke({ color: 0x4488bb, width: 0.8, alpha: 0.5 });
-          // Left shoulder pad — big rounded rect extending from left side
-          g.rect(x - w * 0.7, y - h * 0.5, w * 0.3, h * 0.45);
+          // Left shoulder pad
+          g.rect(x - w * 0.7, y - h * 0.5 + marBreath, w * 0.3, h * 0.45);
           g.fill({ color: bodyColor });
-          g.rect(x - w * 0.7, y - h * 0.5, w * 0.3, h * 0.45);
+          g.rect(x - w * 0.7, y - h * 0.5 + marBreath, w * 0.3, h * 0.45);
           g.stroke({ color: 0x6688aa, width: 1 });
           // Right shoulder pad
-          g.rect(x + w * 0.4, y - h * 0.5, w * 0.3, h * 0.45);
+          g.rect(x + w * 0.4, y - h * 0.5 + marBreath, w * 0.3, h * 0.45);
           g.fill({ color: bodyColor });
-          g.rect(x + w * 0.4, y - h * 0.5, w * 0.3, h * 0.45);
+          g.rect(x + w * 0.4, y - h * 0.5 + marBreath, w * 0.3, h * 0.45);
           g.stroke({ color: 0x6688aa, width: 1 });
-          // Grenade launchers — small circles on shoulders (palette metal)
-          g.circle(x - w * 0.55, y - h * 0.35, 2.5);
-          g.fill({ color: TERRAN_METAL });
-          g.circle(x - w * 0.55, y - h * 0.35, 2.5);
+          // Grenade launchers — glow when firing
+          const launcherGlow = marAttacking ? 0xff8844 : TERRAN_METAL;
+          g.circle(x - w * 0.55, y - h * 0.35 + marBreath, 2.5);
+          g.fill({ color: launcherGlow });
+          g.circle(x - w * 0.55, y - h * 0.35 + marBreath, 2.5);
           g.stroke({ color: lighten(TERRAN_METAL, 30), width: 0.8 });
-          g.circle(x + w * 0.55, y - h * 0.35, 2.5);
-          g.fill({ color: TERRAN_METAL });
-          g.circle(x + w * 0.55, y - h * 0.35, 2.5);
+          g.circle(x + w * 0.55, y - h * 0.35 + marBreath, 2.5);
+          g.fill({ color: launcherGlow });
+          g.circle(x + w * 0.55, y - h * 0.35 + marBreath, 2.5);
           g.stroke({ color: lighten(TERRAN_METAL, 30), width: 0.8 });
-          // Visor — red-orange horizontal slit (distinct from Marine's cyan T-visor)
-          g.moveTo(x - w * 0.22, y - h * 0.45);
-          g.lineTo(x + w * 0.22, y - h * 0.45);
+          // Concussive grenade launch flash
+          if (marAttacking) {
+            const fa = atkFlashTimer[eid] / 0.12;
+            // Muzzle flash on both grenade launchers
+            g.circle(x - w * 0.55, y - h * 0.35 + marBreath, 4 * fa);
+            g.fill({ color: 0xff8844, alpha: fa * 0.6 });
+            g.circle(x + w * 0.55, y - h * 0.35 + marBreath, 4 * fa);
+            g.fill({ color: 0xff8844, alpha: fa * 0.6 });
+            // Ground impact ring (concussive wave)
+            g.circle(x, y + h * 0.5, 6 + fa * 8);
+            g.stroke({ color: 0xff6633, width: 1.5, alpha: fa * 0.25 });
+          }
+          // Visor — red-orange horizontal slit
+          g.moveTo(x - w * 0.22, y - h * 0.45 + marBreath);
+          g.lineTo(x + w * 0.22, y - h * 0.45 + marBreath);
           g.stroke({ color: 0xff6644, width: 1.5 });
           // Visor glow
-          g.moveTo(x - w * 0.22, y - h * 0.45);
-          g.lineTo(x + w * 0.22, y - h * 0.45);
+          g.moveTo(x - w * 0.22, y - h * 0.45 + marBreath);
+          g.lineTo(x + w * 0.22, y - h * 0.45 + marBreath);
           g.stroke({ color: 0xff8866, width: 4, alpha: 0.15 });
 
         } else if (uType === UnitType.SiegeTank) {
-          // ── Siege Tank: heavy vehicle with treads and cannon ──
+          // ── Siege Tank: heavy artillery — power fantasy: DEVASTATING RANGE ──
+          // The ground should tremble when this fires. Artillery god.
+          const siegeRecoil = atkFlashTimer[eid] > 0 ? (atkFlashTimer[eid] / 0.12) * w * 0.08 : 0;
+
           if (sm === SiegeMode.Sieged) {
             // === SIEGED MODE: wider, flatter, very long cannon ===
             // Shadow
             g.rect(x - w / 2 - 3, y - h / 2 - 2, w + 6, h + 6);
             g.fill({ color: 0x000000, alpha: 0.4 });
-            // Stabilizer legs extending down-left and down-right
+
+            // Ground stress marks (the tank is so heavy it digs in)
+            g.moveTo(x - w * 0.6, y + h * 0.7);
+            g.lineTo(x + w * 0.6, y + h * 0.7);
+            g.stroke({ color: 0x3a3a2a, width: 1, alpha: 0.3 });
+
+            // Stabilizer legs — hydraulic pistons
             g.moveTo(x - w * 0.4, y + h * 0.3);
             g.lineTo(x - w * 0.7, y + h * 0.65);
-            g.stroke({ color: 0x555555, width: 2 });
+            g.stroke({ color: 0x555555, width: 2.5 });
             g.moveTo(x + w * 0.4, y + h * 0.3);
             g.lineTo(x + w * 0.7, y + h * 0.65);
-            g.stroke({ color: 0x555555, width: 2 });
-            // Stabilizer feet (small horizontal lines)
+            g.stroke({ color: 0x555555, width: 2.5 });
+            // Hydraulic piston detail (inner line)
+            g.moveTo(x - w * 0.45, y + h * 0.35);
+            g.lineTo(x - w * 0.6, y + h * 0.55);
+            g.stroke({ color: 0x778899, width: 1, alpha: 0.5 });
+            g.moveTo(x + w * 0.45, y + h * 0.35);
+            g.lineTo(x + w * 0.6, y + h * 0.55);
+            g.stroke({ color: 0x778899, width: 1, alpha: 0.5 });
+            // Stabilizer feet (anchored plates)
             g.moveTo(x - w * 0.75, y + h * 0.65);
             g.lineTo(x - w * 0.6, y + h * 0.65);
-            g.stroke({ color: 0x666666, width: 2 });
+            g.stroke({ color: 0x666666, width: 2.5 });
             g.moveTo(x + w * 0.65, y + h * 0.65);
             g.lineTo(x + w * 0.8, y + h * 0.65);
-            g.stroke({ color: 0x666666, width: 2 });
-            // Main body — wide, flat, darker/greener tint in siege mode
+            g.stroke({ color: 0x666666, width: 2.5 });
+            // Main body — wide, flat
             g.rect(x - w * 0.5, y - h * 0.3, w, h * 0.6);
             g.fill({ color: 0x5577aa });
             g.rect(x - w * 0.5, y - h * 0.3, w, h * 0.6);
@@ -2105,14 +2477,44 @@ export class UnitRenderer {
             g.fill({ color: 0x224466 });
             g.rect(x - w * 0.2, y - h * 0.25, w * 0.4, h * 0.3);
             g.stroke({ color: 0x446688, width: 1 });
-            // Very long cannon extending right
+            // Very long cannon extending right — with RECOIL
+            const cannonEndX = x + w * 1.1 - siegeRecoil;
             g.moveTo(x + w * 0.2, y - h * 0.1);
-            g.lineTo(x + w * 1.1, y - h * 0.1);
+            g.lineTo(cannonEndX, y - h * 0.1);
             g.stroke({ color: 0xaaaaaa, width: 3.5 });
-            // Muzzle flash circle at tip
-            const muzzlePulse = 0.3 + 0.3 * Math.sin(gameTime * 6);
-            g.circle(x + w * 1.1, y - h * 0.1, 3);
-            g.fill({ color: 0xffaa44, alpha: muzzlePulse });
+            // Barrel heat glow (faint orange line along barrel when firing)
+            if (siegeRecoil > 0) {
+              g.moveTo(x + w * 0.3, y - h * 0.1);
+              g.lineTo(cannonEndX, y - h * 0.1);
+              g.stroke({ color: 0xff6622, width: 1.5, alpha: siegeRecoil / (w * 0.08) * 0.3 });
+            }
+
+            // DEVASTATING muzzle blast (when attacking)
+            if (atkFlashTimer[eid] > 0) {
+              const fa = atkFlashTimer[eid] / 0.12;
+              // Muzzle flash cone — directional blast
+              g.moveTo(cannonEndX, y - h * 0.1 - 3);
+              g.lineTo(cannonEndX + 12 * fa, y - h * 0.1 - 8 * fa);
+              g.lineTo(cannonEndX + 16 * fa, y - h * 0.1);
+              g.lineTo(cannonEndX + 12 * fa, y - h * 0.1 + 8 * fa);
+              g.lineTo(cannonEndX, y - h * 0.1 + 3);
+              g.closePath();
+              g.fill({ color: 0xffcc44, alpha: fa * 0.8 });
+              // White core flash
+              g.circle(cannonEndX + 4, y - h * 0.1, 5 * fa);
+              g.fill({ color: 0xffffff, alpha: fa * 0.9 });
+              // Outer blast ring
+              g.circle(cannonEndX, y - h * 0.1, 10 + 8 * fa);
+              g.fill({ color: 0xff8822, alpha: fa * 0.15 });
+              // Ground dust kick-up at base (recoil shakes the ground)
+              g.ellipse(x, y + h * 0.5, w * 0.4 + fa * 4, 3);
+              g.fill({ color: 0x8a7a5a, alpha: fa * 0.25 });
+            } else {
+              // Idle muzzle glow (ready state)
+              const muzzlePulse = 0.2 + 0.15 * Math.sin(gameTime * 4);
+              g.circle(cannonEndX, y - h * 0.1, 3);
+              g.fill({ color: 0xffaa44, alpha: muzzlePulse });
+            }
           } else if (sm === SiegeMode.Packing || sm === SiegeMode.Unpacking) {
             // === TRANSITIONING: pulsing outline ===
             g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
@@ -2221,16 +2623,17 @@ export class UnitRenderer {
           this.drawHealBeams(g, world, eid, x, y);
 
         } else if (uType === UnitType.Ghost) {
-          // ── Ghost: psionic covert operative with C-10 canister rifle ──
-          // SC2: "Ghosts are elite Terran operatives. They cloak, snipe, and call
-          // down nuclear strikes. Sleek hostile environment suit, long rifle."
+          // ── Ghost: psionic assassin — power fantasy: INVISIBLE DEATH ──
+          // Laser sight finds you. One shot, one kill. You never saw it coming.
           const isCloaked = cloaked[eid] === 1;
           const ghostAlpha = isCloaked ? 0.25 + 0.1 * Math.sin(gameTime * 3 + eid) : 1.0;
+          const ghostAttacking = atkFlashTimer[eid] > 0;
+          const ghostAttackT = ghostAttacking ? atkFlashTimer[eid] / 0.12 : 0;
 
           // Shadow (fades when cloaked)
           g.ellipse(x, y + h * 0.4, w * 0.35, h * 0.15);
           g.fill({ color: 0x000000, alpha: 0.25 * ghostAlpha });
-          // Main body — slim profile
+          // Main body — slim, elite profile
           g.rect(x - w * 0.32, y - h * 0.45, w * 0.64, h * 0.9);
           g.fill({ color: bodyColor, alpha: ghostAlpha });
           g.stroke({ color: 0x446688, width: 1, alpha: 0.6 * ghostAlpha });
@@ -2238,30 +2641,74 @@ export class UnitRenderer {
           g.rect(x - w * 0.22, y - h * 0.58, w * 0.44, h * 0.18);
           g.fill({ color: bodyColor, alpha: ghostAlpha });
           g.stroke({ color: 0x557799, width: 1, alpha: 0.6 * ghostAlpha });
-          // Visor — dim when cloaked, bright on attack
-          const visorBright = atkFlashTimer[eid] > 0 ? 1.0 : 0.7;
+          // Visor — FLARES bright on attack
+          const visorBright = ghostAttacking ? 1.0 : 0.7;
           g.moveTo(x - w * 0.18, y - h * 0.5);
           g.lineTo(x + w * 0.18, y - h * 0.5);
-          g.stroke({ color: 0x8899bb, width: 1.5, alpha: visorBright * ghostAlpha });
-          // C-10 canister rifle
+          g.stroke({ color: ghostAttacking ? 0xccddff : 0x8899bb, width: ghostAttacking ? 2.0 : 1.5, alpha: visorBright * ghostAlpha });
+          // Visor glow on attack
+          if (ghostAttacking) {
+            g.moveTo(x - w * 0.18, y - h * 0.5);
+            g.lineTo(x + w * 0.18, y - h * 0.5);
+            g.stroke({ color: 0xaabbff, width: 5, alpha: ghostAttackT * 0.2 * ghostAlpha });
+          }
+          // C-10 canister rifle with recoil
+          const rifleRecoil = ghostAttacking ? ghostAttackT * 2 : 0;
           g.moveTo(x + w * 0.3, y - h * 0.35);
-          g.lineTo(x + w * 0.95, y - h * 0.6);
+          g.lineTo(x + w * 0.95 - rifleRecoil, y - h * 0.6);
           g.stroke({ color: 0x556677, width: 1.5, alpha: ghostAlpha });
+          // Muzzle — larger
+          g.circle(x + w * 0.95 - rifleRecoil, y - h * 0.6, 1.5);
+          g.fill({ color: 0x778899, alpha: ghostAlpha });
+
           // Scope with animated glint
           g.rect(x + w * 0.5, y - h * 0.52, w * 0.15, h * 0.08);
           g.fill({ color: 0x334455, alpha: ghostAlpha });
           const scopeGlint = 0.5 + 0.5 * Math.sin(gameTime * 2 + eid * 3);
           g.circle(x + w * 0.57, y - h * 0.48, 1.5);
           g.fill({ color: 0x44ff88, alpha: scopeGlint * ghostAlpha });
-          // Cloak shimmer effect — diagonal scan lines when cloaked
-          if (isCloaked) {
-            for (let s = 0; s < 3; s++) {
-              const shimmerY = y - h * 0.4 + ((gameTime * 2 + s * 0.33) % 1.0) * h * 0.8;
-              g.moveTo(x - w * 0.3, shimmerY);
-              g.lineTo(x + w * 0.3, shimmerY - 2);
-              g.stroke({ color: 0x88ccff, width: 0.5, alpha: 0.3 });
-            }
+
+          // ★ LASER SIGHT — thin red line to target
+          if (targetEntity[eid] >= 1 && entityExists(world, targetEntity[eid]) && hpCurrent[targetEntity[eid]] > 0) {
+            const lx = posX[targetEntity[eid]];
+            const ly = posY[targetEntity[eid]];
+            const muzzleX = x + w * 0.95 - rifleRecoil;
+            const muzzleY = y - h * 0.6;
+            // Laser dot on target
+            g.circle(lx, ly, 2);
+            g.fill({ color: 0xff2222, alpha: 0.6 * ghostAlpha });
+            g.circle(lx, ly, 4);
+            g.fill({ color: 0xff2222, alpha: 0.15 * ghostAlpha });
+            // Laser line from scope to target
+            g.moveTo(muzzleX, muzzleY);
+            g.lineTo(lx, ly);
+            g.stroke({ color: 0xff2222, width: 0.5, alpha: 0.3 * ghostAlpha });
           }
+
+          // ★ Sniper muzzle flash (precise, bright white)
+          if (ghostAttacking) {
+            const muzzleX = x + w * 0.95 - rifleRecoil;
+            const muzzleY = y - h * 0.6;
+            g.circle(muzzleX, muzzleY, 3 + ghostAttackT * 4);
+            g.fill({ color: 0xffffff, alpha: ghostAttackT * 0.9 });
+            g.circle(muzzleX, muzzleY, 6 + ghostAttackT * 6);
+            g.fill({ color: 0xaabbff, alpha: ghostAttackT * 0.15 });
+          }
+
+          // Cloak shimmer — enhanced distortion field
+          if (isCloaked) {
+            for (let s = 0; s < 4; s++) {
+              const shimmerY = y - h * 0.4 + ((gameTime * 2.5 + s * 0.25) % 1.0) * h * 0.8;
+              const shimmerX = Math.sin(gameTime * 3 + s * 1.5) * w * 0.05;
+              g.moveTo(x - w * 0.3 + shimmerX, shimmerY);
+              g.lineTo(x + w * 0.3 + shimmerX, shimmerY - 2);
+              g.stroke({ color: 0x88ccff, width: 0.6, alpha: 0.25 });
+            }
+            // Faint outline distortion
+            g.rect(x - w * 0.34, y - h * 0.47, w * 0.68, h * 0.94);
+            g.stroke({ color: 0x88ccff, width: 0.5, alpha: 0.08 + Math.sin(gameTime * 2) * 0.04 });
+          }
+
           // Suit seam
           g.moveTo(x, y - h * 0.38);
           g.lineTo(x, y + h * 0.38);
@@ -2695,37 +3142,143 @@ export class UnitRenderer {
           g.fill({ color: 0x4488ff, alpha: thorPulse });
 
         } else if (uType === UnitType.Battlecruiser) {
-          // ── Battlecruiser: massive capital ship ──
+          // ── Battlecruiser: capital ship — power fantasy: ORBITAL SUPREMACY ──
+          // Massive floating fortress. Weapon batteries cycle fire. Engine roar.
           const hw = w / 2;
           const hh = h / 2;
-          // Triangle body
-          g.moveTo(posX[eid], posY[eid] - hh);
-          g.lineTo(posX[eid] - hw, posY[eid] + hh);
-          g.lineTo(posX[eid] + hw, posY[eid] + hh);
+          const bx = posX[eid];
+          const by = posY[eid];
+          const bcMoving = Math.abs(velX[eid]) > 0.05 || Math.abs(velY[eid]) > 0.05;
+          const bcAttacking = atkFlashTimer[eid] > 0;
+          const bcAttackT = bcAttacking ? atkFlashTimer[eid] / 0.12 : 0;
+
+          // Massive air shadow (capital ship dwarfs everything)
+          g.ellipse(bx, by + 10, hw * 0.8, hh * 0.3);
+          g.fill({ color: 0x000000, alpha: 0.3 });
+
+          // Engine thrust trail when moving
+          if (bcMoving) {
+            for (let eg = -1; eg <= 1; eg++) {
+              const trailLen = 6 + Math.sin(gameTime * 8 + eg) * 2;
+              const engX = bx + eg * hw * 0.35;
+              const engY = by + hh - 2;
+              g.moveTo(engX - 2, engY);
+              g.lineTo(engX, engY + trailLen);
+              g.lineTo(engX + 2, engY);
+              g.closePath();
+              g.fill({ color: 0x4488ff, alpha: 0.35 });
+              g.moveTo(engX - 1, engY);
+              g.lineTo(engX, engY + trailLen * 0.6);
+              g.lineTo(engX + 1, engY);
+              g.closePath();
+              g.fill({ color: 0x88ccff, alpha: 0.5 });
+            }
+          }
+
+          // Hull — layered armored wedge (not just a triangle)
+          // Lower hull plate
+          g.moveTo(bx, by - hh * 0.7);
+          g.lineTo(bx - hw * 0.9, by + hh * 0.8);
+          g.lineTo(bx + hw * 0.9, by + hh * 0.8);
           g.closePath();
-          g.fill({ color: 0x334455, alpha: 0.9 });
-          // Hull plating lines — 3 horizontal stripes across the body
-          for (let pl = 0; pl < 3; pl++) {
-            const plY = posY[eid] - hh * 0.3 + pl * hh * 0.45;
-            const plHalfW = hw * (0.3 + pl * 0.2);
-            g.moveTo(posX[eid] - plHalfW, plY);
-            g.lineTo(posX[eid] + plHalfW, plY);
-            g.stroke({ color: 0x556677, width: 0.8, alpha: 0.3 });
+          g.fill({ color: 0x2a3a4a, alpha: 0.95 });
+          // Main hull (slightly smaller, brighter)
+          g.moveTo(bx, by - hh * 0.85);
+          g.lineTo(bx - hw * 0.8, by + hh * 0.7);
+          g.lineTo(bx + hw * 0.8, by + hh * 0.7);
+          g.closePath();
+          g.fill({ color: 0x3a4a5a, alpha: 0.95 });
+          g.stroke({ color: 0x556677, width: 1.2, alpha: 0.5 });
+          // Bridge section (top-center, brighter)
+          g.rect(bx - hw * 0.2, by - hh * 0.5, hw * 0.4, hh * 0.35);
+          g.fill({ color: 0x4a5a6a });
+          g.stroke({ color: 0x6688aa, width: 0.8, alpha: 0.4 });
+          // Bridge window
+          g.rect(bx - hw * 0.12, by - hh * 0.42, hw * 0.24, hh * 0.08);
+          g.fill({ color: TERRAN_VISOR, alpha: 0.4 });
+
+          // Hull plating detail — armored panel lines
+          for (let pl = 0; pl < 4; pl++) {
+            const plY = by - hh * 0.2 + pl * hh * 0.3;
+            const plHalfW = hw * (0.25 + pl * 0.15);
+            g.moveTo(bx - plHalfW, plY);
+            g.lineTo(bx + plHalfW, plY);
+            g.stroke({ color: 0x556677, width: 0.8, alpha: 0.25 });
           }
-          // Engine glow array — 3 small blue circles at rear
+
+          // Weapon turrets (4 — two per side, rotating)
+          const turretAngle = gameTime * 1.5;
+          const turrets = [
+            { ox: -0.4, oy: 0.0 }, { ox: 0.4, oy: 0.0 },
+            { ox: -0.25, oy: 0.35 }, { ox: 0.25, oy: 0.35 },
+          ];
+          for (let t = 0; t < turrets.length; t++) {
+            const tx = bx + turrets[t].ox * hw;
+            const ty = by + turrets[t].oy * hh;
+            // Turret base
+            g.circle(tx, ty, 2.5);
+            g.fill({ color: 0x556677 });
+            // Turret barrel (slowly rotating)
+            const bAngle = turretAngle + t * Math.PI * 0.5;
+            g.moveTo(tx, ty);
+            g.lineTo(tx + Math.cos(bAngle) * 5, ty + Math.sin(bAngle) * 5);
+            g.stroke({ color: 0x778899, width: 1.5 });
+          }
+
+          // Weapon discharge on attack — staggered turret fire
+          if (bcAttacking) {
+            const firingTurret = Math.floor(gameTime * 8) % 4;
+            const ft = turrets[firingTurret];
+            const ftx = bx + ft.ox * hw;
+            const fty = by + ft.oy * hh;
+            // Muzzle flash at turret
+            g.circle(ftx, fty, 5 * bcAttackT);
+            g.fill({ color: 0x44aaff, alpha: bcAttackT * 0.7 });
+            g.circle(ftx, fty, 8 * bcAttackT);
+            g.fill({ color: 0x2266ff, alpha: bcAttackT * 0.2 });
+            // Beam line to target
+            if (targetEntity[eid] >= 1 && entityExists(world, targetEntity[eid])) {
+              const ttx = posX[targetEntity[eid]];
+              const tty = posY[targetEntity[eid]];
+              g.moveTo(ftx, fty);
+              g.lineTo(ttx, tty);
+              g.stroke({ color: 0x44aaff, width: 2, alpha: bcAttackT * 0.5 });
+              g.moveTo(ftx, fty);
+              g.lineTo(ttx, tty);
+              g.stroke({ color: 0x88ccff, width: 4, alpha: bcAttackT * 0.15 });
+            }
+            // Hull glow during fire (power surge)
+            g.moveTo(bx, by - hh * 0.85);
+            g.lineTo(bx - hw * 0.8, by + hh * 0.7);
+            g.lineTo(bx + hw * 0.8, by + hh * 0.7);
+            g.closePath();
+            g.stroke({ color: 0x4488ff, width: 1.5, alpha: bcAttackT * 0.2 });
+          }
+
+          // Engine glow array — 3 pulsing blue-white cores
+          const engPulse = 0.6 + 0.3 * Math.sin(gameTime * 3);
           for (let eg = -1; eg <= 1; eg++) {
-            g.circle(posX[eid] + eg * hw * 0.35, posY[eid] + hh - 3, 3);
-            g.fill({ color: 0x4488ff, alpha: 0.6 });
-            g.circle(posX[eid] + eg * hw * 0.35, posY[eid] + hh - 3, 1.5);
-            g.fill({ color: 0x88ccff, alpha: 0.8 });
+            g.circle(bx + eg * hw * 0.35, by + hh - 3, 3.5);
+            g.fill({ color: 0x4488ff, alpha: engPulse });
+            g.circle(bx + eg * hw * 0.35, by + hh - 3, 1.8);
+            g.fill({ color: 0xaaddff, alpha: engPulse * 0.9 });
+            // Engine outer glow
+            g.circle(bx + eg * hw * 0.35, by + hh - 3, 6);
+            g.fill({ color: 0x2244aa, alpha: engPulse * 0.1 });
           }
-          // Running lights — red port (left), green starboard (right), blinking alternately
+
+          // Running lights — red port, green starboard
           const portAlpha = 0.3 + Math.sin(gameTime * 2) * 0.5;
           const starAlpha = 0.3 + Math.cos(gameTime * 2) * 0.5;
-          g.circle(posX[eid] - hw * 0.6, posY[eid] + hh * 0.3, 1.5);
+          g.circle(bx - hw * 0.7, by + hh * 0.3, 1.5);
           g.fill({ color: 0xff2222, alpha: Math.max(0, portAlpha) });
-          g.circle(posX[eid] + hw * 0.6, posY[eid] + hh * 0.3, 1.5);
+          g.circle(bx + hw * 0.7, by + hh * 0.3, 1.5);
           g.fill({ color: 0x22ff22, alpha: Math.max(0, starAlpha) });
+
+          // Shield shimmer (faint protective field)
+          const shieldAlpha = 0.04 + Math.sin(gameTime * 1.2 + eid) * 0.02;
+          g.ellipse(bx, by, hw * 0.9, hh * 0.85);
+          g.stroke({ color: 0x4488ff, width: 1, alpha: shieldAlpha });
 
         } else {
           // Fallback for any unknown Terran unit
@@ -3094,6 +3647,116 @@ export class UnitRenderer {
         g.circle(evt.x, smokeY, smokeR);
         g.fill({ color: 0x222222, alpha: (1 - smokeT) * 0.25 });
       }
+
+      // ═══ Unit-specific death effects ═══
+      const deathUnitType = evt.unitType as UnitType;
+
+      if (deathUnitType === UnitType.Baneling) {
+        // ACID SPLASH POOL — corrosive puddle that lingers
+        const poolR = (8 + sizeMult * 6) * Math.min(1, t * 3); // expands fast, then stays
+        const poolAlpha = alpha * 0.5;
+        g.circle(evt.x, evt.y, poolR);
+        g.fill({ color: 0x44cc22, alpha: poolAlpha });
+        g.circle(evt.x, evt.y, poolR * 0.6);
+        g.fill({ color: 0x88ff44, alpha: poolAlpha * 0.6 });
+        // Acid splash droplets (fly further than normal sparks)
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2 + evt.time * 5;
+          const splashDist = (12 + sizeMult * 8) * Math.min(1, t * 2);
+          const sx = evt.x + Math.cos(angle) * splashDist;
+          const sy = evt.y + Math.sin(angle) * splashDist;
+          g.circle(sx, sy, Math.max(0.5, 2 * (1 - t)));
+          g.fill({ color: 0x66dd22, alpha: alpha * 0.5 });
+        }
+      }
+
+      if (deathUnitType === UnitType.Ultralisk) {
+        // SEISMIC COLLAPSE — ground cracks radiate outward
+        if (t < 0.5) {
+          for (let i = 0; i < 6; i++) {
+            const crackAngle = (i / 6) * Math.PI * 2 + 0.3;
+            const crackLen = (10 + sizeMult * 15) * Math.min(1, t * 4);
+            g.moveTo(evt.x, evt.y);
+            g.lineTo(evt.x + Math.cos(crackAngle) * crackLen, evt.y + Math.sin(crackAngle) * crackLen);
+            g.stroke({ color: 0x4a3a2a, width: 2, alpha: (0.5 - t) * 0.6 });
+          }
+        }
+        // Heavy dust cloud (wider, darker)
+        const dustR = (15 + sizeMult * 10) * t;
+        g.circle(evt.x, evt.y + 3, dustR);
+        g.fill({ color: 0x6a5a4a, alpha: alpha * 0.2 });
+      }
+
+      if (deathUnitType === UnitType.SiegeTank) {
+        // AMMO COOK-OFF — secondary explosions after initial blast
+        if (t > 0.3 && t < 0.7) {
+          const cookT = (t - 0.3) / 0.4;
+          const cookAlpha = Math.sin(cookT * Math.PI);
+          // 2-3 smaller secondary explosions around the wreck
+          for (let i = 0; i < 3; i++) {
+            const angle = (i / 3) * Math.PI * 2 + evt.time * 2;
+            const dist = 6 + i * 4;
+            const sx = evt.x + Math.cos(angle) * dist;
+            const sy = evt.y + Math.sin(angle) * dist;
+            g.circle(sx, sy, 3 + cookAlpha * 4);
+            g.fill({ color: 0xffaa22, alpha: cookAlpha * 0.5 });
+            g.circle(sx, sy, 1.5 + cookAlpha * 2);
+            g.fill({ color: 0xffffff, alpha: cookAlpha * 0.6 });
+          }
+        }
+      }
+
+      if (deathUnitType === UnitType.Mutalisk) {
+        // SPIRAL FALL — spiraling trail as the flyer crashes down
+        const spiralR = 8 * t;
+        const spiralAngle = t * Math.PI * 4;
+        const crashX = evt.x + Math.cos(spiralAngle) * spiralR;
+        const crashY = evt.y + t * 15; // falls downward
+        g.circle(crashX, crashY, Math.max(0.5, 2 * (1 - t)));
+        g.fill({ color: 0xaa66dd, alpha: alpha * 0.5 });
+        // Trail
+        if (t < 0.6) {
+          const prevT = Math.max(0, t - 0.1);
+          const prevR = 8 * prevT;
+          const prevAngle = prevT * Math.PI * 4;
+          g.moveTo(evt.x + Math.cos(prevAngle) * prevR, evt.y + prevT * 15);
+          g.lineTo(crashX, crashY);
+          g.stroke({ color: 0x8844aa, width: 1, alpha: alpha * 0.3 });
+        }
+      }
+
+      if (deathUnitType === UnitType.Marine || deathUnitType === UnitType.Marauder) {
+        // ARMOR SCATTER — armor plates fly off
+        if (t < 0.5) {
+          for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2 + evt.time * 2 + 0.7;
+            const dist = (5 + i * 3) * t * 3;
+            const px = evt.x + Math.cos(angle) * dist;
+            const py = evt.y + Math.sin(angle) * dist + t * t * 15; // gravity
+            const plateSize = 2 * (1 - t * 2);
+            if (plateSize > 0.3) {
+              g.rect(px - plateSize, py - plateSize * 0.5, plateSize * 2, plateSize);
+              g.fill({ color: 0x5588aa, alpha: (0.5 - t) * 0.8 });
+            }
+          }
+        }
+      }
+
+      if (deathUnitType === UnitType.Battlecruiser) {
+        // MASSIVE FIREBALL — capital ship goes down in a blaze
+        const fireR = (20 + sizeMult * 10) * (0.5 + t * 0.5);
+        g.circle(evt.x, evt.y, fireR);
+        g.fill({ color: 0xff6622, alpha: alpha * 0.2 });
+        // Multiple fire spots
+        for (let i = 0; i < 5; i++) {
+          const fAngle = (i / 5) * Math.PI * 2 + evt.time;
+          const fDist = sizeMult * 6 * t;
+          const fx = evt.x + Math.cos(fAngle) * fDist;
+          const fy = evt.y + Math.sin(fAngle) * fDist;
+          g.circle(fx, fy, 3 + (1 - t) * 3);
+          g.fill({ color: 0xffaa44, alpha: alpha * 0.4 });
+        }
+      }
     }
 
     // Floating damage indicators — severity-scaled markers with impact bars
@@ -3154,9 +3817,11 @@ export class UnitRenderer {
   }
 
   private drawHealBeams(g: Graphics, world: World, medivacEid: number, mx: number, my: number): void {
+    // Power fantasy: THE LIFELINE — visible, pulsing heal beams with energy particles
     const healRangePx = MEDIVAC_HEAL_RANGE * TILE_SIZE;
     const healRangeSq = healRangePx * healRangePx;
     const myFac = faction[medivacEid];
+    const gameTime = Date.now() / 1000; // approximate for beam animation
 
     for (let other = 1; other < world.nextEid; other++) {
       if (other === medivacEid) continue;
@@ -3171,9 +3836,36 @@ export class UnitRenderer {
       const dy = posY[other] - my;
       if (dx * dx + dy * dy > healRangeSq) continue;
 
+      const tx = posX[other];
+      const ty = posY[other];
+
+      // Main beam — pulsing width
+      const beamPulse = 0.8 + Math.sin(gameTime * 6 + other) * 0.3;
       g.moveTo(mx, my);
-      g.lineTo(posX[other], posY[other]);
-      g.stroke({ color: 0x44ff88, width: 1, alpha: 0.5 });
+      g.lineTo(tx, ty);
+      g.stroke({ color: 0x44ff88, width: 1.5 * beamPulse, alpha: 0.6 });
+      // Outer glow beam
+      g.moveTo(mx, my);
+      g.lineTo(tx, ty);
+      g.stroke({ color: 0x44ff88, width: 4, alpha: 0.12 });
+
+      // Energy particle traveling along beam
+      const beamDist = Math.sqrt(dx * dx + dy * dy);
+      const particleT = (gameTime * 2 + other * 0.3) % 1;
+      const px = mx + dx * particleT;
+      const py = my + dy * particleT;
+      g.circle(px, py, 1.5);
+      g.fill({ color: 0x88ffaa, alpha: 0.7 });
+      // Second particle (offset)
+      const p2T = (particleT + 0.5) % 1;
+      const p2x = mx + dx * p2T;
+      const p2y = my + dy * p2T;
+      g.circle(p2x, p2y, 1.2);
+      g.fill({ color: 0x88ffaa, alpha: 0.5 });
+
+      // Heal endpoint glow on target
+      g.circle(tx, ty, 4);
+      g.fill({ color: 0x44ff88, alpha: beamPulse * 0.15 });
     }
   }
 }

@@ -1,8 +1,8 @@
 import { type World, hasComponents, entityExists, removeEntity } from '../ecs/world';
 import {
-  POSITION, HEALTH, BUILDING,
+  POSITION, HEALTH, BUILDING, UNIT_TYPE,
   posX, posY, faction, hpCurrent,
-  resetComponents,
+  resetComponents, unitType,
   buildingType, buildState, builderEid, supplyProvided,
   commandMode, workerState, workerTargetEid,
   deathTime, renderWidth, renderHeight,
@@ -21,6 +21,7 @@ export interface DeathEvent {
   faction: number;
   time: number;
   size: number; // max(renderWidth, renderHeight) for scale-dependent effects
+  unitType: number; // UnitType for unit-specific death visuals
 }
 
 /** Bounded array of recent death events for rendering effects */
@@ -63,6 +64,7 @@ export function deathSystem(
           faction: faction[eid],
           time: gameTime,
           size: Math.max(renderWidth[eid] || 12, renderHeight[eid] || 12),
+          unitType: hasComponents(world, eid, UNIT_TYPE) ? unitType[eid] : 0,
         });
       }
       soundManager.playDeath();

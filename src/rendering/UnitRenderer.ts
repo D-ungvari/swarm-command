@@ -682,34 +682,25 @@ export class UnitRenderer {
             }
           }
 
-          // Gear icon shape — circle with teeth
+          // Rotating gear icon — spins when building is complete
           const gearR = 13;
           const gearInner = 8;
           const teeth = 6;
+          const gearSpin = bs === BuildState.Complete ? gameTime * 0.8 : 0;
           for (let t = 0; t < teeth; t++) {
-            const angle = (t / teeth) * Math.PI * 2;
-            const nextAngle = ((t + 0.5) / teeth) * Math.PI * 2;
-            g.moveTo(
-              x + Math.cos(angle) * gearInner,
-              y + Math.sin(angle) * gearInner,
-            );
-            g.lineTo(
-              x + Math.cos(angle) * gearR,
-              y + Math.sin(angle) * gearR,
-            );
-            g.lineTo(
-              x + Math.cos(nextAngle) * gearR,
-              y + Math.sin(nextAngle) * gearR,
-            );
-            g.lineTo(
-              x + Math.cos(nextAngle) * gearInner,
-              y + Math.sin(nextAngle) * gearInner,
-            );
+            const angle = (t / teeth) * Math.PI * 2 + gearSpin;
+            const nextAngle = ((t + 0.5) / teeth) * Math.PI * 2 + gearSpin;
+            g.moveTo(x + Math.cos(angle) * gearInner, y + Math.sin(angle) * gearInner);
+            g.lineTo(x + Math.cos(angle) * gearR, y + Math.sin(angle) * gearR);
+            g.lineTo(x + Math.cos(nextAngle) * gearR, y + Math.sin(nextAngle) * gearR);
+            g.lineTo(x + Math.cos(nextAngle) * gearInner, y + Math.sin(nextAngle) * gearInner);
             g.stroke({ color: 0xccaa44, width: 2, alpha: 0.6 * baseAlpha });
           }
-          // Center dot
           g.circle(x, y, 3);
           g.fill({ color: 0xccaa44, alpha: 0.5 * baseAlpha });
+          // Outer gear ring
+          g.circle(x, y, gearR + 1);
+          g.stroke({ color: 0x886633, width: 1, alpha: 0.3 * baseAlpha });
 
           // Track marks at the bottom — horizontal dashes
           const trackY = y + h / 2 - 5;
@@ -756,26 +747,35 @@ export class UnitRenderer {
             }
           }
         } else if (bt === BuildingType.EngineeringBay) {
-          // Satellite dish shape
+          // Satellite dish with scanning beam
           const dishR = 14;
-          // Dish arc (half-circle, opening upward)
           g.arc(x, y - 2, dishR, Math.PI * 0.15, Math.PI * 0.85);
           g.stroke({ color: 0x88aadd, width: 2.5, alpha: 0.7 * baseAlpha });
-          // Inner arc for depth
           g.arc(x, y - 2, dishR * 0.6, Math.PI * 0.2, Math.PI * 0.8);
           g.stroke({ color: 0x88aadd, width: 1.5, alpha: 0.4 * baseAlpha });
-          // Dish feed — line from center down to a dot
+          // Dish feed
           g.moveTo(x, y - 2);
           g.lineTo(x, y + dishR + 2);
           g.stroke({ color: 0x88aadd, width: 1.5, alpha: 0.6 * baseAlpha });
-          // Feed receiver dot at top center of dish
           g.circle(x, y - dishR * 0.3, 2.5);
           g.fill({ color: 0x66ccff, alpha: 0.8 * baseAlpha });
-          // Base mount
           g.rect(x - 4, y + dishR, 8, 5);
           g.fill({ color: TERRAN_METAL, alpha: 0.6 * baseAlpha });
 
-          // Research glow: if production is active, subtle pulsing ring
+          // Scanning beam sweep when complete
+          if (bs === BuildState.Complete) {
+            const scanAngle = gameTime * 2;
+            const beamLen = dishR * 1.2;
+            const beamX = x + Math.cos(scanAngle) * beamLen;
+            const beamY = y - dishR * 0.3 + Math.sin(scanAngle) * beamLen * 0.3;
+            g.moveTo(x, y - dishR * 0.3);
+            g.lineTo(beamX, beamY);
+            g.stroke({ color: 0x66ccff, width: 1, alpha: 0.4 * baseAlpha });
+            g.circle(beamX, beamY, 2);
+            g.fill({ color: 0x66ccff, alpha: 0.6 * baseAlpha });
+          }
+
+          // Research glow: pulsing ring when researching
           if (prodUnitType[eid] > 0 && prodTimeTotal[eid] > 0) {
             const resGlow = 0.2 + 0.2 * Math.sin(gameTime * 3);
             g.circle(x, y, Math.max(w, h) * 0.35);
@@ -783,6 +783,13 @@ export class UnitRenderer {
           }
         }
         } // close Terran buildings else block
+
+        // Power indicator light (all completed Terran buildings)
+        if (bs === BuildState.Complete && !isZergBuilding) {
+          const pwrGlow = 0.5 + 0.3 * Math.sin(gameTime * 1.5);
+          g.circle(x - w / 2 + 6, y + h / 2 - 6, 2.5);
+          g.fill({ color: 0x44aaff, alpha: pwrGlow * baseAlpha });
+        }
 
         // Construction progress bar (yellow)
         if (bs === BuildState.UnderConstruction) {

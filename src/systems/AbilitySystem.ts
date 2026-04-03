@@ -153,9 +153,10 @@ function processMedivacHeal(world: World, dt: number): void {
       if (hpCurrent[other] <= 0) continue;
       if (hpCurrent[other] >= hpMax[other]) continue;
 
-      // Only heal bio units (Marine, Marauder)
+      // Only heal biological Terran units (Marine, Marauder, SCV, Ghost, Reaper, Hellion)
       const ut = unitType[other] as UnitType;
-      if (ut !== UnitType.Marine && ut !== UnitType.Marauder) continue;
+      if (ut !== UnitType.Marine && ut !== UnitType.Marauder && ut !== UnitType.SCV
+        && ut !== UnitType.Ghost && ut !== UnitType.Reaper && ut !== UnitType.Hellion) continue;
 
       const dx = posX[other] - mx;
       const dy = posY[other] - my;
@@ -266,7 +267,7 @@ function processCorrosiveBile(world: World, gameTime: number): void {
 }
 
 function processFungalGrowth(world: World, gameTime: number): void {
-  const FUNGAL_DAMAGE = 25;
+  const FUNGAL_DAMAGE = 30;
   const FUNGAL_RADIUS = 2.25 * TILE_SIZE;
   const FUNGAL_RADIUS_SQ = FUNGAL_RADIUS * FUNGAL_RADIUS;
   const FUNGAL_SLOW_DURATION = 3; // seconds

@@ -242,7 +242,7 @@ describe('BuildSystem', () => {
       expect(supplyProvided[building]).toBe(0);
     });
 
-    it('CommandCenter grants 10 supply on completion', () => {
+    it('CommandCenter grants 15 supply on completion', () => {
       const startingSupply = resources[Faction.Terran].supplyProvided;
 
       const building = track(spawnBuilding(world, {
@@ -259,8 +259,8 @@ describe('BuildSystem', () => {
 
       buildSystem(world, 2.0, resources);
 
-      expect(resources[Faction.Terran].supplyProvided).toBe(startingSupply + 10);
-      expect(supplyProvided[building]).toBe(10);
+      expect(resources[Faction.Terran].supplyProvided).toBe(startingSupply + 15);
+      expect(supplyProvided[building]).toBe(15);
     });
   });
 });

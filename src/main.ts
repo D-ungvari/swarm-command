@@ -9,6 +9,7 @@ import { ACHIEVEMENTS, getUnlockedAchievements } from './stats/Achievements';
 import { getScenarioBestScore } from './scenarios/ScenarioProgress';
 
 const startScreen = document.getElementById('start-screen');
+const mainMenu = document.getElementById('main-menu');
 const playBtn = document.getElementById('play-btn');
 const watchReplayBtn = document.getElementById('watch-replay-btn') as HTMLButtonElement | null;
 const container = document.getElementById('game-container');
@@ -88,13 +89,26 @@ function watchReplay(): void {
 
 if (playBtn) {
   playBtn.addEventListener('click', startGame);
-} else {
-  startGame();
 }
 
 if (watchReplayBtn && savedReplay) {
   watchReplayBtn.addEventListener('click', watchReplay);
 }
+
+// ── Skirmish panel ──
+const skirmishBtn = document.getElementById('skirmish-btn');
+const skirmishPanel = document.getElementById('skirmish-panel');
+const skirmishBack = document.getElementById('skirmish-back');
+
+skirmishBtn?.addEventListener('click', () => {
+  if (mainMenu) mainMenu.style.display = 'none';
+  if (skirmishPanel) skirmishPanel.style.display = 'flex';
+});
+
+skirmishBack?.addEventListener('click', () => {
+  if (skirmishPanel) skirmishPanel.style.display = 'none';
+  if (mainMenu) mainMenu.style.display = 'flex';
+});
 
 // ── Scenario browser ──
 const scenarioList = document.getElementById('scenario-list');
@@ -130,20 +144,13 @@ if (scenarioList) {
 }
 
 practiceBtn?.addEventListener('click', () => {
-  // Hide main menu elements, show scenario browser
-  document.querySelectorAll('#start-screen .controls, #start-screen .play-btn, #start-screen select, #start-screen details').forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
-  // Hide faction buttons and their label containers
-  document.querySelectorAll('#start-screen > div[style*="margin"]').forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
-  if (practiceBtn) practiceBtn.style.display = 'none';
+  if (mainMenu) mainMenu.style.display = 'none';
   if (scenarioBrowser) scenarioBrowser.style.display = 'block';
 });
 
 backBtn?.addEventListener('click', () => {
-  window.location.reload();
+  if (scenarioBrowser) scenarioBrowser.style.display = 'none';
+  if (mainMenu) mainMenu.style.display = 'flex';
 });
 
 // ── Campaign browser ──
@@ -228,14 +235,7 @@ function setActiveCampaignTab(tab: 'terran' | 'zerg'): void {
 }
 
 campaignBtn?.addEventListener('click', () => {
-  // Hide main menu elements, show campaign browser
-  document.querySelectorAll('#start-screen .controls, #start-screen .play-btn, #start-screen select, #start-screen details').forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
-  document.querySelectorAll('#start-screen > div[style*="margin"]').forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
-  if (campaignBtn) campaignBtn.style.display = 'none';
+  if (mainMenu) mainMenu.style.display = 'none';
   if (campaignBrowser) campaignBrowser.style.display = 'block';
   setActiveCampaignTab('terran');
 });
@@ -244,7 +244,8 @@ campaignTabTerran?.addEventListener('click', () => setActiveCampaignTab('terran'
 campaignTabZerg?.addEventListener('click', () => setActiveCampaignTab('zerg'));
 
 campaignBack?.addEventListener('click', () => {
-  window.location.reload();
+  if (campaignBrowser) campaignBrowser.style.display = 'none';
+  if (mainMenu) mainMenu.style.display = 'flex';
 });
 
 function startScenario(scenario: Scenario): void {
@@ -265,19 +266,11 @@ const mapEditorCanvasContainer = document.getElementById('map-editor-canvas-cont
 let mapEditor: MapEditor | null = null;
 
 mapEditorBtn?.addEventListener('click', () => {
-  // Hide main menu elements, show map editor
-  document.querySelectorAll('#start-screen .controls, #start-screen .play-btn, #start-screen select, #start-screen details').forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
-  document.querySelectorAll('#start-screen > div[style*="margin"]').forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
-  if (mapEditorBtn) mapEditorBtn.style.display = 'none';
+  if (mainMenu) mainMenu.style.display = 'none';
   if (mapEditorPanel && mapEditorCanvasContainer) {
     mapEditorPanel.style.display = 'flex';
     if (!mapEditor) {
       mapEditor = new MapEditor(mapEditorCanvasContainer);
-      // Try to load a saved map
       mapEditor.load();
     }
   }
@@ -341,7 +334,8 @@ document.getElementById('map-editor-play')?.addEventListener('click', () => {
 });
 
 document.getElementById('map-editor-back')?.addEventListener('click', () => {
-  window.location.reload();
+  if (mapEditorPanel) mapEditorPanel.style.display = 'none';
+  if (mainMenu) mainMenu.style.display = 'flex';
 });
 
 // ── Achievements UI ──

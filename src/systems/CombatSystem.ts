@@ -47,6 +47,10 @@ const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
 const CHASE_REPATH_THRESHOLD = TILE_SIZE;
 const CHASE_REPATH_SQ = CHASE_REPATH_THRESHOLD * CHASE_REPATH_THRESHOLD;
 
+/** Attack-move units stop chasing after this distance (SC2 ~12 tiles) */
+const CHASE_LEASH_RANGE = 12 * TILE_SIZE;
+const CHASE_LEASH_SQ = CHASE_LEASH_RANGE * CHASE_LEASH_RANGE;
+
 /** Per-entity: last known target position we pathed toward */
 const chaseTargetX = new Float32Array(MAX_ENTITIES);
 const chaseTargetY = new Float32Array(MAX_ENTITIES);
@@ -140,9 +144,8 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // --- Target validation ---
     if (target >= 1) {
       if (!entityExists(world, target) || hpCurrent[target] <= 0) {
+        pendingDamage[target] = Math.max(0, pendingDamage[target] - atkDamage[eid]);
         targetEntity[eid] = -1;
-        // If was attack-moving, resume path (movement system handles this via existing path)
-        // If was attacking a specific target, go idle
         if (commandMode[eid] === CommandMode.AttackTarget) {
           commandMode[eid] = CommandMode.Idle;
         }
@@ -150,7 +153,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         (isAir[target] === 1 && !canTargetAir[eid]) ||
         (isAir[target] === 0 && !canTargetGround[eid])
       ) {
-        // Can't target this unit type — drop it silently
+        pendingDamage[target] = Math.max(0, pendingDamage[target] - atkDamage[eid]);
         targetEntity[eid] = -1;
         if (commandMode[eid] === CommandMode.AttackTarget) {
           commandMode[eid] = CommandMode.Idle;
@@ -160,12 +163,11 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // --- Auto-acquire target ---
     if (targetEntity[eid] < 1) {
-      // Search with a generous aggro range: max of attack range and 6 tiles (192px)
-      // This ensures melee units detect ranged attackers shooting them
-      // HoldPosition: only acquire within actual attack range (no wider aggro)
+      // SC2 aggro: weapon range + small buffer (~1.5 tiles)
+      // HoldPosition: slightly wider than weapon range (range + 1 tile)
       const aggroRange = commandMode[eid] === CommandMode.HoldPosition
-        ? range
-        : Math.max(range, 6 * TILE_SIZE);
+        ? range + 1 * TILE_SIZE
+        : range + 1.5 * TILE_SIZE;
       const enemy = findBestTarget(world, eid, aggroRange);
       if (enemy > 0) {
         // Terran units can't auto-acquire targets hidden in fog
@@ -174,6 +176,8 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
           continue;
         }
         targetEntity[eid] = enemy;
+        // Register pending damage for overkill prevention
+        pendingDamage[enemy] += atkDamage[eid];
         // Stop movement to engage
         movePathIndex[eid] = -1;
       } else if (commandMode[eid] === CommandMode.Idle || commandMode[eid] === CommandMode.AttackTarget) {
@@ -195,19 +199,25 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     if (distSq > rangeSq) {
       // Sieged tanks can't chase — drop target and let auto-acquire find in-range one
       if (sm === SiegeMode.Sieged) {
+        pendingDamage[tgt] = Math.max(0, pendingDamage[tgt] - atkDamage[eid]);
         targetEntity[eid] = -1;
         continue;
       }
       // HoldPosition: drop target instead of chasing — stay put
       if (commandMode[eid] === CommandMode.HoldPosition) {
+        pendingDamage[tgt] = Math.max(0, pendingDamage[tgt] - atkDamage[eid]);
         targetEntity[eid] = -1;
         continue;
       }
       // AttackTarget: chase the explicit target regardless of distance until it dies.
-      // Auto-acquire (findBestTarget) will never override a live explicit target
-      // because targetEntity[eid] is only cleared on target death (above).
+      // AttackMove: chase up to CHASE_LEASH_RANGE then drop target and resume path.
       if (commandMode[eid] !== CommandMode.Move) {
-        chaseTarget(eid, tgt, map, gameTime);
+        if (commandMode[eid] === CommandMode.AttackMove && distSq > CHASE_LEASH_SQ) {
+          pendingDamage[tgt] = Math.max(0, pendingDamage[tgt] - atkDamage[eid]);
+          targetEntity[eid] = -1;
+        } else {
+          chaseTarget(eid, tgt, map, gameTime);
+        }
       }
       continue;
     }
@@ -243,19 +253,20 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     movePathIndex[eid] = -1;
 
     // Compute actual damage with SC2 bonus-damage model and armor reduction
+    // Queen has dual attack: 4x2=8 vs ground, 9 vs air
+    let baseDmg = atkDamage[eid];
+    if (unitType[eid] === UnitType.Queen && isAir[tgt] === 0) {
+      baseDmg = 8; // ground attack (4 damage x 2 hits)
+    }
     const bonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[tgt]);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
     const armorBonus = getArmorBonus(resources, faction[tgt]);
     const vetBonus = veterancyLevel[eid]; // 0-3 extra damage
     const vetArmor = veterancyLevel[tgt]; // 0-3 extra armor
-    const rawDmg = Math.max(1, (atkDamage[eid] + bonus + weaponBonus + vetBonus) - (baseArmor[tgt] + armorBonus + vetArmor));
-
-    // Commit damage to pending (overkill prevention tracks this)
-    pendingDamage[tgt] += rawDmg;
+    const rawDmg = Math.max(0.5, (baseDmg + bonus + weaponBonus + vetBonus) - (baseArmor[tgt] + armorBonus + vetArmor));
 
     // Apply damage
     hpCurrent[tgt] -= rawDmg;
-    pendingDamage[tgt] = Math.max(0, pendingDamage[tgt] - rawDmg);
 
     // Push damage event for floating indicator
     if (damageEvents.length < MAX_DAMAGE_EVENTS) {
@@ -293,7 +304,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       const bounced = new Set([tgt]);
 
       for (let bounce = 0; bounce < 2; bounce++) {
-        const bounceDmg = Math.max(1, Math.round(lastDmg * 0.3));
+        const bounceDmg = Math.max(1, Math.round(lastDmg / 3));
         // Find nearest enemy NOT already bounced to
         let nearestEid = 0;
         let nearestDist = Infinity;
@@ -359,10 +370,13 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       slowFactor[tgt] = SLOW_FACTOR;
     }
 
-    // Splash damage
+    // Splash damage — SC2 uses 3 zones: inner 100%, middle 50%, outer 25%
     if (atkSplash[eid] > 0) {
       const splashRange = atkSplash[eid] * TILE_SIZE;
       const splashRangeSq = splashRange * splashRange;
+      const innerSq = (splashRange * 0.4) * (splashRange * 0.4);   // 0-40% radius: 100%
+      const middleSq = (splashRange * 0.7) * (splashRange * 0.7);  // 40-70% radius: 50%
+      // 70-100% radius: 25%
       const myFac = faction[eid];
       const tx = posX[tgt];
       const ty = posY[tgt];
@@ -375,21 +389,24 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
         const sdx = posX[other] - tx;
         const sdy = posY[other] - ty;
-        if (sdx * sdx + sdy * sdy <= splashRangeSq) {
+        const distSq = sdx * sdx + sdy * sdy;
+        if (distSq <= splashRangeSq) {
           const sBonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[other]);
           const sArmorBonus = getArmorBonus(resources, faction[other]);
-          const sDmg = Math.max(1, (atkDamage[eid] + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
+          const fullDmg = Math.max(0.5, (atkDamage[eid] + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
+          // SC2 splash zones: inner 100%, middle 50%, outer 25%
+          const splashMult = distSq <= innerSq ? 1.0 : distSq <= middleSq ? 0.5 : 0.25;
+          const sDmg = Math.max(0.5, fullDmg * splashMult);
           hpCurrent[other] -= sDmg;
           lastCombatTime[other] = gameTime;
 
-          // Splash damage event
           if (damageEvents.length < MAX_DAMAGE_EVENTS) {
             const splashVictimFac = faction[other] as Faction;
             const splashColor = splashVictimFac === Faction.Terran ? 0xff4444 : 0xaaddff;
             damageEvents.push({
               x: posX[other],
               y: posY[other],
-              amount: sDmg,
+              amount: Math.round(sDmg),
               time: gameTime,
               color: splashColor,
             });

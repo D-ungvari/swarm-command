@@ -42,7 +42,7 @@ class SoundManager {
 
   // Voice line throttle state
   private lastVoiceTime = 0;
-  private voiceThrottle = 1500; // ms between utterances
+  private voiceThrottle = 4000; // ms between utterances
 
   // Camera position for positional audio
   private cameraX = 0;

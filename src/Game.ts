@@ -75,7 +75,7 @@ import { deathSystem } from './systems/DeathSystem';
 import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import { creepSystem, resetCreepSystem } from './systems/CreepSystem';
 import { upgradeSystem, encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from './systems/UpgradeSystem';
-import { fogSystem } from './systems/FogSystem';
+import { fogSystem, resetFogSystem } from './systems/FogSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import { WaypointRenderer } from './rendering/WaypointRenderer';
 import { ProjectileRenderer } from './rendering/ProjectileRenderer';
@@ -171,6 +171,7 @@ export class Game {
   // Custom settings
   private startingMinerals = STARTING_MINERALS;
   private fogEnabled = true;
+  private resizeHandler: (() => void) | null = null;
   private survivalMode = false;
   private turboMode = false;
   private winCondition: string = 'destroy';
@@ -418,7 +419,8 @@ export class Game {
     this.resources[this.playerFaction].minerals = this.startingMinerals;
 
     if (this.scenarioManager) {
-      // Scenario mode: spawn preset units, skip normal bases
+      // Scenario mode: disable fog and spawn preset units, skip normal bases
+      this.fogEnabled = false;
       this.scenarioManager.applySetup(
         (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y),
         (minerals, gas) => {
@@ -428,12 +430,21 @@ export class Game {
         tileToWorld,
       );
       this.scenarioManager.setStartTime(0);
-      // Count initial player units for loss tracking
+      // Count initial player units and center camera on them
       let count = 0;
+      let sumX = 0;
+      let sumY = 0;
       for (let eid = 1; eid < this.world.nextEid; eid++) {
-        if (hasComponents(this.world, eid, POSITION | HEALTH) && faction[eid] === this.playerFaction && hpCurrent[eid] > 0) count++;
+        if (hasComponents(this.world, eid, POSITION | HEALTH) && faction[eid] === this.playerFaction && hpCurrent[eid] > 0) {
+          count++;
+          sumX += posX[eid];
+          sumY += posY[eid];
+        }
       }
       this.initialPlayerUnitCount = count;
+      if (count > 0) {
+        this.viewport.moveCenter(sumX / count, sumY / count);
+      }
       spawnRockEntities(this.world, this.map);
     } else {
       // Normal game: spawn resource nodes + bases
@@ -463,11 +474,13 @@ export class Game {
       initAI(this.difficulty, this.playerFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg);
     }
     resetCreepSystem();
+    resetFogSystem();
 
-    window.addEventListener('resize', () => {
+    this.resizeHandler = () => {
       this.viewport.resize(window.innerWidth, window.innerHeight);
       this.minimapRenderer.resize(window.innerWidth, window.innerHeight);
-    });
+    };
+    window.addEventListener('resize', this.resizeHandler);
 
     this.lastTime = performance.now();
     soundManager.startMusic();
@@ -905,6 +918,13 @@ export class Game {
           const worldPos = this.viewport.toWorld(input.mouse.x, input.mouse.y);
           const tile = worldToTile(worldPos.x, worldPos.y);
           if (isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)) {
+            // Zerg buildings (except Hatchery) require creep
+            if (this.placementBuildingType !== BuildingType.Hatchery) {
+              const centerIdx = tile.row * this.map.cols + tile.col;
+              if (!this.map.creepMap[centerIdx]) {
+                return; // No creep — can't build here
+              }
+            }
             const res = this.resources[Faction.Zerg];
             if (res.minerals >= def.costMinerals && res.gas >= def.costGas) {
               res.minerals -= def.costMinerals;
@@ -1127,17 +1147,36 @@ export class Game {
       }
     }
 
-    // Right-click minimap — issue move command to that world position
+    // Right-click minimap — smart command (move to ground, attack enemy)
     if (m.rightJustPressed) {
       const dest = this.minimapRenderer.handleRightClick(m.x, m.y);
       if (dest) {
-        // Issue move command to selected units at the minimap world position
-        // Fake a right-click at that world position by temporarily overriding
-        // We import issuePathCommand indirectly — instead, just set the world pos
-        // and let CommandSystem handle it. But CommandSystem converts screen→world.
-        // Simpler: directly set paths for selected units here.
-        this.moveSelectedUnitsTo(dest.x, dest.y);
-        m.rightJustPressed = false; // Consume so CommandSystem doesn't also process
+        // Check if there's an enemy unit near the click point (smart command)
+        let enemyFound = false;
+        const searchR = 2 * TILE_SIZE;
+        const searchRSq = searchR * searchR;
+        for (let eid = 1; eid < this.world.nextEid; eid++) {
+          if (!hasComponents(this.world, eid, POSITION | HEALTH)) continue;
+          if (faction[eid] === this.playerFaction || faction[eid] === Faction.None) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          const edx = posX[eid] - dest.x;
+          const edy = posY[eid] - dest.y;
+          if (edx * edx + edy * edy <= searchRSq) {
+            enemyFound = true;
+            break;
+          }
+        }
+        if (enemyFound) {
+          // Attack-move toward the area
+          const units = this.getSelectedCombatUnits();
+          for (const eid of units) {
+            commandMode[eid] = CommandMode.AttackMove;
+          }
+          this.moveSelectedUnitsTo(dest.x, dest.y);
+        } else {
+          this.moveSelectedUnitsTo(dest.x, dest.y);
+        }
+        m.rightJustPressed = false;
         this.input.consumeLastEvent('rightdown');
       }
     }
@@ -1196,6 +1235,19 @@ export class Game {
       count++;
     }
     return count;
+  }
+
+  private getSelectedCombatUnits(): number[] {
+    const units: number[] = [];
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (selected[eid] !== 1) continue;
+      if (faction[eid] !== this.playerFaction) continue;
+      if (!hasComponents(this.world, eid, POSITION | MOVEMENT)) continue;
+      if (hasComponents(this.world, eid, BUILDING)) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      units.push(eid);
+    }
+    return units;
   }
 
   private selectAllCombatUnits(): void {
@@ -1594,5 +1646,14 @@ export class Game {
       prodQueue[qBase + qLen] = uType;
       prodQueueLen[buildingEid] = qLen + 1;
     }
+  }
+
+  destroy(): void {
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
+    this.input?.destroy();
+    this.app?.ticker.stop();
   }
 }

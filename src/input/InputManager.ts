@@ -76,58 +76,70 @@ export class InputManager {
     this.bindEvents();
   }
 
+  // Stored handler references for cleanup
+  private handlers: Array<{ target: EventTarget; event: string; handler: EventListener }> = [];
+
+  private on(target: EventTarget, event: string, handler: EventListener, opts?: AddEventListenerOptions): void {
+    target.addEventListener(event, handler, opts);
+    this.handlers.push({ target, event, handler });
+  }
+
   private bindEvents(): void {
     const el = this.canvas;
 
-    el.addEventListener('mousemove', (e) => {
-      this.rawX = e.clientX;
-      this.rawY = e.clientY;
+    this.on(el, 'mousemove', (e) => {
+      const me = e as MouseEvent;
+      this.rawX = me.clientX;
+      this.rawY = me.clientY;
     });
 
-    el.addEventListener('mousedown', (e) => {
-      if (e.button === 0) {
+    this.on(el, 'mousedown', (e) => {
+      const me = e as MouseEvent;
+      if (me.button === 0) {
         this.rawLeftDown = true;
         const now = performance.now();
         const isDouble = now - this.lastClickTime < 300;
         this.lastClickTime = now;
-        this.pendingMouseEvents.push({ type: 'leftdown', x: e.clientX, y: e.clientY, time: now, isDouble: isDouble || undefined });
+        this.pendingMouseEvents.push({ type: 'leftdown', x: me.clientX, y: me.clientY, time: now, isDouble: isDouble || undefined });
       }
-      if (e.button === 2) {
+      if (me.button === 2) {
         this.rawRightDown = true;
-        this.pendingMouseEvents.push({ type: 'rightdown', x: e.clientX, y: e.clientY, time: performance.now() });
+        this.pendingMouseEvents.push({ type: 'rightdown', x: me.clientX, y: me.clientY, time: performance.now() });
       }
     });
 
-    el.addEventListener('mouseup', (e) => {
-      if (e.button === 0) {
+    this.on(el, 'mouseup', (e) => {
+      const me = e as MouseEvent;
+      if (me.button === 0) {
         this.rawLeftDown = false;
-        this.pendingMouseEvents.push({ type: 'leftup', x: e.clientX, y: e.clientY, time: performance.now() });
+        this.pendingMouseEvents.push({ type: 'leftup', x: me.clientX, y: me.clientY, time: performance.now() });
       }
-      if (e.button === 2) this.rawRightDown = false;
+      if (me.button === 2) this.rawRightDown = false;
     });
 
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.on(el, 'contextmenu', (e) => e.preventDefault());
 
-    window.addEventListener('keydown', (e) => {
+    this.on(window, 'keydown', (e) => {
+      const ke = e as KeyboardEvent;
       // Prevent browser tab switching on Ctrl+1-9
-      if (e.ctrlKey && e.code.startsWith('Digit')) {
-        e.preventDefault();
+      if (ke.ctrlKey && ke.code.startsWith('Digit')) {
+        ke.preventDefault();
       }
-      this.rawKeysDown.add(e.code);
-      this.rawKeysJustPressed.add(e.code);
+      this.rawKeysDown.add(ke.code);
+      this.rawKeysJustPressed.add(ke.code);
     });
 
-    window.addEventListener('keyup', (e) => {
-      this.rawKeysDown.delete(e.code);
+    this.on(window, 'keyup', (e) => {
+      this.rawKeysDown.delete((e as KeyboardEvent).code);
     });
 
     // ── Touch event layer (translates touch → pendingMouseEvents) ──
     if (isTouchDevice) {
-      el.addEventListener('touchstart', (e) => {
+      this.on(el, 'touchstart', (e) => {
         e.preventDefault();
-        if (e.touches.length === 1) {
-          // Single touch: treat as left-click
-          const t = e.touches[0];
+        const te = e as TouchEvent;
+        if (te.touches.length === 1) {
+          const t = te.touches[0];
           this.rawX = t.clientX;
           this.rawY = t.clientY;
           this.lastTouchX = t.clientX;
@@ -146,12 +158,10 @@ export class InputManager {
             time: now, isDouble: isDouble || undefined,
             fromTouch: true,
           });
-        } else if (e.touches.length === 2) {
-          // Two-finger gesture: may be pinch-zoom or two-finger tap (= right-click)
+        } else if (te.touches.length === 2) {
           if (!this.touchStarted2Fingers) {
             this.touchStarted2Fingers = true;
             this.touch2StartTime = performance.now();
-            // If 1-finger drag was in progress, cancel it gracefully
             if (this.rawLeftDown) {
               this.rawLeftDown = false;
               this.pendingMouseEvents.push({
@@ -164,26 +174,25 @@ export class InputManager {
         }
       }, { passive: false });
 
-      el.addEventListener('touchmove', (e) => {
+      this.on(el, 'touchmove', (e) => {
         e.preventDefault();
-        if (e.touches.length === 1 && !this.touchStarted2Fingers) {
-          const t = e.touches[0];
+        const te = e as TouchEvent;
+        if (te.touches.length === 1 && !this.touchStarted2Fingers) {
+          const t = te.touches[0];
           this.rawX = t.clientX;
           this.rawY = t.clientY;
           this.lastTouchX = t.clientX;
           this.lastTouchY = t.clientY;
         }
-        // 2-finger move handled by pixi-viewport
       }, { passive: false });
 
-      el.addEventListener('touchend', (e) => {
+      this.on(el, 'touchend', (e) => {
         e.preventDefault();
-        if (e.touches.length === 0) {
+        const te = e as TouchEvent;
+        if (te.touches.length === 0) {
           if (this.touchStarted2Fingers) {
-            // Check if this was a two-finger TAP (quick tap, no movement)
             const elapsed = performance.now() - this.touch2StartTime;
             if (elapsed < 300) {
-              // Two-finger tap = right-click (move/attack command)
               this.pendingMouseEvents.push({
                 type: 'rightdown',
                 x: this.lastTouchX, y: this.lastTouchY,
@@ -192,7 +201,6 @@ export class InputManager {
             }
             this.touchStarted2Fingers = false;
           } else {
-            // Single-touch release
             this.rawLeftDown = false;
             this.pendingMouseEvents.push({
               type: 'leftup',
@@ -278,6 +286,14 @@ export class InputManager {
   /** Drain all pending events. Called by InputProcessor after it has consumed them. */
   clearPendingEvents(): void {
     this.pendingMouseEvents.length = 0;
+  }
+
+  /** Remove all event listeners. Call when the game is destroyed. */
+  destroy(): void {
+    for (const { target, event, handler } of this.handlers) {
+      target.removeEventListener(event, handler);
+    }
+    this.handlers.length = 0;
   }
 
   /**

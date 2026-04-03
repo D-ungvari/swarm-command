@@ -11,7 +11,7 @@ import {
   larvaCount, larvaRegenTimer, injectTimer,
   addonType,
 } from '../ecs/components';
-import { BuildState, BuildingType, CommandMode, UnitType, WorkerState, LARVA_MAX, LARVA_REGEN_TIME, INJECT_LARVA_BONUS, AddonType } from '../constants';
+import { BuildState, BuildingType, CommandMode, UnitType, WorkerState, LARVA_MAX, LARVA_INJECT_MAX, LARVA_REGEN_TIME, INJECT_LARVA_BONUS, AddonType } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
@@ -45,7 +45,7 @@ export function productionSystem(
 
     // Inject larva completion
     if (injectTimer[eid] > 0 && gameTime >= injectTimer[eid]) {
-      larvaCount[eid] = Math.min(larvaCount[eid] + INJECT_LARVA_BONUS, larvaCount[eid] + INJECT_LARVA_BONUS);
+      larvaCount[eid] = Math.min(larvaCount[eid] + INJECT_LARVA_BONUS, LARVA_INJECT_MAX);
       injectTimer[eid] = 0;
     }
 

@@ -73,12 +73,14 @@ export class InputProcessor {
   private processKeys(state: InputState): void {
     const keys = state.keysJustPressed;
 
-    // Control groups: Ctrl+0–9 assign, 0–9 recall
+    // Control groups: Ctrl+0–9 assign, Shift+0–9 add, 0–9 recall
     for (let i = 0; i <= 9; i++) {
       const key = `Digit${i}`;
       if (keys.has(key)) {
         if (state.ctrlHeld) {
           this.selectionQueue.push({ type: CommandType.ControlGroupAssign, data: i });
+        } else if (state.shiftHeld) {
+          this.selectionQueue.push({ type: CommandType.ControlGroupAdd, data: i });
         } else {
           this.selectionQueue.push({ type: CommandType.ControlGroupRecall, data: i });
         }

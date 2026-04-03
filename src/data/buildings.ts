@@ -12,7 +12,7 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     buildTime: 71,
     tileWidth: 3,
     tileHeight: 3,
-    supplyProvided: 10,
+    supplyProvided: 15,
     produces: [UnitType.SCV],
     color: BUILDING_COLOR,
     requires: null,

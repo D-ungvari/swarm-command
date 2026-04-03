@@ -184,7 +184,8 @@ export const ROACH_REGEN_IDLE = 7.0;
 export const ROACH_COMBAT_TIMEOUT = 3.0;
 
 // Larva / Queen (Hatchery mechanics)
-export const LARVA_MAX = 3;
+export const LARVA_MAX = 3;            // natural regen cap per Hatchery
+export const LARVA_INJECT_MAX = 19;    // max larva including injects
 export const LARVA_REGEN_TIME = 11;        // seconds per larva
 export const QUEEN_ENERGY_MAX = 200;
 export const QUEEN_ENERGY_REGEN = 0.7875;  // per second

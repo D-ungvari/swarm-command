@@ -71,6 +71,16 @@ export function selectionSystem(
         }
         break;
 
+      case CommandType.ControlGroupAdd:
+        if (cmd.data !== undefined) {
+          for (let eid = 1; eid < world.nextEid; eid++) {
+            if (selected[eid] === 1 && faction[eid] === playerFaction) {
+              controlGroups[cmd.data].add(eid);
+            }
+          }
+        }
+        break;
+
       case CommandType.Select: {
         // Ctrl+click: filter current selection to clicked unit's type
         if (cmd.data === 1) {

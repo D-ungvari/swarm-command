@@ -25,6 +25,14 @@ let fogInitialized = false;
 let fogTickCounter = 0;
 const FOG_UPDATE_INTERVAL = 10; // update every 10 ticks
 
+/** Reset fog state between games */
+export function resetFogSystem(): void {
+  fogGrid.fill(FOG_UNEXPLORED);
+  fogInitialized = false;
+  fogTickCounter = 0;
+  fogDirty = true;
+}
+
 /**
  * Updates the fog-of-war visibility grid based on Terran unit/building positions.
  * Call once per tick, but internally throttles to every FOG_UPDATE_INTERVAL ticks.

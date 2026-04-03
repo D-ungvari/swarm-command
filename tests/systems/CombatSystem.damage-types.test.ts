@@ -273,8 +273,8 @@ describe('SC2 bonus-damage combat formula', () => {
 
     combatSystem(world, 1 / 60, 1, map);
 
-    // max(1, 1 + 0 - 5) = max(1, -4) = 1
-    expect(hpCurrent[target]).toBe(49);
+    // max(0.5, 1 + 0 - 5) = max(0.5, -4) = 0.5
+    expect(hpCurrent[target]).toBe(49.5);
   });
 });
 

@@ -1,10 +1,11 @@
 import { Game } from './Game';
-import { Difficulty, Faction, TileType } from './constants';
+import { Difficulty, Faction } from './constants';
 import type { MapType } from './map/MapData';
 import { SCENARIOS } from './scenarios/scenarios';
 import type { Scenario } from './scenarios/ScenarioTypes';
-import { TERRAN_CAMPAIGN, ZERG_CAMPAIGN, getCampaignProgress, isMissionUnlocked } from './scenarios/campaign';
-import { MapEditor } from './map/MapEditor';
+// Campaign and MapEditor code vaulted — imports kept for reference
+// import { TERRAN_CAMPAIGN, ZERG_CAMPAIGN, getCampaignProgress, isMissionUnlocked } from './scenarios/campaign';
+// import { MapEditor } from './map/MapEditor';
 import { ACHIEVEMENTS, getUnlockedAchievements } from './stats/Achievements';
 import { getScenarioBestScore } from './scenarios/ScenarioProgress';
 
@@ -153,101 +154,6 @@ backBtn?.addEventListener('click', () => {
   if (mainMenu) mainMenu.style.display = 'flex';
 });
 
-// ── Campaign browser ──
-const campaignBtn = document.getElementById('campaign-btn');
-const campaignBrowser = document.getElementById('campaign-browser');
-const campaignList = document.getElementById('campaign-list');
-const campaignBack = document.getElementById('campaign-back');
-const campaignTabTerran = document.getElementById('campaign-tab-terran');
-const campaignTabZerg = document.getElementById('campaign-tab-zerg');
-
-let activeCampaignTab: 'terran' | 'zerg' = 'terran';
-
-function renderCampaignMissions(faction: 'terran' | 'zerg'): void {
-  if (!campaignList) return;
-  campaignList.innerHTML = '';
-  const missions = faction === 'terran' ? TERRAN_CAMPAIGN : ZERG_CAMPAIGN;
-  const progress = getCampaignProgress();
-  const prefix = faction === 'terran' ? 'T' : 'Z';
-
-  for (let i = 0; i < missions.length; i++) {
-    const m = missions[i];
-    const unlocked = isMissionUnlocked(missions, i, progress);
-    const completed = progress.includes(m.id);
-
-    const card = document.createElement('div');
-    card.style.cssText = `
-      background: rgba(20,40,60,0.8); border: 1px solid rgba(60,100,160,0.4);
-      padding: 10px 14px; border-radius: 4px;
-      transition: border-color 0.15s;
-      ${unlocked ? 'cursor: pointer;' : 'cursor: not-allowed; opacity: 0.45;'}
-    `;
-    const stars = '\u2605'.repeat(m.difficulty) + '\u2606'.repeat(3 - m.difficulty);
-    const statusIcon = completed ? '<span style="color:#44ff88;margin-left:8px;">&#10003;</span>'
-      : !unlocked ? '<span style="color:#ff6644;margin-left:8px;">&#128274;</span>'
-      : '';
-    const mBest = getScenarioBestScore(m.id);
-    const mBestBadge = mBest
-      ? `<span style="color:#ffdd00;font-size:11px;font-weight:bold;margin-left:8px;background:rgba(255,220,0,0.12);padding:1px 5px;border-radius:2px;">${mBest.grade}</span>`
-      : '';
-
-    card.innerHTML = `
-      <div style="color:#cce0ff;font-size:13px;font-weight:bold">
-        ${prefix}${i + 1}: ${m.title}
-        <span style="color:#667;font-size:11px;margin-left:8px">${stars}</span>
-        ${statusIcon}
-        ${mBestBadge}
-      </div>
-      <div style="color:#8899aa;font-size:11px;margin-top:4px">${m.description}</div>
-      <div style="color:#557799;font-size:10px;margin-top:4px">SC2 concept: ${m.sc2Concept}</div>
-    `;
-
-    if (unlocked) {
-      card.addEventListener('mouseenter', () => { card.style.borderColor = 'rgba(60,140,255,0.7)'; });
-      card.addEventListener('mouseleave', () => { card.style.borderColor = 'rgba(60,100,160,0.4)'; });
-      card.addEventListener('click', () => { startScenario(m); });
-    }
-
-    campaignList.appendChild(card);
-  }
-}
-
-function setActiveCampaignTab(tab: 'terran' | 'zerg'): void {
-  activeCampaignTab = tab;
-  if (campaignTabTerran && campaignTabZerg) {
-    if (tab === 'terran') {
-      campaignTabTerran.style.background = '#1a3a5a';
-      campaignTabTerran.style.color = '#88ccff';
-      campaignTabTerran.style.borderColor = '#3a6a9a';
-      campaignTabZerg.style.background = '#0a0a0a';
-      campaignTabZerg.style.color = '#884466';
-      campaignTabZerg.style.borderColor = '#3a1a2a';
-    } else {
-      campaignTabZerg.style.background = '#3a1a2a';
-      campaignTabZerg.style.color = '#ff88cc';
-      campaignTabZerg.style.borderColor = '#aa4466';
-      campaignTabTerran.style.background = '#0a0a0a';
-      campaignTabTerran.style.color = '#446688';
-      campaignTabTerran.style.borderColor = '#1a2a3a';
-    }
-  }
-  renderCampaignMissions(tab);
-}
-
-campaignBtn?.addEventListener('click', () => {
-  if (mainMenu) mainMenu.style.display = 'none';
-  if (campaignBrowser) campaignBrowser.style.display = 'block';
-  setActiveCampaignTab('terran');
-});
-
-campaignTabTerran?.addEventListener('click', () => setActiveCampaignTab('terran'));
-campaignTabZerg?.addEventListener('click', () => setActiveCampaignTab('zerg'));
-
-campaignBack?.addEventListener('click', () => {
-  if (campaignBrowser) campaignBrowser.style.display = 'none';
-  if (mainMenu) mainMenu.style.display = 'flex';
-});
-
 function startScenario(scenario: Scenario): void {
   if (startScreen) startScreen.style.display = 'none';
   const game = new Game();
@@ -259,84 +165,7 @@ function startScenario(scenario: Scenario): void {
   });
 }
 
-// ── Map Editor ──
-const mapEditorBtn = document.getElementById('map-editor-btn');
-const mapEditorPanel = document.getElementById('map-editor-panel');
-const mapEditorCanvasContainer = document.getElementById('map-editor-canvas-container');
-let mapEditor: MapEditor | null = null;
-
-mapEditorBtn?.addEventListener('click', () => {
-  if (mainMenu) mainMenu.style.display = 'none';
-  if (mapEditorPanel && mapEditorCanvasContainer) {
-    mapEditorPanel.style.display = 'flex';
-    if (!mapEditor) {
-      mapEditor = new MapEditor(mapEditorCanvasContainer);
-      mapEditor.load();
-    }
-  }
-});
-
-// Map editor tool buttons
-document.querySelectorAll('.map-tool-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const tool = parseInt((btn as HTMLElement).dataset.tool || '0', 10);
-    if (mapEditor) mapEditor.setTool(tool);
-    // Highlight active tool
-    document.querySelectorAll('.map-tool-btn').forEach(b => {
-      (b as HTMLElement).style.outline = '';
-    });
-    (btn as HTMLElement).style.outline = '2px solid #88ff88';
-  });
-});
-
-document.getElementById('map-editor-save')?.addEventListener('click', () => {
-  if (mapEditor) {
-    mapEditor.save();
-    const btn = document.getElementById('map-editor-save');
-    if (btn) {
-      btn.textContent = 'Saved!';
-      setTimeout(() => { btn.textContent = 'Save'; }, 1500);
-    }
-  }
-});
-
-document.getElementById('map-editor-load')?.addEventListener('click', () => {
-  if (mapEditor) {
-    const loaded = mapEditor.load();
-    const btn = document.getElementById('map-editor-load');
-    if (btn) {
-      btn.textContent = loaded ? 'Loaded!' : 'No saved map';
-      setTimeout(() => { btn.textContent = 'Load'; }, 1500);
-    }
-  }
-});
-
-document.getElementById('map-editor-play')?.addEventListener('click', () => {
-  if (!mapEditor) return;
-  mapEditor.save(); // Auto-save before playing
-  if (startScreen) startScreen.style.display = 'none';
-
-  const game = new Game();
-
-  const activeDiffCard = document.querySelector('.diff-card.active') as HTMLElement | null;
-  const diffValue = activeDiffCard ? parseInt(activeDiffCard.dataset.value || '1', 10) : Difficulty.Normal;
-  game.setDifficulty(diffValue as Difficulty);
-
-  // Read faction selection
-  const factionZergBtn = document.getElementById('faction-zerg') as HTMLButtonElement | null;
-  const isZerg = factionZergBtn?.dataset.selected === 'true';
-  game.setPlayerFaction(isZerg ? 2 : 1);
-
-  game.setCustomTiles(mapEditor.getTiles());
-  game.init(container!).catch((err) => {
-    console.error('Failed to initialize custom map game:', err);
-  });
-});
-
-document.getElementById('map-editor-back')?.addEventListener('click', () => {
-  if (mapEditorPanel) mapEditorPanel.style.display = 'none';
-  if (mainMenu) mainMenu.style.display = 'flex';
-});
+// Map editor vaulted — code preserved in src/map/MapEditor.ts
 
 // ── Achievements UI ──
 function updateAchievementsCounter(): void {

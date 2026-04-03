@@ -219,6 +219,12 @@ export class InputManager {
     m.x = this.rawX;
     m.y = this.rawY;
 
+    // Reset per-frame flags before promoting new events
+    m.leftJustPressed = false;
+    m.leftJustReleased = false;
+    m.rightJustPressed = false;
+    m.leftDoubleClick = false;
+
     // Promote first event of each type to InputState flags (backward compat)
     // InputProcessor will handle the full array separately.
     for (const evt of this.pendingMouseEvents) {

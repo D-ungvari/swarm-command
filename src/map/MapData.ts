@@ -30,6 +30,8 @@ export interface MapData {
   destructibleHP: Uint16Array;
   /** Creep coverage: 1 = tile has creep, 0 = no creep */
   creepMap: Uint8Array;
+  /** Elevation per tile: 0 = low ground, 1 = high ground, 2 = ramp (transition) */
+  elevation: Uint8Array;
   cols: number;
   rows: number;
 }
@@ -40,8 +42,9 @@ export function generateMap(mapType: MapType = MapType.Plains): MapData {
   const walkable = new Uint8Array(MAP_COLS * MAP_ROWS);
   const destructibleHP = new Uint16Array(MAP_COLS * MAP_ROWS);
   const creepMap = new Uint8Array(MAP_COLS * MAP_ROWS);
+  const elevation = new Uint8Array(MAP_COLS * MAP_ROWS);
 
-  // Fill with ground (all walkable)
+  // Fill with ground (all walkable), elevation defaults to 0 (low ground)
   tiles.fill(TileType.Ground);
   walkable.fill(1);
 
@@ -56,30 +59,30 @@ export function generateMap(mapType: MapType = MapType.Plains): MapData {
   }
 
   if (mapType === MapType.Plains) {
-    generatePlains(tiles, walkable, destructibleHP);
+    generatePlains(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.Canyon) {
-    generateCanyon(tiles, walkable, destructibleHP);
+    generateCanyon(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.Islands) {
-    generateIslands(tiles, walkable, destructibleHP);
+    generateIslands(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.Crossfire) {
-    generateCrossfire(tiles, walkable, destructibleHP);
+    generateCrossfire(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.Fortress) {
-    generateFortress(tiles, walkable, destructibleHP);
+    generateFortress(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.Archipelago) {
-    generateArchipelago(tiles, walkable, destructibleHP);
+    generateArchipelago(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.Deadlock) {
-    generateDeadlock(tiles, walkable, destructibleHP);
+    generateDeadlock(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.DesertStorm) {
-    generateDesertStorm(tiles, walkable, destructibleHP);
+    generateDesertStorm(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.FrozenTundra) {
-    generateFrozenTundra(tiles, walkable, destructibleHP);
+    generateFrozenTundra(tiles, walkable, destructibleHP, elevation);
   } else if (mapType === MapType.Volcano) {
-    generateVolcano(tiles, walkable, destructibleHP);
+    generateVolcano(tiles, walkable, destructibleHP, elevation);
   } else {
-    generatePlains(tiles, walkable, destructibleHP);
+    generatePlains(tiles, walkable, destructibleHP, elevation);
   }
 
-  return { tiles, walkable, destructibleHP, creepMap, cols: MAP_COLS, rows: MAP_ROWS };
+  return { tiles, walkable, destructibleHP, creepMap, elevation, cols: MAP_COLS, rows: MAP_ROWS };
 }
 
 /**
@@ -87,15 +90,15 @@ export function generateMap(mapType: MapType = MapType.Plains): MapData {
  * Main → natural (narrow ramp choke) → exposed third → contested center.
  * Inspired by: Equilibrium, Nightshade, Royal Blood.
  */
-function generatePlains(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generatePlains(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // ── Player 1 main base (top-left, elevated) ──
-  markBaseElevation(tiles, walkable, 2, 2, 20, 20);
+  markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 20);
   placeMinerals(tiles, walkable, 10, 10);
   setTile(tiles, walkable, 8, 18, TileType.Gas);
   setTile(tiles, walkable, 14, 6, TileType.Gas);
 
   // ── Player 2 main base (bottom-right, elevated, 180° rotated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
   setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
@@ -124,7 +127,7 @@ function generatePlains(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
     }
   }
   // Ramp tiles at natural entrance (P1)
-  placeRampTiles(tiles, walkable, 27, 27, 30, 30);
+  placeRampTiles(tiles, walkable, elevation, 27, 27, 30, 30);
 
   // ── Natural ramp choke (P2, mirrored) ──
   for (let r = 92; r < 106; r++) {
@@ -136,7 +139,7 @@ function generatePlains(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
     }
   }
   // Ramp tiles at natural entrance (P2)
-  placeRampTiles(tiles, walkable, 97, 97, 100, 100);
+  placeRampTiles(tiles, walkable, elevation, 97, 97, 100, 100);
 
   // ── Back-door destructible rocks behind naturals (SC2 LOTV signature) ──
   // P1: rock wall behind natural mineral line, opens shortcut when destroyed
@@ -145,11 +148,11 @@ function generatePlains(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
   placeBackdoorRocks(tiles, walkable, destructibleHP, MAP_ROWS - 12, MAP_COLS - 54);
 
   // ── Xel'Naga watchtower 1 — center map ──
-  placeWatchtower(tiles, walkable, 64, 64);
+  placeWatchtower(tiles, walkable, elevation, 64, 64);
 
   // ── Xel'Naga watchtower 2 — between naturals and thirds (symmetric) ──
-  placeWatchtower(tiles, walkable, 38, 50);
-  placeWatchtower(tiles, walkable, MAP_ROWS - 39, MAP_COLS - 51);
+  placeWatchtower(tiles, walkable, elevation, 38, 50);
+  placeWatchtower(tiles, walkable, elevation, MAP_ROWS - 39, MAP_COLS - 51);
 
   // ── Overlook cliffs near natural mineral lines (harass spots) ──
   placeOverlookCliff(tiles, walkable, 6, 38, true);    // P1 natural: cliff above minerals
@@ -181,15 +184,15 @@ function generatePlains(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
  * Canyon layout — vertical canyon splits map, 3 symmetric passes.
  * Siege-favored with choke control. Inspired by: Ever Dream, Oxide.
  */
-function generateCanyon(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateCanyon(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // ── P1 main base (elevated) ──
-  markBaseElevation(tiles, walkable, 2, 2, 20, 20);
+  markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 20);
   placeMinerals(tiles, walkable, 10, 10);
   setTile(tiles, walkable, 8, 18, TileType.Gas);
   setTile(tiles, walkable, 14, 6, TileType.Gas);
 
   // ── P2 main base (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
   setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
@@ -230,8 +233,8 @@ function generateCanyon(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
   placeBackdoorRocks(tiles, walkable, destructibleHP, MAP_ROWS - 12, MAP_COLS - 56);
 
   // ── Second watchtower (near third base approach) ──
-  placeWatchtower(tiles, walkable, 30, 80);
-  placeWatchtower(tiles, walkable, MAP_ROWS - 31, MAP_COLS - 81);
+  placeWatchtower(tiles, walkable, elevation, 30, 80);
+  placeWatchtower(tiles, walkable, elevation, MAP_ROWS - 31, MAP_COLS - 81);
 
   // ── Overlook cliffs near naturals ──
   placeOverlookCliff(tiles, walkable, 6, 40, true);
@@ -262,15 +265,15 @@ function generateCanyon(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
  * Central bridge wide (8 tiles), flanking bridges narrow (4 tiles).
  * Inspired by: Frozen Temple, Acropolis.
  */
-function generateIslands(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateIslands(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // ── P1 main base (elevated) ──
-  markBaseElevation(tiles, walkable, 2, 2, 20, 20);
+  markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 20);
   placeMinerals(tiles, walkable, 10, 10);
   setTile(tiles, walkable, 8, 18, TileType.Gas);
   setTile(tiles, walkable, 14, 6, TileType.Gas);
 
   // ── P2 main base (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
   setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
@@ -321,8 +324,8 @@ function generateIslands(tiles: Uint8Array, walkable: Uint8Array, destructibleHP
   placeBackdoorRocks(tiles, walkable, destructibleHP, MAP_ROWS - 12, MAP_COLS - 56);
 
   // ── Watchtowers on each island half (near bridges) ──
-  placeWatchtower(tiles, walkable, 42, 64);
-  placeWatchtower(tiles, walkable, MAP_ROWS - 43, MAP_COLS - 65);
+  placeWatchtower(tiles, walkable, elevation, 42, 64);
+  placeWatchtower(tiles, walkable, elevation, MAP_ROWS - 43, MAP_COLS - 65);
 
   // ── Overlook cliffs near naturals ──
   placeOverlookCliff(tiles, walkable, 6, 40, true);
@@ -348,7 +351,7 @@ function generateIslands(tiles: Uint8Array, walkable: Uint8Array, destructibleHP
  * Aggression map with fast-paced skirmishes. Full bases but exposed positions.
  * Inspired by: Hardwire, Altitude.
  */
-function generateCrossfire(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateCrossfire(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // Create unbuildable cliffs everywhere except corridors and bases
   for (let r = 2; r < MAP_ROWS - 2; r++) {
     for (let c = 2; c < MAP_COLS - 2; c++) {
@@ -372,13 +375,13 @@ function generateCrossfire(tiles: Uint8Array, walkable: Uint8Array, destructible
   }
 
   // ── P1 main base (elevated) ──
-  markBaseElevation(tiles, walkable, 2, 2, 28, 28);
+  markBaseElevation(tiles, walkable, elevation, 2, 2, 28, 28);
   placeMinerals(tiles, walkable, 10, 10);
   setTile(tiles, walkable, 8, 18, TileType.Gas);
   setTile(tiles, walkable, 14, 6, TileType.Gas);
 
   // ── P2 main base (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 29, MAP_COLS - 29, MAP_ROWS - 3, MAP_COLS - 3);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 29, MAP_COLS - 29, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
   setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
@@ -398,7 +401,7 @@ function generateCrossfire(tiles: Uint8Array, walkable: Uint8Array, destructible
   setTile(tiles, walkable, 66, 76, TileType.Gas);
 
   // ── Corridor intersection watchtower (center) ──
-  placeWatchtower(tiles, walkable, 64, 64);
+  placeWatchtower(tiles, walkable, elevation, 64, 64);
 
   // ── Back-door rocks behind bases (at corridor entrance) ──
   placeBackdoorRocks(tiles, walkable, destructibleHP, 12, 24);
@@ -422,15 +425,15 @@ function generateCrossfire(tiles: Uint8Array, walkable: Uint8Array, destructible
  * Rich minerals, multiple gas, long macro games.
  * Inspired by: Simulacrum, Golden Wall.
  */
-function generateFortress(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateFortress(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // ── P1 main (rich minerals + 2 gas, elevated) ──
-  markBaseElevation(tiles, walkable, 2, 2, 22, 22);
+  markBaseElevation(tiles, walkable, elevation, 2, 2, 22, 22);
   placeRichMinerals(tiles, walkable, 8, 8);
   setTile(tiles, walkable, 6, 20, TileType.Gas);
   setTile(tiles, walkable, 18, 6, TileType.Gas);
 
   // ── P2 main (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 3, MAP_COLS - 3);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 3, MAP_COLS - 3);
   placeRichMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
   setTile(tiles, walkable, MAP_ROWS - 8, MAP_COLS - 22, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 8, TileType.Gas);
@@ -476,8 +479,8 @@ function generateFortress(tiles: Uint8Array, walkable: Uint8Array, destructibleH
   placeBackdoorRocks(tiles, walkable, destructibleHP, MAP_ROWS - 18, MAP_COLS - 46);
 
   // ── Watchtowers flanking center fortress ──
-  placeWatchtower(tiles, walkable, 46, 46);
-  placeWatchtower(tiles, walkable, MAP_ROWS - 47, MAP_COLS - 47);
+  placeWatchtower(tiles, walkable, elevation, 46, 46);
+  placeWatchtower(tiles, walkable, elevation, MAP_ROWS - 47, MAP_COLS - 47);
 
   // ── Pocket fifth base (inside fortress, exposed side) ──
   placePocketExpansion(tiles, walkable, 20, 58, 'top');
@@ -549,7 +552,7 @@ function placeRichMinerals(tiles: Uint8Array, walkable: Uint8Array, startRow: nu
  * Each island has resources. Side islands are symmetric 180° expansions.
  * Inspired by: Frozen Temple, Habitation Station.
  */
-function generateArchipelago(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateArchipelago(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // Fill with water, then carve islands
   for (let r = 2; r < MAP_ROWS - 2; r++) {
     for (let c = 2; c < MAP_COLS - 2; c++) {
@@ -580,13 +583,13 @@ function generateArchipelago(tiles: Uint8Array, walkable: Uint8Array, destructib
   carveBridge(tiles, walkable, 107, 107, 97, 30, 3);   // P2 → side2
 
   // ── P1 main (elevated) ──
-  markBaseElevation(tiles, walkable, 4, 4, 24, 24);
+  markBaseElevation(tiles, walkable, elevation, 4, 4, 24, 24);
   placeMinerals(tiles, walkable, 14, 14);
   setTile(tiles, walkable, 12, 22, TileType.Gas);
   setTile(tiles, walkable, 22, 12, TileType.Gas);
 
   // ── P2 main (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 25, MAP_COLS - 25, MAP_ROWS - 5, MAP_COLS - 5);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 25, MAP_COLS - 25, MAP_ROWS - 5, MAP_COLS - 5);
   placeMinerals(tiles, walkable, MAP_ROWS - 18, MAP_COLS - 18);
   setTile(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 24, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 24, MAP_COLS - 14, TileType.Gas);
@@ -605,7 +608,7 @@ function generateArchipelago(tiles: Uint8Array, walkable: Uint8Array, destructib
   setTile(tiles, walkable, 68, 58, TileType.Gas);
 
   // ── Watchtower on center island ──
-  placeWatchtower(tiles, walkable, 68, 68);
+  placeWatchtower(tiles, walkable, elevation, 68, 68);
 
   // ── Terrain debris on islands ──
   scatterTerrainDebris(tiles, walkable, 6, 6, 34, 34);
@@ -677,7 +680,7 @@ function carveLinearCorridor(tiles: Uint8Array, walkable: Uint8Array, r1: number
  * Each lane has a choke point. Expansion at center crossroads.
  * Inspired by: Thunderbird, Blackburn.
  */
-function generateDeadlock(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateDeadlock(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // Fill everything with unbuildable
   for (let r = 2; r < MAP_ROWS - 2; r++) {
     for (let c = 2; c < MAP_COLS - 2; c++) {
@@ -768,13 +771,13 @@ function generateDeadlock(tiles: Uint8Array, walkable: Uint8Array, destructibleH
   }
 
   // ── P1 main resources (elevated, 2 gas) ──
-  markBaseElevation(tiles, walkable, 3, 3, 22, 22);
+  markBaseElevation(tiles, walkable, elevation, 3, 3, 22, 22);
   placeMinerals(tiles, walkable, 8, 8);
   setTile(tiles, walkable, 6, 16, TileType.Gas);
   setTile(tiles, walkable, 14, 6, TileType.Gas);
 
   // ── P2 main resources (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 4, MAP_COLS - 4);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 4, MAP_COLS - 4);
   placeMinerals(tiles, walkable, MAP_ROWS - 12, MAP_COLS - 12);
   setTile(tiles, walkable, MAP_ROWS - 8, MAP_COLS - 18, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
@@ -793,7 +796,7 @@ function generateDeadlock(tiles: Uint8Array, walkable: Uint8Array, destructibleH
   setTile(tiles, walkable, 68, 58, TileType.Gas);
 
   // ── Watchtower at center ──
-  placeWatchtower(tiles, walkable, 64, 64);
+  placeWatchtower(tiles, walkable, elevation, 64, 64);
 
   // ── Back-door rocks behind naturals ──
   placeBackdoorRocks(tiles, walkable, destructibleHP, 24, 28);
@@ -820,15 +823,15 @@ function generateDeadlock(tiles: Uint8Array, walkable: Uint8Array, destructibleH
  * Xel'Naga watchtower at center (ramp terrain). 3-tier expansion structure.
  * Inspired by: Dusk Towers, Catalyst.
  */
-function generateDesertStorm(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateDesertStorm(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // ── P1 main base (elevated, 2 gas) ──
-  markBaseElevation(tiles, walkable, 2, 2, 20, 28);
+  markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 28);
   placeMinerals(tiles, walkable, 10, 10);
   setTile(tiles, walkable, 8, 18, TileType.Gas);
   setTile(tiles, walkable, 14, 6, TileType.Gas);
 
   // ── P2 main base (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 21, MAP_COLS - 29, MAP_ROWS - 3, MAP_COLS - 3);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 29, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
   setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
@@ -882,15 +885,15 @@ function generateDesertStorm(tiles: Uint8Array, walkable: Uint8Array, destructib
   setTile(tiles, walkable, MAP_ROWS - 68, MAP_COLS - 96, TileType.Gas);
 
   // ── Xel'Naga watchtower 1 at center ──
-  placeWatchtower(tiles, walkable, 64, 64);
+  placeWatchtower(tiles, walkable, elevation, 64, 64);
 
   // ── Xel'Naga watchtower 2 near fourth base ──
-  placeWatchtower(tiles, walkable, 50, 88);
-  placeWatchtower(tiles, walkable, MAP_ROWS - 51, MAP_COLS - 89);
+  placeWatchtower(tiles, walkable, elevation, 50, 88);
+  placeWatchtower(tiles, walkable, elevation, MAP_ROWS - 51, MAP_COLS - 89);
 
   // ── Ramp tiles at base cliff entrances ──
-  placeRampTiles(tiles, walkable, 10, 30, 14, 32);   // P1 ramp
-  placeRampTiles(tiles, walkable, MAP_ROWS - 15, MAP_COLS - 33, MAP_ROWS - 11, MAP_COLS - 31);
+  placeRampTiles(tiles, walkable, elevation, 10, 30, 14, 32);   // P1 ramp
+  placeRampTiles(tiles, walkable, elevation, MAP_ROWS - 15, MAP_COLS - 33, MAP_ROWS - 11, MAP_COLS - 31);
 
   // ── Back-door rocks behind naturals ──
   placeBackdoorRocks(tiles, walkable, destructibleHP, 8, 50);
@@ -922,7 +925,7 @@ function generateDesertStorm(tiles: Uint8Array, walkable: Uint8Array, destructib
  * Rooms serve as expansion locations and army staging areas.
  * Inspired by: Disco Bloodbath, Zen.
  */
-function generateFrozenTundra(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateFrozenTundra(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   // ── Fill mid-map with cliffs, then carve rooms and corridors ──
   const mazeStart = 28;
   const mazeEnd = 100;
@@ -1020,13 +1023,13 @@ function generateFrozenTundra(tiles: Uint8Array, walkable: Uint8Array, destructi
   }
 
   // ── P1 main resources (elevated, 2 gas) ──
-  markBaseElevation(tiles, walkable, 2, 2, 22, 22);
+  markBaseElevation(tiles, walkable, elevation, 2, 2, 22, 22);
   placeMinerals(tiles, walkable, 10, 10);
   setTile(tiles, walkable, 8, 18, TileType.Gas);
   setTile(tiles, walkable, 14, 6, TileType.Gas);
 
   // ── P2 main resources (elevated) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 3, MAP_COLS - 3);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
   setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
@@ -1052,7 +1055,7 @@ function generateFrozenTundra(tiles: Uint8Array, walkable: Uint8Array, destructi
   setTile(tiles, walkable, ctrR + roomSize - 3, ctrC + 1, TileType.Gas);
 
   // ── Watchtower at center room ──
-  placeWatchtower(tiles, walkable, ctrR + Math.floor(roomSize / 2), ctrC + Math.floor(roomSize / 2));
+  placeWatchtower(tiles, walkable, elevation, ctrR + Math.floor(roomSize / 2), ctrC + Math.floor(roomSize / 2));
 
   // ── Back-door rocks behind naturals ──
   placeBackdoorRocks(tiles, walkable, destructibleHP, 12, 48);
@@ -1086,7 +1089,7 @@ function generateFrozenTundra(tiles: Uint8Array, walkable: Uint8Array, destructi
  * positions on the outer ring (180° symmetry). Two attack paths around the volcano.
  * 3-tier expansion structure. Inspired by: World of Sleepers, Pillars of Gold.
  */
-function generateVolcano(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array): void {
+function generateVolcano(tiles: Uint8Array, walkable: Uint8Array, destructibleHP: Uint16Array, elevation: Uint8Array): void {
   const cx = 64;
   const cy = 64;
   const mapRadius = 60;
@@ -1161,13 +1164,13 @@ function generateVolcano(tiles: Uint8Array, walkable: Uint8Array, destructibleHP
   }
 
   // ── P1 main resources (elevated, 2 gas) ──
-  markBaseElevation(tiles, walkable, 88, 22, 106, 42);
+  markBaseElevation(tiles, walkable, elevation, 88, 22, 106, 42);
   placeMinerals(tiles, walkable, 96, 28);
   setTile(tiles, walkable, 94, 36, TileType.Gas);
   setTile(tiles, walkable, 100, 26, TileType.Gas);
 
   // ── P2 main resources (elevated, 180° mirror) ──
-  markBaseElevation(tiles, walkable, MAP_ROWS - 107, MAP_COLS - 43, MAP_ROWS - 89, MAP_COLS - 23);
+  markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 107, MAP_COLS - 43, MAP_ROWS - 89, MAP_COLS - 23);
   placeMinerals(tiles, walkable, MAP_ROWS - 100, MAP_COLS - 32);
   setTile(tiles, walkable, MAP_ROWS - 96, MAP_COLS - 38, TileType.Gas);
   setTile(tiles, walkable, MAP_ROWS - 102, MAP_COLS - 28, TileType.Gas);
@@ -1211,12 +1214,12 @@ function generateVolcano(tiles: Uint8Array, walkable: Uint8Array, destructibleHP
   }
 
   // ── Watchtowers between lava ring and third bases ──
-  placeWatchtower(tiles, walkable, cy, cx + 24);
-  placeWatchtower(tiles, walkable, cy, cx - 24);
+  placeWatchtower(tiles, walkable, elevation, cy, cx + 24);
+  placeWatchtower(tiles, walkable, elevation, cy, cx - 24);
 
   // ── Ramp tiles at base cliff ramp exits ──
-  placeRampTiles(tiles, walkable, 104, 30, 107, 34);   // P1 ramp
-  placeRampTiles(tiles, walkable, MAP_ROWS - 108, MAP_COLS - 35, MAP_ROWS - 105, MAP_COLS - 31);
+  placeRampTiles(tiles, walkable, elevation, 104, 30, 107, 34);   // P1 ramp
+  placeRampTiles(tiles, walkable, elevation, MAP_ROWS - 108, MAP_COLS - 35, MAP_ROWS - 105, MAP_COLS - 31);
 
   // ── Overlook cliffs near naturals ──
   placeOverlookCliff(tiles, walkable, 112, 36, false);
@@ -1306,13 +1309,14 @@ function placeSymmetricRocks(tiles: Uint8Array, walkable: Uint8Array, destructib
 }
 
 /** Place ramp tiles in a rectangular area to mark elevation transitions at choke entrances */
-function placeRampTiles(tiles: Uint8Array, walkable: Uint8Array, r1: number, c1: number, r2: number, c2: number): void {
+function placeRampTiles(tiles: Uint8Array, walkable: Uint8Array, elevation: Uint8Array, r1: number, c1: number, r2: number, c2: number): void {
   for (let r = r1; r <= r2; r++) {
     for (let c = c1; c <= c2; c++) {
       if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
         const idx = r * MAP_COLS + c;
         if (tiles[idx] === TileType.Ground) {
           setTile(tiles, walkable, r, c, TileType.Ramp);
+          elevation[idx] = 2;
         }
       }
     }
@@ -1320,20 +1324,25 @@ function placeRampTiles(tiles: Uint8Array, walkable: Uint8Array, r1: number, c1:
 }
 
 /**
- * Mark the perimeter of a main base area as elevated (Ramp tiles).
- * SC2 mains are on high ground — this creates a visual elevation border
- * around the base platform. Only marks a 2-tile thick perimeter ring.
+ * Mark a main base area with elevation data and perimeter ramp tiles.
+ * SC2 mains are on high ground — the full interior is elevation=1 (high ground),
+ * and a 2-tile perimeter ring is elevation=2 (ramp/transition) with Ramp tile type.
  */
-function markBaseElevation(tiles: Uint8Array, walkable: Uint8Array, r1: number, c1: number, r2: number, c2: number): void {
+function markBaseElevation(tiles: Uint8Array, walkable: Uint8Array, elevation: Uint8Array, r1: number, c1: number, r2: number, c2: number): void {
   for (let r = r1; r <= r2; r++) {
     for (let c = c1; c <= c2; c++) {
       if (r < 1 || r >= MAP_ROWS - 1 || c < 1 || c >= MAP_COLS - 1) continue;
-      // Only mark the 2-tile perimeter ring, not the interior
-      const isPerimeter = (r - r1 < 2) || (r2 - r < 2) || (c - c1 < 2) || (c2 - c < 2);
-      if (!isPerimeter) continue;
       const idx = r * MAP_COLS + c;
-      if (tiles[idx] === TileType.Ground) {
-        setTile(tiles, walkable, r, c, TileType.Ramp);
+      const isPerimeter = (r - r1 < 2) || (r2 - r < 2) || (c - c1 < 2) || (c2 - c < 2);
+      if (isPerimeter) {
+        // Perimeter ring: ramp/transition elevation + Ramp tile
+        elevation[idx] = 2;
+        if (tiles[idx] === TileType.Ground) {
+          setTile(tiles, walkable, r, c, TileType.Ramp);
+        }
+      } else {
+        // Interior: high ground elevation
+        elevation[idx] = 1;
       }
     }
   }
@@ -1356,16 +1365,17 @@ function placeBackdoorRocks(tiles: Uint8Array, walkable: Uint8Array, destructibl
  * Place a Xel'Naga watchtower — 3×3 elevated ramp platform with cliff ring.
  * Walkable raised ground that grants vision advantage.
  */
-function placeWatchtower(tiles: Uint8Array, walkable: Uint8Array, centerR: number, centerC: number): void {
+function placeWatchtower(tiles: Uint8Array, walkable: Uint8Array, elevation: Uint8Array, centerR: number, centerC: number): void {
   for (let r = centerR - 3; r <= centerR + 3; r++) {
     for (let c = centerC - 3; c <= centerC + 3; c++) {
       if (r < 1 || r >= MAP_ROWS - 1 || c < 1 || c >= MAP_COLS - 1) continue;
       const dist = Math.sqrt((r - centerR) ** 2 + (c - centerC) ** 2);
+      const idx = r * MAP_COLS + c;
       if (dist <= 1.5) {
         setTile(tiles, walkable, r, c, TileType.Ramp); // Elevated platform
+        elevation[idx] = 1;
       } else if (dist > 1.5 && dist <= 3) {
         // Only place cliff ring on ground tiles (don't overwrite resources/water)
-        const idx = r * MAP_COLS + c;
         if (tiles[idx] === TileType.Ground) {
           setTile(tiles, walkable, r, c, TileType.Unbuildable);
         }
@@ -1377,6 +1387,11 @@ function placeWatchtower(tiles: Uint8Array, walkable: Uint8Array, centerR: numbe
   setTile(tiles, walkable, centerR - 3, centerC + 1, TileType.Ramp);
   setTile(tiles, walkable, centerR + 3, centerC, TileType.Ramp);
   setTile(tiles, walkable, centerR + 3, centerC - 1, TileType.Ramp);
+  // Access ramp tiles get transition elevation
+  elevation[(centerR - 3) * MAP_COLS + centerC] = 2;
+  elevation[(centerR - 3) * MAP_COLS + centerC + 1] = 2;
+  elevation[(centerR + 3) * MAP_COLS + centerC] = 2;
+  elevation[(centerR + 3) * MAP_COLS + centerC - 1] = 2;
 }
 
 function placeWaterPatch(tiles: Uint8Array, walkable: Uint8Array, centerRow: number, centerCol: number, radius: number): void {
@@ -1519,6 +1534,18 @@ export function isWalkable(map: MapData, x: number, y: number): boolean {
   const { col, row } = worldToTile(x, y);
   if (col < 0 || col >= map.cols || row < 0 || row >= map.rows) return false;
   return map.walkable[row * map.cols + col] === 1;
+}
+
+/** Get elevation at tile coordinates (0=low, 1=high, 2=ramp) */
+export function getElevation(map: MapData, col: number, row: number): number {
+  if (col < 0 || col >= map.cols || row < 0 || row >= map.rows) return 0;
+  return map.elevation[row * map.cols + col];
+}
+
+/** Get elevation at world pixel coordinates */
+export function getElevationAtWorld(map: MapData, x: number, y: number): number {
+  const { col, row } = worldToTile(x, y);
+  return getElevation(map, col, row);
 }
 
 /** Get all resource tile positions */

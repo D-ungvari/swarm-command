@@ -53,6 +53,25 @@ export class TilemapRenderer {
           const depthAlpha = 0.08 + (hash % 5) * 0.02;
           g.rect(x, y, TS, TS);
           g.fill({ color: 0x000022, alpha: depthAlpha });
+
+          // Shoreline: for each non-water cardinal neighbor, draw a coastline strip
+          const shoreNeighbors: [number, number, number, number, number, number][] = [
+            [0, -1, x, y, TS, 3],          // top
+            [0, 1, x, y + TS - 3, TS, 3],  // bottom
+            [-1, 0, x, y, 3, TS],           // left
+            [1, 0, x + TS - 3, y, 3, TS],  // right
+          ];
+          for (const [dc, dr, sx, sy, sw, sh] of shoreNeighbors) {
+            const nc = col + dc;
+            const nr = row + dr;
+            if (nc < 0 || nc >= MAP_COLS || nr < 0 || nr >= MAP_ROWS) continue;
+            const neighborTile = map.tiles[nr * MAP_COLS + nc] as TileType;
+            if (neighborTile !== TileType.Water) {
+              g.rect(sx, sy, sw, sh);
+              g.fill({ color: 0x557755, alpha: 0.12 });
+            }
+          }
+
           this.waterTiles.push({ col, row });
         } else if (tile === TileType.Ground || tile === TileType.Unbuildable) {
           // ── Ground with noise pattern ──
@@ -61,8 +80,21 @@ export class TilemapRenderer {
           g.rect(x, y, TS, TS);
           g.fill({ color });
 
+          // Sub-variant tint based on hash
+          const variant = hash % 3;
+          if (variant === 0) {
+            // Grass-dominant: green tint overlay
+            g.rect(x, y, TS, TS);
+            g.fill({ color: 0x224400, alpha: 0.06 });
+          } else if (variant === 1) {
+            // Dirt-dominant: brown tint overlay
+            g.rect(x, y, TS, TS);
+            g.fill({ color: 0x221100, alpha: 0.06 });
+          }
+          // variant === 2: mixed, no extra tint
+
           // Noise detail: scattered tiny dots for texture
-          const dotCount = 1 + (hash % 3); // 1-3 dots per tile
+          const dotCount = 2 + (hash % 4); // 2-5 dots per tile
           for (let d = 0; d < dotCount; d++) {
             const dHash = tileHash(col * 7 + d, row * 13 + d);
             const dx = x + (dHash % TS);
@@ -72,15 +104,48 @@ export class TilemapRenderer {
             g.fill({ color: bright ? 0x3a3a28 : 0x1a1a10, alpha: 0.3 });
           }
 
-          // Occasional grass tuft on ground tiles
-          if (tile === TileType.Ground && hash % 11 === 0) {
-            const gx = x + 3 + (hash % (TS - 6));
-            const gy = y + TS - 3;
-            g.moveTo(gx, gy);
-            g.lineTo(gx - 1.5, gy - 4);
-            g.moveTo(gx + 2, gy);
-            g.lineTo(gx + 3, gy - 3.5);
-            g.stroke({ color: 0x445522, width: 0.8, alpha: 0.3 });
+          // Grass tufts — more on grass-dominant tiles
+          if (tile === TileType.Ground) {
+            const tuftCount = variant === 0 ? (hash % 3 === 0 ? 3 : 2) : (hash % 11 === 0 ? 1 : 0);
+            for (let t = 0; t < tuftCount; t++) {
+              const tHash = tileHash(col * 11 + t, row * 17 + t);
+              const gx = x + 3 + (tHash % (TS - 6));
+              const gy = y + TS - 3 - ((tHash >> 4) % 4);
+              g.moveTo(gx, gy);
+              g.lineTo(gx - 1.5, gy - 4);
+              g.moveTo(gx + 2, gy);
+              g.lineTo(gx + 3, gy - 3.5);
+              g.stroke({ color: 0x445522, width: 0.8, alpha: 0.3 });
+            }
+          }
+
+          // Dirt-dominant: small crack lines
+          if (variant === 1) {
+            const crackCount = 1 + (hash % 2);
+            for (let c = 0; c < crackCount; c++) {
+              const cHash = tileHash(col * 19 + c, row * 23 + c);
+              const cx = x + 4 + (cHash % (TS - 8));
+              const cy = y + 4 + ((cHash >> 6) % (TS - 8));
+              g.moveTo(cx, cy);
+              g.lineTo(cx + 3 + (cHash % 4), cy + 2 + ((cHash >> 3) % 3));
+              g.stroke({ color: 0x1a1a10, width: 0.6, alpha: 0.25 });
+            }
+          }
+
+          // Unbuildable bevel effect
+          if (tile === TileType.Unbuildable) {
+            // Top edge highlight
+            g.moveTo(x, y); g.lineTo(x + TS, y);
+            g.stroke({ color: 0x333322, width: 1, alpha: 0.2 });
+            // Left edge highlight
+            g.moveTo(x, y); g.lineTo(x, y + TS);
+            g.stroke({ color: 0x333322, width: 1, alpha: 0.15 });
+            // Bottom edge shadow
+            g.moveTo(x, y + TS); g.lineTo(x + TS, y + TS);
+            g.stroke({ color: 0x0a0a06, width: 1, alpha: 0.2 });
+            // Right edge shadow
+            g.moveTo(x + TS, y); g.lineTo(x + TS, y + TS);
+            g.stroke({ color: 0x0a0a06, width: 1, alpha: 0.15 });
           }
         } else if (tile === TileType.Ramp) {
           // ── Ramp with directional lines ──
@@ -199,9 +264,29 @@ export class TilemapRenderer {
           g.fill({ color: tileColor(tile) });
         }
 
+        // Elevation visual shading
+        const elev = map.elevation[row * MAP_COLS + col];
+        if (elev === 1) {
+          // High ground: subtle brightness overlay
+          g.rect(x, y, TS, TS);
+          g.fill({ color: 0xffffff, alpha: 0.05 });
+        } else if (elev === 2) {
+          // Ramp: gradient effect — top half lighter, bottom half darker
+          g.rect(x, y, TS, TS / 2);
+          g.fill({ color: 0xffffff, alpha: 0.04 });
+          g.rect(x, y + TS / 2, TS, TS / 2);
+          g.fill({ color: 0x000000, alpha: 0.04 });
+        }
+
+        // Cliff shadow edges between elevation levels
+        drawElevationEdges(g, map, col, row, x, y);
+
+        // Tile transition blending (soften hard edges between tile types)
+        drawTransitions(g, map, col, row, x, y);
+
         // Subtle grid lines between tiles
         g.rect(x, y, TS, TS);
-        g.stroke({ color: 0x000000, width: 0.5, alpha: 0.04 });
+        g.stroke({ color: 0x000000, width: 0.5, alpha: 0.015 });
       }
     }
   }
@@ -281,6 +366,88 @@ export class TilemapRenderer {
         g.circle(fx, fy, 1.5);
         g.fill({ color: 0x88aacc, alpha: foamAlpha });
       }
+    }
+  }
+}
+
+/** Draw soft transition overlays along edges where tile types differ */
+function drawTransitions(g: Graphics, map: MapData, col: number, row: number, x: number, y: number): void {
+  const TS = TILE_SIZE;
+  const tile = map.tiles[row * MAP_COLS + col] as TileType;
+
+  // Cardinal neighbor offsets: [dcol, drow, edgeX, edgeY, edgeW, edgeH]
+  const neighbors: [number, number, number, number, number, number][] = [
+    [0, -1, x, y, TS, 4],          // top neighbor
+    [0, 1, x, y + TS - 4, TS, 4],  // bottom neighbor
+    [-1, 0, x, y, 4, TS],          // left neighbor
+    [1, 0, x + TS - 4, y, 4, TS],  // right neighbor
+  ];
+
+  for (const [dc, dr, ex, ey, ew, eh] of neighbors) {
+    const nc = col + dc;
+    const nr = row + dr;
+    if (nc < 0 || nc >= MAP_COLS || nr < 0 || nr >= MAP_ROWS) continue;
+    const neighbor = map.tiles[nr * MAP_COLS + nc] as TileType;
+    if (neighbor === tile) continue;
+
+    // Ground → Water boundary: sandy/foam strip on the land tile's water-facing edge
+    if (tile !== TileType.Water && neighbor === TileType.Water) {
+      g.rect(ex, ey, ew, eh);
+      g.fill({ color: 0x445533, alpha: 0.15 });
+    }
+
+    // Ground → Unbuildable boundary: darker cliff-edge strip
+    if (tile === TileType.Ground && neighbor === TileType.Unbuildable) {
+      const cliffW = dc !== 0 ? 2 : ew;
+      const cliffH = dr !== 0 ? 2 : eh;
+      const cliffX = dc === 1 ? x + TS - 2 : dc === -1 ? x : ex;
+      const cliffY = dr === 1 ? y + TS - 2 : dr === -1 ? y : ey;
+      g.rect(cliffX, cliffY, cliffW, cliffH);
+      g.fill({ color: 0x111108, alpha: 0.12 });
+    }
+  }
+}
+
+/** Draw cliff shadow edges between different elevation levels */
+function drawElevationEdges(g: Graphics, map: MapData, col: number, row: number, x: number, y: number): void {
+  const TS = TILE_SIZE;
+  const elev = map.elevation[row * MAP_COLS + col];
+  if (elev === 0) return;
+
+  // Cardinal directions: [dcol, drow]
+  const dirs: [number, number][] = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
+  for (const [dc, dr] of dirs) {
+    const nc = col + dc;
+    const nr = row + dr;
+    if (nc < 0 || nc >= MAP_COLS || nr < 0 || nr >= MAP_ROWS) continue;
+    const neighborElev = map.elevation[nr * MAP_COLS + nc];
+    const neighborTile = map.tiles[nr * MAP_COLS + nc] as TileType;
+    if (neighborElev !== 0 || neighborTile === TileType.Ramp) continue;
+
+    // Dark shadow on low-ground side (draw on the neighbor edge)
+    if (dr === -1) {
+      // Neighbor is above — shadow on top edge of this tile
+      g.moveTo(x, y); g.lineTo(x + TS, y);
+      g.stroke({ color: 0x111108, width: 2, alpha: 0.35 });
+      // Highlight on high-ground side (just inside this tile)
+      g.moveTo(x, y + 1); g.lineTo(x + TS, y + 1);
+      g.stroke({ color: 0x888866, width: 1, alpha: 0.12 });
+    } else if (dr === 1) {
+      g.moveTo(x, y + TS); g.lineTo(x + TS, y + TS);
+      g.stroke({ color: 0x111108, width: 2, alpha: 0.35 });
+      g.moveTo(x, y + TS - 1); g.lineTo(x + TS, y + TS - 1);
+      g.stroke({ color: 0x888866, width: 1, alpha: 0.12 });
+    } else if (dc === -1) {
+      g.moveTo(x, y); g.lineTo(x, y + TS);
+      g.stroke({ color: 0x111108, width: 2, alpha: 0.35 });
+      g.moveTo(x + 1, y); g.lineTo(x + 1, y + TS);
+      g.stroke({ color: 0x888866, width: 1, alpha: 0.12 });
+    } else if (dc === 1) {
+      g.moveTo(x + TS, y); g.lineTo(x + TS, y + TS);
+      g.stroke({ color: 0x111108, width: 2, alpha: 0.35 });
+      g.moveTo(x + TS - 1, y); g.lineTo(x + TS - 1, y + TS);
+      g.stroke({ color: 0x888866, width: 1, alpha: 0.12 });
     }
   }
 }

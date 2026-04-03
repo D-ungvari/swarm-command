@@ -4,7 +4,14 @@
 **SC2 Mechanics Practice Tool** — true SC2 numbers, browser-based, no install.
 
 ## Current Phase
-IDLE
+PLAN — Backlog #91: Improve terrain visuals
+
+## Working On
+**#91 — Improve terrain visuals — detailed, smoother textures + elevation**
+- Replace flat tile colors with richer terrain rendering
+- Smooth tile transitions (no hard grid edges)
+- Add elevation system with ramps, high/low ground
+- SC2-style high ground vision advantage
 
 ## What was completed
 SC2 stat accuracy audit corrections applied (commit 1ddc359):
@@ -15,4 +22,4 @@ SC2 stat accuracy audit corrections applied (commit 1ddc359):
 - 198 tests passing, 0 TypeScript errors
 
 ## What to do next
-Pick up next item from backlog.
+Complete planning phase, then develop.

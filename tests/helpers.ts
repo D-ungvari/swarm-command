@@ -182,7 +182,10 @@ export function createTestMap(): MapData {
   const tiles = new Uint8Array(cols * rows);   // 0 = Ground
   const walkable = new Uint8Array(cols * rows);
   walkable.fill(1);
-  return { tiles, walkable, cols, rows };
+  const destructibleHP = new Uint16Array(cols * rows);
+  const creepMap = new Uint8Array(cols * rows);
+  const elevation = new Uint8Array(cols * rows);
+  return { tiles, walkable, destructibleHP, creepMap, elevation, cols, rows };
 }
 
 export interface SpawnResourceOpts {

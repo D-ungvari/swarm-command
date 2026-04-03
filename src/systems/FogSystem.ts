@@ -5,6 +5,7 @@ import {
   atkRange,
 } from '../ecs/components';
 import { MAP_COLS, MAP_ROWS, TILE_SIZE, Faction } from '../constants';
+import type { MapData } from '../map/MapData';
 
 /** Fog states: 0 = unexplored (black), 1 = explored but not visible (dark), 2 = currently visible */
 export const FOG_UNEXPLORED = 0;
@@ -37,7 +38,7 @@ export function resetFogSystem(): void {
  * Updates the fog-of-war visibility grid based on Terran unit/building positions.
  * Call once per tick, but internally throttles to every FOG_UPDATE_INTERVAL ticks.
  */
-export function fogSystem(world: World): void {
+export function fogSystem(world: World, map?: MapData): void {
   fogTickCounter++;
   if (fogTickCounter < FOG_UPDATE_INTERVAL) return;
   fogTickCounter = 0;
@@ -78,11 +79,20 @@ export function fogSystem(world: World): void {
     const minRow = Math.max(0, centerRow - Math.ceil(sightRange));
     const maxRow = Math.min(MAP_ROWS - 1, centerRow + Math.ceil(sightRange));
 
+    // Elevation of the unit's tile (0=low, 1=high, 2=ramp)
+    const unitElev = map ? map.elevation[centerRow * MAP_COLS + centerCol] : 0;
+
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
         const dc = c - centerCol;
         const dr = r - centerRow;
-        if (dc * dc + dr * dr <= sightRangeSq) {
+        const distSq = dc * dc + dr * dr;
+        if (distSq <= sightRangeSq) {
+          // SC2-style elevation vision: low-ground units can't see high ground beyond adjacent tiles
+          if (map && unitElev === 0) {
+            const tileElev = map.elevation[r * MAP_COLS + c];
+            if (tileElev === 1 && distSq > 2.25) continue; // >1.5 tiles away
+          }
           const idx = r * MAP_COLS + c;
           if (fogGrid[idx] !== FOG_VISIBLE) {
             fogGrid[idx] = FOG_VISIBLE;

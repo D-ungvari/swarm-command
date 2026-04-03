@@ -405,7 +405,8 @@ export class Game {
         walkable[i] = (t === TileType.Ground || t === TileType.Ramp) ? 1 : 0;
         if (t === TileType.Destructible) destructibleHP[i] = 500;
       }
-      this.map = { tiles, walkable, destructibleHP, creepMap, cols: MAP_COLS, rows: MAP_ROWS };
+      const elevation = new Uint8Array(tiles.length);
+      this.map = { tiles, walkable, destructibleHP, creepMap, elevation, cols: MAP_COLS, rows: MAP_ROWS };
     } else {
       this.map = generateMap(this.mapType);
     }
@@ -595,7 +596,7 @@ export class Game {
     aiSystem(this.world, dt, this.gameTime, this.map,
       (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources,
       (type, fac, col, row) => this.spawnBuilding(type as BuildingType, fac as Faction, col, row));
-    if (this.fogEnabled) fogSystem(this.world);
+    if (this.fogEnabled) fogSystem(this.world, this.map);
     creepSystem(this.world, this.map, dt);
 
     // Track waves defeated

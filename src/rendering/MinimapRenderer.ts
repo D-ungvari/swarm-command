@@ -123,6 +123,12 @@ export class MinimapRenderer {
             break;
         }
 
+        // Brighten high-ground tiles on the minimap
+        const elev = this.mapData.elevation[r * MAP_COLS + c];
+        if (elev === 1) {
+          color = brightenColor(color, 0x101010);
+        }
+
         const px = (c / MAP_COLS) * MINIMAP_SIZE;
         const py = (r / MAP_ROWS) * MINIMAP_SIZE;
         g.rect(px, py, pxPerBlock, pxPerBlock);
@@ -295,4 +301,12 @@ export class MinimapRenderer {
       y: (localY / MINIMAP_SIZE) * MAP_HEIGHT,
     };
   }
+}
+
+/** Add a fixed amount to each RGB channel, clamped to 255 */
+function brightenColor(base: number, add: number): number {
+  const r = Math.min(255, ((base >> 16) & 0xff) + ((add >> 16) & 0xff));
+  const g = Math.min(255, ((base >> 8) & 0xff) + ((add >> 8) & 0xff));
+  const b = Math.min(255, (base & 0xff) + (add & 0xff));
+  return (r << 16) | (g << 8) | b;
 }

@@ -1576,82 +1576,76 @@ export class UnitRenderer {
           }
 
         } else if (uType === UnitType.Ultralisk) {
-          // ── Ultralisk: massive armored beast with kaiser blades ──
-          // Shadow
-          g.ellipse(x, y, w / 2 + 4, h / 2 + 4);
+          // ── Ultralisk: unstoppable armored behemoth with kaiser blades ──
+          // SC2: "Massive Zerg war beast. Nearly indestructible carapace.
+          // Kaiser blades cleave through entire armies. Shakes the earth."
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const stompCycle = isMoving ? gameTime * 4 + eid * 1.3 : 0;
+          const bodyShake = isMoving ? Math.sin(stompCycle * 2) * 1.5 : 0;
+          // Kaiser blade swing on attack
+          const bladeSwing = atkFlashTimer[eid] > 0 ? (atkFlashTimer[eid] / 0.12) * 0.2 : 0;
+
+          // Heavy shadow
+          g.ellipse(x, y + 3, w / 2 + 5, h / 2 * 0.4);
           g.fill({ color: 0x000000, alpha: 0.5 });
-          // Large elliptical body
-          g.ellipse(x, y, w / 2, h / 2);
+
+          // Animated legs — 4 legs with stomping
+          const legPairs = [
+            { bx: -0.3, by: 0.2, fx: -0.5, fy: 0.55, phase: 0 },
+            { bx: 0.3, by: 0.2, fx: 0.5, fy: 0.55, phase: Math.PI },
+            { bx: -0.15, by: 0.35, fx: -0.3, fy: 0.6, phase: Math.PI * 0.5 },
+            { bx: 0.15, by: 0.35, fx: 0.3, fy: 0.6, phase: Math.PI * 1.5 },
+          ];
+          for (const leg of legPairs) {
+            const swing = isMoving ? Math.sin(stompCycle + leg.phase) * h * 0.06 : 0;
+            g.moveTo(x + leg.bx * w, y + leg.by * h + bodyShake);
+            g.lineTo(x + leg.fx * w, y + leg.fy * h + swing);
+            g.stroke({ color: bodyColor, width: 2 });
+            // Claw fork
+            g.moveTo(x + leg.fx * w, y + leg.fy * h + swing);
+            g.lineTo(x + (leg.fx - 0.05) * w, y + (leg.fy + 0.07) * h + swing);
+            g.moveTo(x + leg.fx * w, y + leg.fy * h + swing);
+            g.lineTo(x + (leg.fx + 0.05) * w, y + (leg.fy + 0.07) * h + swing);
+            g.stroke({ color: bodyColor, width: 1 });
+          }
+
+          // Large body
+          g.ellipse(x, y + bodyShake, w / 2, h / 2);
           g.fill({ color: bodyColor, alpha: 0.95 });
-          // Dorsal spine ridge — 4 small triangular spines along the top
-          for (let ds = 0; ds < 4; ds++) {
-            const dsx = x - w * 0.25 + ds * w * 0.17;
-            g.moveTo(dsx - 2.5, y - h * 0.4);
-            g.lineTo(dsx, y - h * 0.58);
-            g.lineTo(dsx + 2.5, y - h * 0.4);
+          // Dorsal spines
+          for (let ds = 0; ds < 5; ds++) {
+            const dsx = x - w * 0.3 + ds * w * 0.15;
+            const spineH = h * 0.16 + Math.sin(gameTime * 2 + ds) * 1;
+            g.moveTo(dsx - 3, y - h * 0.4 + bodyShake);
+            g.lineTo(dsx, y - h * 0.4 - spineH + bodyShake);
+            g.lineTo(dsx + 3, y - h * 0.4 + bodyShake);
             g.closePath();
             g.fill({ color: lighten(bodyColor, 15), alpha: 0.85 });
           }
-          // Kaiser blade (left) — wide polygon base, tapering to sharp point, slight inward curve
-          g.moveTo(x - w * 0.35, y - h * 0.3);
-          g.lineTo(x - w * 0.5, y - h * 0.55);
-          g.lineTo(x - w * 0.65, y - h * 0.7);
-          g.lineTo(x - w * 0.55, y - h * 0.45);
-          g.lineTo(x - w * 0.4, y - h * 0.25);
+          // Kaiser blade (left) — swings outward on attack
+          g.moveTo(x - w * 0.35, y - h * 0.3 + bodyShake);
+          g.lineTo(x - w * (0.5 + bladeSwing), y - h * (0.55 + bladeSwing * 0.3) + bodyShake);
+          g.lineTo(x - w * (0.65 + bladeSwing), y - h * (0.7 + bladeSwing * 0.2) + bodyShake);
+          g.lineTo(x - w * 0.55, y - h * 0.45 + bodyShake);
+          g.lineTo(x - w * 0.4, y - h * 0.25 + bodyShake);
           g.closePath();
           g.fill({ color: 0x887755, alpha: 0.9 });
-          g.stroke({ color: 0xaa9966, width: 1, alpha: 0.7 });
+          g.stroke({ color: 0xaa9966, width: 1.5, alpha: 0.7 });
           // Kaiser blade (right)
-          g.moveTo(x + w * 0.35, y - h * 0.3);
-          g.lineTo(x + w * 0.5, y - h * 0.55);
-          g.lineTo(x + w * 0.65, y - h * 0.7);
-          g.lineTo(x + w * 0.55, y - h * 0.45);
-          g.lineTo(x + w * 0.4, y - h * 0.25);
+          g.moveTo(x + w * 0.35, y - h * 0.3 + bodyShake);
+          g.lineTo(x + w * (0.5 + bladeSwing), y - h * (0.55 + bladeSwing * 0.3) + bodyShake);
+          g.lineTo(x + w * (0.65 + bladeSwing), y - h * (0.7 + bladeSwing * 0.2) + bodyShake);
+          g.lineTo(x + w * 0.55, y - h * 0.45 + bodyShake);
+          g.lineTo(x + w * 0.4, y - h * 0.25 + bodyShake);
           g.closePath();
           g.fill({ color: 0x887755, alpha: 0.9 });
-          g.stroke({ color: 0xaa9966, width: 1, alpha: 0.7 });
-          // Four legs — 2 front + 2 rear, each ending in a small claw fork
-          // Front left leg
-          g.moveTo(x - w * 0.3, y + h * 0.2);
-          g.lineTo(x - w * 0.5, y + h * 0.55);
-          g.stroke({ color: bodyColor, width: 1.5 });
-          g.moveTo(x - w * 0.5, y + h * 0.55);
-          g.lineTo(x - w * 0.55, y + h * 0.62);
-          g.moveTo(x - w * 0.5, y + h * 0.55);
-          g.lineTo(x - w * 0.45, y + h * 0.62);
-          g.stroke({ color: bodyColor, width: 1 });
-          // Front right leg
-          g.moveTo(x + w * 0.3, y + h * 0.2);
-          g.lineTo(x + w * 0.5, y + h * 0.55);
-          g.stroke({ color: bodyColor, width: 1.5 });
-          g.moveTo(x + w * 0.5, y + h * 0.55);
-          g.lineTo(x + w * 0.55, y + h * 0.62);
-          g.moveTo(x + w * 0.5, y + h * 0.55);
-          g.lineTo(x + w * 0.45, y + h * 0.62);
-          g.stroke({ color: bodyColor, width: 1 });
-          // Rear left leg
-          g.moveTo(x - w * 0.15, y + h * 0.35);
-          g.lineTo(x - w * 0.3, y + h * 0.6);
-          g.stroke({ color: bodyColor, width: 1.5 });
-          g.moveTo(x - w * 0.3, y + h * 0.6);
-          g.lineTo(x - w * 0.35, y + h * 0.67);
-          g.moveTo(x - w * 0.3, y + h * 0.6);
-          g.lineTo(x - w * 0.25, y + h * 0.67);
-          g.stroke({ color: bodyColor, width: 1 });
-          // Rear right leg
-          g.moveTo(x + w * 0.15, y + h * 0.35);
-          g.lineTo(x + w * 0.3, y + h * 0.6);
-          g.stroke({ color: bodyColor, width: 1.5 });
-          g.moveTo(x + w * 0.3, y + h * 0.6);
-          g.lineTo(x + w * 0.35, y + h * 0.67);
-          g.moveTo(x + w * 0.3, y + h * 0.6);
-          g.lineTo(x + w * 0.25, y + h * 0.67);
-          g.stroke({ color: bodyColor, width: 1 });
-          // Two bright red eyes near the front
-          g.circle(x - w * 0.12, y - h * 0.25, 2);
-          g.fill({ color: ZERG_EYE, alpha: 0.9 });
-          g.circle(x + w * 0.12, y - h * 0.25, 2);
-          g.fill({ color: ZERG_EYE, alpha: 0.9 });
+          g.stroke({ color: 0xaa9966, width: 1.5, alpha: 0.7 });
+          // Glowing red eyes
+          const eyePulse = 0.7 + 0.3 * Math.sin(gameTime * 3 + eid);
+          g.circle(x - w * 0.12, y - h * 0.25 + bodyShake, 2.5);
+          g.fill({ color: ZERG_EYE, alpha: eyePulse });
+          g.circle(x + w * 0.12, y - h * 0.25 + bodyShake, 2.5);
+          g.fill({ color: ZERG_EYE, alpha: eyePulse });
 
         } else if (uType === UnitType.Corruptor) {
           // ── Corruptor: floating crab-like air parasite ──
@@ -2616,22 +2610,44 @@ export class UnitRenderer {
           }
 
         } else if (uType === UnitType.Thor) {
-          // ── Thor: massive quad-cannon walker ──
+          // ── Thor: 250-ton walking fortress, quad 250mm cannons ──
+          // SC2: "The Thor is a massive mechanical walker. Its quad cannons
+          // devastate both ground and air. Shakes the ground when it walks."
           const hw = w / 2;
           const hh = h / 2;
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          // Heavy stomping animation — alternating leg bob
+          const stompCycle = isMoving ? gameTime * 3 + eid : 0;
+          const leftLegBob = isMoving ? Math.sin(stompCycle) * 2 : 0;
+          const rightLegBob = isMoving ? Math.sin(stompCycle + Math.PI) * 2 : 0;
+          const bodyBob = isMoving ? Math.abs(Math.sin(stompCycle * 2)) * 1 : 0;
+
           // Shadow (larger for massive unit)
-          g.ellipse(x, y + 2, hw + 4, hh * 0.5);
+          g.ellipse(x, y + 2 + bodyBob, hw + 4, hh * 0.5);
           g.fill({ color: 0x000000, alpha: 0.45 });
-          // Legs (wide stance)
-          g.rect(x - hw * 0.8, y + hh * 0.2, hw * 0.35, hh * 0.7);
+          // Legs with stomping animation
+          g.rect(x - hw * 0.8, y + hh * 0.2 + leftLegBob, hw * 0.35, hh * 0.7);
           g.fill({ color: darken(bodyColor, 30) });
-          g.rect(x + hw * 0.45, y + hh * 0.2, hw * 0.35, hh * 0.7);
+          g.rect(x + hw * 0.45, y + hh * 0.2 + rightLegBob, hw * 0.35, hh * 0.7);
           g.fill({ color: darken(bodyColor, 30) });
-          // Feet
-          g.rect(x - hw * 0.9, y + hh * 0.8, hw * 0.5, hh * 0.15);
+          // Feet with ground impact dust
+          g.rect(x - hw * 0.9, y + hh * 0.8 + leftLegBob, hw * 0.5, hh * 0.15);
           g.fill({ color: 0x334455 });
-          g.rect(x + hw * 0.4, y + hh * 0.8, hw * 0.5, hh * 0.15);
+          g.rect(x + hw * 0.4, y + hh * 0.8 + rightLegBob, hw * 0.5, hh * 0.15);
           g.fill({ color: 0x334455 });
+          // Dust puffs on footfall
+          if (isMoving) {
+            const leftDown = Math.sin(stompCycle) > 0.7;
+            const rightDown = Math.sin(stompCycle + Math.PI) > 0.7;
+            if (leftDown) {
+              g.circle(x - hw * 0.65, y + hh * 0.95, 3);
+              g.fill({ color: 0x887766, alpha: 0.25 });
+            }
+            if (rightDown) {
+              g.circle(x + hw * 0.65, y + hh * 0.95, 3);
+              g.fill({ color: 0x887766, alpha: 0.25 });
+            }
+          }
           // Main body (wide torso)
           g.rect(x - hw * 0.7, y - hh * 0.4, hw * 1.4, hh * 0.7);
           g.fill({ color: bodyColor });
@@ -2648,15 +2664,23 @@ export class UnitRenderer {
           g.rect(x + hw * 0.6 + 2, y - hh * 0.5, hw * 0.4, hh * 0.4);
           g.fill({ color: bodyColor });
           g.stroke({ color: 0x556677, width: 1, alpha: 0.6 });
-          // Four gun barrels (2 per shoulder, clean positions)
+          // Four gun barrels with recoil on attack
+          const barrelRecoil = atkFlashTimer[eid] > 0 ? 3 : 0;
           const barrelOffsets = [-hw - 1, -hw * 0.7, hw * 0.7, hw + 1];
-          for (const bx of barrelOffsets) {
-            g.moveTo(x + bx, y - hh * 0.5);
-            g.lineTo(x + bx, y - hh * 0.5 - 8);
+          for (let bi = 0; bi < barrelOffsets.length; bi++) {
+            const bOff = barrelOffsets[bi];
+            const recoil = barrelRecoil * (bi % 2 === 0 ? 1 : 0.6); // stagger recoil
+            g.moveTo(x + bOff, y - hh * 0.5);
+            g.lineTo(x + bOff, y - hh * 0.5 - 8 + recoil);
             g.stroke({ color: 0x8899aa, width: 2.5, alpha: 0.9 });
-            // Muzzle cap
-            g.circle(x + bx, y - hh * 0.5 - 8, 1.5);
+            g.circle(x + bOff, y - hh * 0.5 - 8 + recoil, 1.5);
             g.fill({ color: 0x667788 });
+            // Muzzle flash on attack
+            if (atkFlashTimer[eid] > 0) {
+              const fa = atkFlashTimer[eid] / 0.12;
+              g.circle(x + bOff, y - hh * 0.5 - 10 + recoil, 3 + fa * 2);
+              g.fill({ color: 0xffdd44, alpha: fa * 0.7 });
+            }
           }
           // Head/cockpit
           g.rect(x - hw * 0.2, y - hh * 0.65, hw * 0.4, hh * 0.25);

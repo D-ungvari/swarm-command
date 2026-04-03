@@ -411,17 +411,10 @@ export class UnitRenderer {
             }
           }
         } else {
-        // === Terran buildings: rectangles ===
+        // === Terran buildings: unique silhouettes per type ===
+        const hw = w / 2;
+        const hh = h / 2;
 
-        // === Shadow outline behind building ===
-        g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
-        g.fill({ color: 0x000000, alpha: 0.4 });
-
-        // Main building rect
-        g.rect(x - w / 2, y - h / 2, w, h);
-        g.fill({ color: tint, alpha: baseAlpha });
-
-        // Per-type border colors and thickness
         let borderColor = 0x446688;
         if (bt === BuildingType.CommandCenter) borderColor = 0x5588bb;
         else if (bt === BuildingType.SupplyDepot) borderColor = 0x3366aa;
@@ -430,8 +423,101 @@ export class UnitRenderer {
         else if (bt === BuildingType.Factory) borderColor = 0x886644;
         else if (bt === BuildingType.Starport) borderColor = 0x4466aa;
         else if (bt === BuildingType.EngineeringBay) borderColor = 0x5577cc;
-        g.rect(x - w / 2, y - h / 2, w, h);
-        g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
+
+        if (bt === BuildingType.CommandCenter) {
+          // Octagonal footprint
+          const cut = 16;
+          g.moveTo(x - hw + cut, y - hh); g.lineTo(x + hw - cut, y - hh);
+          g.lineTo(x + hw, y - hh + cut); g.lineTo(x + hw, y + hh - cut);
+          g.lineTo(x + hw - cut, y + hh); g.lineTo(x - hw + cut, y + hh);
+          g.lineTo(x - hw, y + hh - cut); g.lineTo(x - hw, y - hh + cut);
+          g.closePath();
+          g.fill({ color: 0x000000, alpha: 0.4 }); // shadow
+          g.moveTo(x - hw + cut + 2, y - hh + 2); g.lineTo(x + hw - cut - 2, y - hh + 2);
+          g.lineTo(x + hw - 2, y - hh + cut + 2); g.lineTo(x + hw - 2, y + hh - cut - 2);
+          g.lineTo(x + hw - cut - 2, y + hh - 2); g.lineTo(x - hw + cut + 2, y + hh - 2);
+          g.lineTo(x - hw + 2, y + hh - cut - 2); g.lineTo(x - hw + 2, y - hh + cut + 2);
+          g.closePath();
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
+        } else if (bt === BuildingType.SupplyDepot) {
+          // Beveled hexagonal shape
+          const bev = 12;
+          g.moveTo(x - hw + bev, y - hh); g.lineTo(x + hw - bev, y - hh);
+          g.lineTo(x + hw, y - hh + bev); g.lineTo(x + hw, y + hh - bev);
+          g.lineTo(x + hw - bev, y + hh); g.lineTo(x - hw + bev, y + hh);
+          g.lineTo(x - hw, y + hh - bev); g.lineTo(x - hw, y - hh + bev);
+          g.closePath();
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          const b2 = bev - 2;
+          g.moveTo(x - hw + b2 + 2, y - hh + 2); g.lineTo(x + hw - b2 - 2, y - hh + 2);
+          g.lineTo(x + hw - 2, y - hh + b2 + 2); g.lineTo(x + hw - 2, y + hh - b2 - 2);
+          g.lineTo(x + hw - b2 - 2, y + hh - 2); g.lineTo(x - hw + b2 + 2, y + hh - 2);
+          g.lineTo(x - hw + 2, y + hh - b2 - 2); g.lineTo(x - hw + 2, y - hh + b2 + 2);
+          g.closePath();
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 1.5, alpha: baseAlpha });
+        } else if (bt === BuildingType.Barracks) {
+          // L-shaped: main block + entrance extension at bottom
+          const bayW = w * 0.35;
+          const bayH = 10;
+          // Shadow
+          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4 + bayH);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main block
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
+          // Extension
+          g.rect(x - bayW / 2, y + hh, bayW, bayH);
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 1.5, alpha: baseAlpha });
+        } else if (bt === BuildingType.Factory) {
+          // Main block + smokestack protrusion on top-right
+          const stackW = 12;
+          const stackH = 16;
+          // Shadow
+          g.rect(x - hw - 2, y - hh - stackH - 2, w + 4, h + stackH + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main block
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
+          // Smokestack
+          g.rect(x + hw - stackW - 6, y - hh - stackH, stackW, stackH);
+          g.fill({ color: darken(tint, 15), alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 1, alpha: 0.7 * baseAlpha });
+        } else if (bt === BuildingType.Starport) {
+          // Main block + angled wings
+          // Shadow
+          g.rect(x - hw - 12, y - hh - 2, w + 24, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          // Main block
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
+          // Left wing stub
+          g.moveTo(x - hw, y + hh * 0.3);
+          g.lineTo(x - hw - 10, y + hh * 0.5);
+          g.lineTo(x - hw - 10, y - hh * 0.1);
+          g.lineTo(x - hw, y - hh * 0.3);
+          g.closePath();
+          g.fill({ color: darken(tint, 10), alpha: baseAlpha });
+          // Right wing stub
+          g.moveTo(x + hw, y + hh * 0.3);
+          g.lineTo(x + hw + 10, y + hh * 0.5);
+          g.lineTo(x + hw + 10, y - hh * 0.1);
+          g.lineTo(x + hw, y - hh * 0.3);
+          g.closePath();
+          g.fill({ color: darken(tint, 10), alpha: baseAlpha });
+        } else {
+          // Default: plain rectangle (Refinery, EngineeringBay, etc.)
+          g.rect(x - hw - 2, y - hh - 2, w + 4, h + 4);
+          g.fill({ color: 0x000000, alpha: 0.4 });
+          g.rect(x - hw, y - hh, w, h);
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
+        }
 
         // Under construction: animated diagonal stripes
         if (bs === BuildState.UnderConstruction) {
@@ -461,28 +547,13 @@ export class UnitRenderer {
 
         // Building type details
         if (bt === BuildingType.CommandCenter) {
-          // Octagonal shape overlay — cut corners
-          const hw2 = w / 2;
-          const hh2 = h / 2;
-          const cut = 14; // corner cut size
-          // Draw octagon over the rect to mask corners
-          g.moveTo(x - hw2 + cut, y - hh2);
-          g.lineTo(x + hw2 - cut, y - hh2);
-          g.lineTo(x + hw2, y - hh2 + cut);
-          g.lineTo(x + hw2, y + hh2 - cut);
-          g.lineTo(x + hw2 - cut, y + hh2);
-          g.lineTo(x - hw2 + cut, y + hh2);
-          g.lineTo(x - hw2, y + hh2 - cut);
-          g.lineTo(x - hw2, y - hh2 + cut);
-          g.closePath();
-          g.stroke({ color: 0x6699cc, width: 1.5, alpha: 0.7 * baseAlpha });
-
-          // Panel lines — horizontal lines across the building
+          // Panel lines across the octagonal body
+          const cut = 16;
           const panelStep = 16;
-          for (let py = -hh2 + panelStep; py < hh2; py += panelStep) {
-            const xInset = (Math.abs(py) > hh2 - cut) ? cut * 0.7 : 4;
-            g.moveTo(x - hw2 + xInset, y + py);
-            g.lineTo(x + hw2 - xInset, y + py);
+          for (let py = -hh + panelStep; py < hh; py += panelStep) {
+            const xInset = (Math.abs(py) > hh - cut) ? cut * 0.7 : 4;
+            g.moveTo(x - hw + xInset, y + py);
+            g.lineTo(x + hw - xInset, y + py);
             g.stroke({ color: 0x6699cc, width: 0.6, alpha: 0.25 * baseAlpha });
           }
 
@@ -500,26 +571,11 @@ export class UnitRenderer {
           g.closePath();
           g.fill({ color: 0xffcc44, alpha: baseAlpha });
         } else if (bt === BuildingType.SupplyDepot) {
-          // Hexagonal/beveled shape outline
-          const hw2 = w / 2;
-          const hh2 = h / 2;
-          const bev = 10; // bevel size
-          g.moveTo(x - hw2 + bev, y - hh2);
-          g.lineTo(x + hw2 - bev, y - hh2);
-          g.lineTo(x + hw2, y - hh2 + bev);
-          g.lineTo(x + hw2, y + hh2 - bev);
-          g.lineTo(x + hw2 - bev, y + hh2);
-          g.lineTo(x - hw2 + bev, y + hh2);
-          g.lineTo(x - hw2, y + hh2 - bev);
-          g.lineTo(x - hw2, y - hh2 + bev);
-          g.closePath();
-          g.stroke({ color: 0x88aacc, width: 1.2, alpha: 0.6 * baseAlpha });
-
-          // Subtle cross-hatch inside
+          // Subtle cross-hatch inside beveled shape
           const inset = 6;
           const step = 12;
-          const chw = hw2 - inset;
-          const chh = hh2 - inset;
+          const chw = hw - inset;
+          const chh = hh - inset;
           for (let d = -Math.max(chw, chh); d <= Math.max(chw, chh); d += step) {
             const fx1 = Math.max(-chw, d - chh);
             const fx2 = Math.min(chw, d + chh);
@@ -533,23 +589,15 @@ export class UnitRenderer {
             }
           }
         } else if (bt === BuildingType.Barracks) {
-          // Protruding entrance bay at bottom center
-          const bayW = w * 0.35;
-          const bayH = 12;
-          g.rect(x - bayW / 2, y + h / 2, bayW, bayH);
-          g.fill({ color: tint, alpha: baseAlpha });
-          g.rect(x - bayW / 2, y + h / 2, bayW, bayH);
-          g.stroke({ color: 0x6644aa, width: 1.5, alpha: 0.6 * baseAlpha });
-
-          // Wide door opening in the bay
-          const doorW = bayW - 6;
-          const doorH = bayH - 3;
-          g.rect(x - doorW / 2, y + h / 2 + 1.5, doorW, doorH);
+          // Door opening in the entrance bay
+          const doorW = w * 0.3;
+          const doorH = 7;
+          g.rect(x - doorW / 2, y + hh + 1, doorW, doorH);
           g.fill({ color: TERRAN_DARK, alpha: 0.9 * baseAlpha });
-          g.rect(x - doorW / 2, y + h / 2 + 1.5, doorW, doorH);
+          g.rect(x - doorW / 2, y + hh + 1, doorW, doorH);
           g.stroke({ color: 0x6688aa, width: 0.8, alpha: 0.5 * baseAlpha });
 
-          // Smaller X marker in center
+          // X marker in center
           const xSize = 7;
           g.moveTo(x - xSize, y - xSize);
           g.lineTo(x + xSize, y + xSize);
@@ -571,15 +619,8 @@ export class UnitRenderer {
           g.rect(x - 3, y - h * 0.3, 6, h * 0.6);
           g.fill({ color: 0x556655, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.Factory) {
-          // Smokestack on top-right corner
-          const stackW = 10;
-          const stackH = 18;
-          g.rect(x + w / 2 - stackW - 4, y - h / 2 - stackH, stackW, stackH);
-          g.fill({ color: darken(tint, 20), alpha: baseAlpha });
-          g.rect(x + w / 2 - stackW - 4, y - h / 2 - stackH, stackW, stackH);
-          g.stroke({ color: 0x886644, width: 1, alpha: 0.6 * baseAlpha });
-          // Smokestack cap
-          g.rect(x + w / 2 - stackW - 6, y - h / 2 - stackH - 2, stackW + 4, 3);
+          // Smokestack cap (stack body is part of base shape)
+          g.rect(x + hw - 20, y - hh - 18, 16, 3);
           g.fill({ color: TERRAN_METAL, alpha: baseAlpha });
 
           // Gear icon shape — circle with teeth
@@ -626,48 +667,22 @@ export class UnitRenderer {
           g.rect(x - doorW2 / 2, y + h / 2 - doorH2, doorW2, doorH2);
           g.stroke({ color: 0x886644, width: 1, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.Starport) {
-          // Prominent circular landing pad
-          g.circle(x, y + h * 0.08, 16);
+          // Landing pad circle in center
+          g.circle(x, y + hh * 0.1, 16);
           g.fill({ color: darken(tint, 15), alpha: 0.5 * baseAlpha });
-          g.circle(x, y + h * 0.08, 16);
+          g.circle(x, y + hh * 0.1, 16);
           g.stroke({ color: 0x6688cc, width: 1.5, alpha: 0.6 * baseAlpha });
-          // Inner landing pad ring
-          g.circle(x, y + h * 0.08, 8);
+          g.circle(x, y + hh * 0.1, 8);
           g.stroke({ color: 0x6688cc, width: 1, alpha: 0.4 * baseAlpha });
 
-          // Angled runway lines extending from sides
-          // Left runway
-          g.moveTo(x - w / 2, y + h * 0.15);
-          g.lineTo(x - w / 2 - 10, y + h * 0.3);
-          g.stroke({ color: 0x88aaff, width: 2, alpha: 0.5 * baseAlpha });
-          g.moveTo(x - w / 2, y + h * 0.05);
-          g.lineTo(x - w / 2 - 8, y + h * 0.18);
-          g.stroke({ color: 0x88aaff, width: 1.2, alpha: 0.35 * baseAlpha });
-          // Right runway
-          g.moveTo(x + w / 2, y + h * 0.15);
-          g.lineTo(x + w / 2 + 10, y + h * 0.3);
-          g.stroke({ color: 0x88aaff, width: 2, alpha: 0.5 * baseAlpha });
-          g.moveTo(x + w / 2, y + h * 0.05);
-          g.lineTo(x + w / 2 + 8, y + h * 0.18);
-          g.stroke({ color: 0x88aaff, width: 1.2, alpha: 0.35 * baseAlpha });
-
-          // Wing icon shape — V with horizontal line
-          g.moveTo(x - w * 0.3, y - h * 0.2);
-          g.lineTo(x, y + h * 0.05);
-          g.lineTo(x + w * 0.3, y - h * 0.2);
+          // V wing icon
+          g.moveTo(x - w * 0.3, y - hh * 0.4);
+          g.lineTo(x, y + hh * 0.05);
+          g.lineTo(x + w * 0.3, y - hh * 0.4);
           g.stroke({ color: 0x88aaff, width: 2.5, alpha: 0.6 * baseAlpha });
-          // Horizontal stabilizer
-          g.moveTo(x - w * 0.2, y - h * 0.05);
-          g.lineTo(x + w * 0.2, y - h * 0.05);
+          g.moveTo(x - w * 0.2, y - hh * 0.1);
+          g.lineTo(x + w * 0.2, y - hh * 0.1);
           g.stroke({ color: 0x88aaff, width: 2, alpha: 0.4 * baseAlpha });
-
-          // Door rectangle at bottom
-          const doorW3 = 12;
-          const doorH3 = 7;
-          g.rect(x - doorW3 / 2, y + h / 2 - doorH3, doorW3, doorH3);
-          g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
-          g.rect(x - doorW3 / 2, y + h / 2 - doorH3, doorW3, doorH3);
-          g.stroke({ color: 0x4466aa, width: 1, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.EngineeringBay) {
           // Satellite dish shape
           const dishR = 14;

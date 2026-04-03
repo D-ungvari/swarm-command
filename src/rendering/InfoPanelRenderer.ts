@@ -84,6 +84,7 @@ export class InfoPanelRenderer {
   private barContainer: HTMLDivElement;
   private barFill: HTMLDivElement;
   private barLabel: HTMLDivElement;
+  private statsEl: HTMLDivElement;
   private prodRow: HTMLDivElement;
   private prodBarFill: HTMLDivElement;
   private prodLabel: HTMLDivElement;
@@ -164,6 +165,17 @@ export class InfoPanelRenderer {
     this.barContainer.appendChild(this.barFill);
     this.barContainer.appendChild(this.barLabel);
     this.panel.appendChild(this.barContainer);
+
+    // Combat stats row (shown for single unit selection)
+    this.statsEl = document.createElement('div');
+    this.statsEl.style.cssText = `
+      display: none;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 11px;
+      margin-top: 4px;
+      line-height: 1.5;
+    `;
+    this.panel.appendChild(this.statsEl);
 
     // Production progress row (for buildings currently producing)
     this.prodRow = document.createElement('div');
@@ -257,6 +269,7 @@ export class InfoPanelRenderer {
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
       this.abilityButtonsRow.style.display = 'none';
+      this.statsEl.style.display = 'none';
       this.queueRow.style.display = 'none';
       return;
     }
@@ -366,6 +379,7 @@ export class InfoPanelRenderer {
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
+      this.statsEl.style.display = 'none';
       this.queueRow.style.display = 'none';
 
       // Subgroup ability panel: show when exactly one unit type is in selection
@@ -433,6 +447,7 @@ export class InfoPanelRenderer {
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
       this.abilityButtonsRow.style.display = 'none';
+      this.statsEl.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Cyan border for resources
       this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)';
@@ -442,6 +457,7 @@ export class InfoPanelRenderer {
     // Building entity
     if (hasComponents(world, eid, BUILDING)) {
       this.abilityButtonsRow.style.display = 'none';
+      this.statsEl.style.display = 'none';
       this.portraitContainer.innerHTML = '';
       const bt = buildingType[eid] as BuildingType;
       const def = BUILDING_DEFS[bt];
@@ -642,6 +658,21 @@ export class InfoPanelRenderer {
         this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       }
 
+      // Combat stats row
+      if (def) {
+        const atkSpd = def.attackCooldown > 0 ? (1000 / def.attackCooldown).toFixed(2) : '0';
+        this.statsEl.innerHTML =
+          `<span style="color:#88bbff">DMG:</span> <span style="color:#cce0ff">${def.damage}</span>` +
+          `&nbsp;&nbsp;<span style="color:#88bbff">ARM:</span> <span style="color:#cce0ff">${def.baseArmor}</span>` +
+          `&nbsp;&nbsp;<span style="color:#88bbff">SPD:</span> <span style="color:#cce0ff">${atkSpd}/s</span>` +
+          `<br>` +
+          `<span style="color:#88bbff">RNG:</span> <span style="color:#cce0ff">${def.range}</span>` +
+          `&nbsp;&nbsp;<span style="color:#88bbff">MOV:</span> <span style="color:#cce0ff">${def.speed}</span>`;
+        this.statsEl.style.display = 'block';
+      } else {
+        this.statsEl.style.display = 'none';
+      }
+
       this.prodRow.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
@@ -664,6 +695,7 @@ export class InfoPanelRenderer {
     this.researchButtonsRow.style.display = 'none';
     this.addonButtonsRow.style.display = 'none';
     this.abilityButtonsRow.style.display = 'none';
+    this.statsEl.style.display = 'none';
     this.queueRow.style.display = 'none';
     this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
   }

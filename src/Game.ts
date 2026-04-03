@@ -31,7 +31,7 @@ import {
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   supplyProvided, supplyCost,
   selected, setPath,
-  energy,
+  energy, cloaked, veterancyLevel,
   isAir, canTargetGround, canTargetAir,
   larvaCount, larvaRegenTimer,
   addonType, workerCountOnResource, RESOURCE,
@@ -1568,6 +1568,8 @@ export class Game {
     isAir[eid] = def.isAir;
     canTargetGround[eid] = def.canTargetGround;
     canTargetAir[eid] = def.canTargetAir;
+    cloaked[eid] = 0;
+    veterancyLevel[eid] = 0;
 
     // Energy setup for caster units
     if (type === UnitType.Ghost) {

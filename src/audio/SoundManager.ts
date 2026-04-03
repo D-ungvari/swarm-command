@@ -490,23 +490,10 @@ class SoundManager {
 
   // ── D.5: Adaptive Music (2-Layer) ──
 
-  /** Start a low ambient drone that plays continuously. */
+  /** Start background music (currently disabled — the low drone was annoying). */
   startMusic(): void {
-    const ctx = this.getCtx();
-    if (!ctx) return;
-
-    // Avoid double-starting
-    if (this.musicDrone) return;
-
-    this.musicGain = ctx.createGain();
-    this.musicGain.gain.setValueAtTime(0.04, ctx.currentTime);
-    this.musicGain.connect(ctx.destination);
-
-    this.musicDrone = ctx.createOscillator();
-    this.musicDrone.type = 'sine';
-    this.musicDrone.frequency.setValueAtTime(80, ctx.currentTime);
-    this.musicDrone.connect(this.musicGain);
-    this.musicDrone.start();
+    // Intentionally disabled: the 80Hz sine drone was irritating.
+    // TODO: Replace with proper ambient music tracks or remove entirely.
   }
 
   /** Adjust music intensity: 0 = peaceful drone, 1 = full combat. */

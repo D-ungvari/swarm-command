@@ -461,10 +461,30 @@ export class UnitRenderer {
 
         // Building type details
         if (bt === BuildingType.CommandCenter) {
-          // Inner base outline rectangle
-          const inset = 6;
-          g.rect(x - w / 2 + inset, y - h / 2 + inset, w - inset * 2, h - inset * 2);
-          g.stroke({ color: 0x6699cc, width: 1, alpha: 0.5 * baseAlpha });
+          // Octagonal shape overlay — cut corners
+          const hw2 = w / 2;
+          const hh2 = h / 2;
+          const cut = 14; // corner cut size
+          // Draw octagon over the rect to mask corners
+          g.moveTo(x - hw2 + cut, y - hh2);
+          g.lineTo(x + hw2 - cut, y - hh2);
+          g.lineTo(x + hw2, y - hh2 + cut);
+          g.lineTo(x + hw2, y + hh2 - cut);
+          g.lineTo(x + hw2 - cut, y + hh2);
+          g.lineTo(x - hw2 + cut, y + hh2);
+          g.lineTo(x - hw2, y + hh2 - cut);
+          g.lineTo(x - hw2, y - hh2 + cut);
+          g.closePath();
+          g.stroke({ color: 0x6699cc, width: 1.5, alpha: 0.7 * baseAlpha });
+
+          // Panel lines — horizontal lines across the building
+          const panelStep = 16;
+          for (let py = -hh2 + panelStep; py < hh2; py += panelStep) {
+            const xInset = (Math.abs(py) > hh2 - cut) ? cut * 0.7 : 4;
+            g.moveTo(x - hw2 + xInset, y + py);
+            g.lineTo(x + hw2 - xInset, y + py);
+            g.stroke({ color: 0x6699cc, width: 0.6, alpha: 0.25 * baseAlpha });
+          }
 
           // Bright gold star in center (4-pointed)
           const starR = 10;
@@ -480,42 +500,67 @@ export class UnitRenderer {
           g.closePath();
           g.fill({ color: 0xffcc44, alpha: baseAlpha });
         } else if (bt === BuildingType.SupplyDepot) {
-          // Diagonal cross-hatch pattern
-          const hw2 = w / 2 - 3;
-          const hh2 = h / 2 - 3;
-          const step = 8;
-          for (let d = -Math.max(hw2, hh2); d <= Math.max(hw2, hh2); d += step) {
-            // Forward diagonals
-            const fx1 = Math.max(-hw2, d - hh2);
-            const fx2 = Math.min(hw2, d + hh2);
+          // Hexagonal/beveled shape outline
+          const hw2 = w / 2;
+          const hh2 = h / 2;
+          const bev = 10; // bevel size
+          g.moveTo(x - hw2 + bev, y - hh2);
+          g.lineTo(x + hw2 - bev, y - hh2);
+          g.lineTo(x + hw2, y - hh2 + bev);
+          g.lineTo(x + hw2, y + hh2 - bev);
+          g.lineTo(x + hw2 - bev, y + hh2);
+          g.lineTo(x - hw2 + bev, y + hh2);
+          g.lineTo(x - hw2, y + hh2 - bev);
+          g.lineTo(x - hw2, y - hh2 + bev);
+          g.closePath();
+          g.stroke({ color: 0x88aacc, width: 1.2, alpha: 0.6 * baseAlpha });
+
+          // Subtle cross-hatch inside
+          const inset = 6;
+          const step = 12;
+          const chw = hw2 - inset;
+          const chh = hh2 - inset;
+          for (let d = -Math.max(chw, chh); d <= Math.max(chw, chh); d += step) {
+            const fx1 = Math.max(-chw, d - chh);
+            const fx2 = Math.min(chw, d + chh);
             if (fx1 < fx2) {
               g.moveTo(x + fx1, y + (fx1 - d));
               g.lineTo(x + fx2, y + (fx2 - d));
-              g.stroke({ color: 0x88aacc, width: 1, alpha: 0.35 * baseAlpha });
-            }
-            // Backward diagonals
-            if (fx1 < fx2) {
+              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.15 * baseAlpha });
               g.moveTo(x + fx1, y - (fx1 - d));
               g.lineTo(x + fx2, y - (fx2 - d));
-              g.stroke({ color: 0x88aacc, width: 1, alpha: 0.35 * baseAlpha });
+              g.stroke({ color: 0x88aacc, width: 0.5, alpha: 0.15 * baseAlpha });
             }
           }
         } else if (bt === BuildingType.Barracks) {
-          // Larger X indicator
-          const xSize = 12;
+          // Protruding entrance bay at bottom center
+          const bayW = w * 0.35;
+          const bayH = 12;
+          g.rect(x - bayW / 2, y + h / 2, bayW, bayH);
+          g.fill({ color: tint, alpha: baseAlpha });
+          g.rect(x - bayW / 2, y + h / 2, bayW, bayH);
+          g.stroke({ color: 0x6644aa, width: 1.5, alpha: 0.6 * baseAlpha });
+
+          // Wide door opening in the bay
+          const doorW = bayW - 6;
+          const doorH = bayH - 3;
+          g.rect(x - doorW / 2, y + h / 2 + 1.5, doorW, doorH);
+          g.fill({ color: TERRAN_DARK, alpha: 0.9 * baseAlpha });
+          g.rect(x - doorW / 2, y + h / 2 + 1.5, doorW, doorH);
+          g.stroke({ color: 0x6688aa, width: 0.8, alpha: 0.5 * baseAlpha });
+
+          // Smaller X marker in center
+          const xSize = 7;
           g.moveTo(x - xSize, y - xSize);
           g.lineTo(x + xSize, y + xSize);
           g.moveTo(x + xSize, y - xSize);
           g.lineTo(x - xSize, y + xSize);
-          g.stroke({ color: 0xffffff, width: 3, alpha: 0.5 * baseAlpha });
+          g.stroke({ color: 0xffffff, width: 2, alpha: 0.4 * baseAlpha });
 
-          // Door rectangle at bottom edge
-          const doorW = 10;
-          const doorH = 6;
-          g.rect(x - doorW / 2, y + h / 2 - doorH, doorW, doorH);
-          g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
-          g.rect(x - doorW / 2, y + h / 2 - doorH, doorW, doorH);
-          g.stroke({ color: 0x6688aa, width: 1, alpha: 0.6 * baseAlpha });
+          // Inner border for structural feel
+          const inset = 5;
+          g.rect(x - w / 2 + inset, y - h / 2 + inset, w - inset * 2, h - inset * 2);
+          g.stroke({ color: 0x6644aa, width: 0.8, alpha: 0.3 * baseAlpha });
         } else if (bt === BuildingType.Refinery) {
           // Green gas venting pipes — two small circles on top
           g.circle(x - w * 0.2, y - h * 0.15, 6);
@@ -526,6 +571,17 @@ export class UnitRenderer {
           g.rect(x - 3, y - h * 0.3, 6, h * 0.6);
           g.fill({ color: 0x556655, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.Factory) {
+          // Smokestack on top-right corner
+          const stackW = 10;
+          const stackH = 18;
+          g.rect(x + w / 2 - stackW - 4, y - h / 2 - stackH, stackW, stackH);
+          g.fill({ color: darken(tint, 20), alpha: baseAlpha });
+          g.rect(x + w / 2 - stackW - 4, y - h / 2 - stackH, stackW, stackH);
+          g.stroke({ color: 0x886644, width: 1, alpha: 0.6 * baseAlpha });
+          // Smokestack cap
+          g.rect(x + w / 2 - stackW - 6, y - h / 2 - stackH - 2, stackW + 4, 3);
+          g.fill({ color: TERRAN_METAL, alpha: baseAlpha });
+
           // Gear icon shape — circle with teeth
           const gearR = 13;
           const gearInner = 8;
@@ -555,6 +611,13 @@ export class UnitRenderer {
           g.circle(x, y, 3);
           g.fill({ color: 0xccaa44, alpha: 0.5 * baseAlpha });
 
+          // Track marks at the bottom — horizontal dashes
+          const trackY = y + h / 2 - 5;
+          for (let tx = -w / 2 + 6; tx < w / 2 - 6; tx += 8) {
+            g.rect(x + tx, trackY, 5, 3);
+            g.fill({ color: TERRAN_DARK, alpha: 0.5 * baseAlpha });
+          }
+
           // Door rectangle at bottom
           const doorW2 = 12;
           const doorH2 = 7;
@@ -563,18 +626,40 @@ export class UnitRenderer {
           g.rect(x - doorW2 / 2, y + h / 2 - doorH2, doorW2, doorH2);
           g.stroke({ color: 0x886644, width: 1, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.Starport) {
+          // Prominent circular landing pad
+          g.circle(x, y + h * 0.08, 16);
+          g.fill({ color: darken(tint, 15), alpha: 0.5 * baseAlpha });
+          g.circle(x, y + h * 0.08, 16);
+          g.stroke({ color: 0x6688cc, width: 1.5, alpha: 0.6 * baseAlpha });
+          // Inner landing pad ring
+          g.circle(x, y + h * 0.08, 8);
+          g.stroke({ color: 0x6688cc, width: 1, alpha: 0.4 * baseAlpha });
+
+          // Angled runway lines extending from sides
+          // Left runway
+          g.moveTo(x - w / 2, y + h * 0.15);
+          g.lineTo(x - w / 2 - 10, y + h * 0.3);
+          g.stroke({ color: 0x88aaff, width: 2, alpha: 0.5 * baseAlpha });
+          g.moveTo(x - w / 2, y + h * 0.05);
+          g.lineTo(x - w / 2 - 8, y + h * 0.18);
+          g.stroke({ color: 0x88aaff, width: 1.2, alpha: 0.35 * baseAlpha });
+          // Right runway
+          g.moveTo(x + w / 2, y + h * 0.15);
+          g.lineTo(x + w / 2 + 10, y + h * 0.3);
+          g.stroke({ color: 0x88aaff, width: 2, alpha: 0.5 * baseAlpha });
+          g.moveTo(x + w / 2, y + h * 0.05);
+          g.lineTo(x + w / 2 + 8, y + h * 0.18);
+          g.stroke({ color: 0x88aaff, width: 1.2, alpha: 0.35 * baseAlpha });
+
           // Wing icon shape — V with horizontal line
-          g.moveTo(x - w * 0.35, y - h * 0.2);
-          g.lineTo(x, y + h * 0.15);
-          g.lineTo(x + w * 0.35, y - h * 0.2);
-          g.stroke({ color: 0x88aaff, width: 3, alpha: 0.6 * baseAlpha });
+          g.moveTo(x - w * 0.3, y - h * 0.2);
+          g.lineTo(x, y + h * 0.05);
+          g.lineTo(x + w * 0.3, y - h * 0.2);
+          g.stroke({ color: 0x88aaff, width: 2.5, alpha: 0.6 * baseAlpha });
           // Horizontal stabilizer
-          g.moveTo(x - w * 0.25, y);
-          g.lineTo(x + w * 0.25, y);
-          g.stroke({ color: 0x88aaff, width: 2.5, alpha: 0.4 * baseAlpha });
-          // Landing pad circle
-          g.circle(x, y + h * 0.2, 7);
-          g.stroke({ color: 0x6688cc, width: 1, alpha: 0.5 * baseAlpha });
+          g.moveTo(x - w * 0.2, y - h * 0.05);
+          g.lineTo(x + w * 0.2, y - h * 0.05);
+          g.stroke({ color: 0x88aaff, width: 2, alpha: 0.4 * baseAlpha });
 
           // Door rectangle at bottom
           const doorW3 = 12;
@@ -584,22 +669,24 @@ export class UnitRenderer {
           g.rect(x - doorW3 / 2, y + h / 2 - doorH3, doorW3, doorH3);
           g.stroke({ color: 0x4466aa, width: 1, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.EngineeringBay) {
-          // Wrench/tool icon: two diagonal lines forming an X with circles at each end
-          const toolSize = 10;
-          g.moveTo(x - toolSize, y - toolSize);
-          g.lineTo(x + toolSize, y + toolSize);
-          g.moveTo(x + toolSize, y - toolSize);
-          g.lineTo(x - toolSize, y + toolSize);
-          g.stroke({ color: 0x88aadd, width: 2, alpha: 0.6 * baseAlpha });
-          // Circles at wrench ends
-          g.circle(x - toolSize, y - toolSize, 3);
-          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
-          g.circle(x + toolSize, y + toolSize, 3);
-          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
-          g.circle(x + toolSize, y - toolSize, 3);
-          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
-          g.circle(x - toolSize, y + toolSize, 3);
-          g.fill({ color: 0x88aadd, alpha: 0.5 * baseAlpha });
+          // Satellite dish shape
+          const dishR = 14;
+          // Dish arc (half-circle, opening upward)
+          g.arc(x, y - 2, dishR, Math.PI * 0.15, Math.PI * 0.85);
+          g.stroke({ color: 0x88aadd, width: 2.5, alpha: 0.7 * baseAlpha });
+          // Inner arc for depth
+          g.arc(x, y - 2, dishR * 0.6, Math.PI * 0.2, Math.PI * 0.8);
+          g.stroke({ color: 0x88aadd, width: 1.5, alpha: 0.4 * baseAlpha });
+          // Dish feed — line from center down to a dot
+          g.moveTo(x, y - 2);
+          g.lineTo(x, y + dishR + 2);
+          g.stroke({ color: 0x88aadd, width: 1.5, alpha: 0.6 * baseAlpha });
+          // Feed receiver dot at top center of dish
+          g.circle(x, y - dishR * 0.3, 2.5);
+          g.fill({ color: 0x66ccff, alpha: 0.8 * baseAlpha });
+          // Base mount
+          g.rect(x - 4, y + dishR, 8, 5);
+          g.fill({ color: TERRAN_METAL, alpha: 0.6 * baseAlpha });
 
           // Research glow: if production is active, subtle pulsing ring
           if (prodUnitType[eid] > 0 && prodTimeTotal[eid] > 0) {
@@ -1473,54 +1560,65 @@ export class UnitRenderer {
         // ═══════════════════════════════════════════════
 
         if (uType === UnitType.SCV) {
-          // ── SCV (Worker): boxy body with articulated mining arm ──
+          // ── SCV (Worker): compact mechanical shape with arms and visor ──
+          const hw = w / 2;
+          const hh = h / 2;
+
           // Shadow
-          g.rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
+          g.roundRect(x - hw - 2, y - hh - 1, w + 4, h + 2, 4);
           g.fill({ color: 0x000000, alpha: 0.4 });
-          // Main body rect
-          g.rect(x - w / 2, y - h / 2, w, h);
+
+          // Main body — rounded rectangle, slightly wider than tall
+          g.roundRect(x - hw, y - hh * 0.8, w, h * 0.85, 3);
           g.fill({ color: bodyColor });
-          // Border outline for armor look
-          g.rect(x - w / 2, y - h / 2, w, h);
-          g.stroke({ color: 0x5588bb, width: 1, alpha: 0.6 });
-          // Visor line — darker stripe across upper body
-          g.moveTo(x - w * 0.35, y - h * 0.2);
-          g.lineTo(x + w * 0.35, y - h * 0.2);
-          g.stroke({ color: 0x224466, width: 2, alpha: 0.8 });
-          // Small viewport dot on visor
-          g.circle(x, y - h * 0.2, 1.5);
-          g.fill({ color: 0x66ccff, alpha: 0.9 });
-          // Articulated mining arm — 2-segment from right side going down-right
-          // Segment 1: shoulder to elbow
-          g.moveTo(x + w * 0.45, y + h * 0.1);
-          g.lineTo(x + w * 0.7, y + h * 0.3);
-          g.stroke({ color: 0xdd9933, width: 2 });
-          // Segment 2: elbow to drill head
-          g.moveTo(x + w * 0.7, y + h * 0.3);
-          g.lineTo(x + w * 0.85, y + h * 0.6);
-          g.stroke({ color: 0xdd9933, width: 2 });
-          // Drill head — small diamond
-          g.moveTo(x + w * 0.85, y + h * 0.5);
-          g.lineTo(x + w * 0.95, y + h * 0.6);
-          g.lineTo(x + w * 0.85, y + h * 0.7);
-          g.lineTo(x + w * 0.75, y + h * 0.6);
-          g.closePath();
+          g.roundRect(x - hw, y - hh * 0.8, w, h * 0.85, 3);
+          g.stroke({ color: TERRAN_METAL, width: 1.2, alpha: 0.7 });
+
+          // Left arm — mining drill extending from left side
+          g.rect(x - hw - w * 0.3, y - hh * 0.1, w * 0.32, h * 0.18);
+          g.fill({ color: TERRAN_METAL });
+          g.rect(x - hw - w * 0.3, y - hh * 0.1, w * 0.32, h * 0.18);
+          g.stroke({ color: TERRAN_DARK, width: 0.8, alpha: 0.6 });
+          // Drill tip
+          g.moveTo(x - hw - w * 0.3, y - hh * 0.02);
+          g.lineTo(x - hw - w * 0.4, y);
+          g.lineTo(x - hw - w * 0.3, y + hh * 0.02);
+          g.fill({ color: 0xdd9933 });
+
+          // Right arm — welder extending from right side
+          g.rect(x + hw - w * 0.02, y - hh * 0.1, w * 0.32, h * 0.18);
+          g.fill({ color: TERRAN_METAL });
+          g.rect(x + hw - w * 0.02, y - hh * 0.1, w * 0.32, h * 0.18);
+          g.stroke({ color: TERRAN_DARK, width: 0.8, alpha: 0.6 });
+          // Welder nozzle
+          g.circle(x + hw + w * 0.32, y, 1.8);
           g.fill({ color: 0xffbb44, alpha: 0.9 });
-          // Elbow joint dot
-          g.circle(x + w * 0.7, y + h * 0.3, 1.5);
-          g.fill({ color: 0x888888 });
-          // Cockpit canopy — glass-blue dome on top
-          g.circle(x, y - h * 0.35, w * 0.22);
-          g.fill({ color: 0x88ccff, alpha: 0.5 });
-          g.circle(x, y - h * 0.35, w * 0.22);
-          g.stroke({ color: 0xaaddff, width: 0.8, alpha: 0.6 });
+
+          // Visor line — construction helmet stripe across top of body
+          g.moveTo(x - hw * 0.75, y - hh * 0.65);
+          g.lineTo(x + hw * 0.75, y - hh * 0.65);
+          g.stroke({ color: TERRAN_DARK, width: 2.5, alpha: 0.9 });
+          // Visor glow
+          g.moveTo(x - hw * 0.5, y - hh * 0.65);
+          g.lineTo(x + hw * 0.5, y - hh * 0.65);
+          g.stroke({ color: 0x66ccff, width: 1.2, alpha: 0.8 });
+
+          // Viewport dot on visor center
+          g.circle(x, y - hh * 0.65, 1.5);
+          g.fill({ color: 0x88eeff, alpha: 0.9 });
+
+          // Body panel line
+          g.moveTo(x - hw * 0.6, y + hh * 0.15);
+          g.lineTo(x + hw * 0.6, y + hh * 0.15);
+          g.stroke({ color: TERRAN_DARK, width: 0.8, alpha: 0.4 });
+
           // Welding spark when mining
           if (workerState[eid] !== WorkerState.Idle) {
             const sparkAlpha = 0.5 + Math.sin(gameTime * 12) * 0.5;
             if (sparkAlpha > 0.3) {
-              g.circle(x + w * 0.85, y + h * 0.6, 2);
+              g.circle(x + hw + w * 0.32, y, 2);
               g.fill({ color: 0xff8822, alpha: sparkAlpha });
-              g.circle(x + w * 0.85, y + h * 0.6, 3.5);
+              g.circle(x + hw + w * 0.32, y, 3.5);
               g.fill({ color: 0xffcc44, alpha: sparkAlpha * 0.4 });
             }
           }

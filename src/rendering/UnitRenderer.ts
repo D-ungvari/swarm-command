@@ -14,6 +14,7 @@ import {
   velX, velY, commandMode,
   cloaked, energy, isAir,
   veterancyLevel,
+  depotLowered,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -530,21 +531,24 @@ export class UnitRenderer {
           g.stroke({ color: borderColor, width: 2, alpha: baseAlpha });
         } else if (bt === BuildingType.SupplyDepot) {
           // Beveled hexagonal shape
-          const bev = 12;
-          g.moveTo(x - hw + bev, y - hh); g.lineTo(x + hw - bev, y - hh);
-          g.lineTo(x + hw, y - hh + bev); g.lineTo(x + hw, y + hh - bev);
-          g.lineTo(x + hw - bev, y + hh); g.lineTo(x - hw + bev, y + hh);
-          g.lineTo(x - hw, y + hh - bev); g.lineTo(x - hw, y - hh + bev);
+          const isLowered = depotLowered[eid] === 1;
+          const dhh = isLowered ? hh * 0.4 : hh;
+          const dAlpha = isLowered ? baseAlpha * 0.6 : baseAlpha;
+          const bev = isLowered ? 5 : 12;
+          g.moveTo(x - hw + bev, y - dhh); g.lineTo(x + hw - bev, y - dhh);
+          g.lineTo(x + hw, y - dhh + bev); g.lineTo(x + hw, y + dhh - bev);
+          g.lineTo(x + hw - bev, y + dhh); g.lineTo(x - hw + bev, y + dhh);
+          g.lineTo(x - hw, y + dhh - bev); g.lineTo(x - hw, y - dhh + bev);
           g.closePath();
-          g.fill({ color: 0x000000, alpha: 0.4 });
+          g.fill({ color: 0x000000, alpha: 0.4 * (isLowered ? 0.6 : 1) });
           const b2 = bev - 2;
-          g.moveTo(x - hw + b2 + 2, y - hh + 2); g.lineTo(x + hw - b2 - 2, y - hh + 2);
-          g.lineTo(x + hw - 2, y - hh + b2 + 2); g.lineTo(x + hw - 2, y + hh - b2 - 2);
-          g.lineTo(x + hw - b2 - 2, y + hh - 2); g.lineTo(x - hw + b2 + 2, y + hh - 2);
-          g.lineTo(x - hw + 2, y + hh - b2 - 2); g.lineTo(x - hw + 2, y - hh + b2 + 2);
+          g.moveTo(x - hw + b2 + 2, y - dhh + 2); g.lineTo(x + hw - b2 - 2, y - dhh + 2);
+          g.lineTo(x + hw - 2, y - dhh + b2 + 2); g.lineTo(x + hw - 2, y + dhh - b2 - 2);
+          g.lineTo(x + hw - b2 - 2, y + dhh - 2); g.lineTo(x - hw + b2 + 2, y + dhh - 2);
+          g.lineTo(x - hw + 2, y + dhh - b2 - 2); g.lineTo(x - hw + 2, y - dhh + b2 + 2);
           g.closePath();
-          g.fill({ color: tint, alpha: baseAlpha });
-          g.stroke({ color: borderColor, width: 1.5, alpha: baseAlpha });
+          g.fill({ color: tint, alpha: dAlpha });
+          g.stroke({ color: borderColor, width: 1.5, alpha: dAlpha });
         } else if (bt === BuildingType.Barracks) {
           // L-shaped: main block + entrance extension at bottom
           const bayW = w * 0.35;
@@ -674,20 +678,24 @@ export class UnitRenderer {
           g.fill({ color: 0xffcc44, alpha: 0.8 * baseAlpha });
         } else if (bt === BuildingType.SupplyDepot) {
           // Crate grid: 2x2 inner supply crates
+          const isLowered2 = depotLowered[eid] === 1;
+          const dAlpha2 = isLowered2 ? baseAlpha * 0.6 : baseAlpha;
+          const dh = isLowered2 ? h * 0.4 : h;
+          const dhh2 = dh / 2;
           const crateGap = 3;
           const crateW = (w - crateGap * 3) / 2;
-          const crateH = (h - crateGap * 3) / 2;
+          const crateH = (dh - crateGap * 3) / 2;
           for (let cr = 0; cr < 2; cr++) {
             for (let cc = 0; cc < 2; cc++) {
               const cx = x - hw + crateGap + cc * (crateW + crateGap) + crateW / 2;
-              const cy = y - hh + crateGap + cr * (crateH + crateGap) + crateH / 2;
+              const cy = y - dhh2 + crateGap + cr * (crateH + crateGap) + crateH / 2;
               g.rect(cx - crateW / 2, cy - crateH / 2, crateW, crateH);
-              g.fill({ color: darken(tint, 10 + cr * 5), alpha: 0.8 * baseAlpha });
-              g.stroke({ color: 0x5577aa, width: 0.8, alpha: 0.4 * baseAlpha });
+              g.fill({ color: darken(tint, 10 + cr * 5), alpha: 0.8 * dAlpha2 });
+              g.stroke({ color: 0x5577aa, width: 0.8, alpha: 0.4 * dAlpha2 });
               // Strapping line across each crate
               g.moveTo(cx - crateW / 2 + 2, cy);
               g.lineTo(cx + crateW / 2 - 2, cy);
-              g.stroke({ color: 0x88aacc, width: 0.6, alpha: 0.3 * baseAlpha });
+              g.stroke({ color: 0x88aacc, width: 0.6, alpha: 0.3 * dAlpha2 });
             }
           }
         } else if (bt === BuildingType.Barracks) {

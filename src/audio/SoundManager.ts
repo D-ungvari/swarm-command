@@ -488,6 +488,18 @@ class SoundManager {
     setTimeout(() => this.playTone(800, 'sine', 0.1, 0.03), 50);
   }
 
+  /** Sharp crack — Ghost Snipe. */
+  playSnipe(): void {
+    this.playTone(1800, 'sawtooth', 0.2, 0.06);
+    setTimeout(() => this.playTone(400, 'sine', 0.1, 0.04), 60);
+  }
+
+  /** Warm pulse — Queen Transfuse heal. */
+  playTransfuse(): void {
+    this.playTone(300, 'sine', 0.15, 0.08);
+    setTimeout(() => this.playTone(500, 'sine', 0.12, 0.06), 80);
+  }
+
   // ── D.5: Adaptive Music (2-Layer) ──
 
   /** Start background music (currently disabled — the low drone was annoying). */

@@ -49,6 +49,8 @@ export class HotkeyPanelRenderer {
       'R + click    Corrosive Bile (Ravager)',
       'F + click    Fungal Growth (Infestor)',
       'G            Abduct (Viper)',
+      'D            Snipe (Ghost)',
+      'X            Transfuse (Queen)',
       'B + 1-7      Build Structure',
       'Q / W        Produce Unit (slot 1/2)',
       'Ctrl+0-9     Set Control Group',

@@ -233,7 +233,7 @@ function processViperEnergyRegen(world: World, dt: number): void {
 
 function processCorrosiveBile(world: World, gameTime: number): void {
   const BILE_DAMAGE = 60;
-  const BILE_RADIUS = 0.5 * TILE_SIZE;
+  const BILE_RADIUS = 1.5 * TILE_SIZE;
   const BILE_RADIUS_SQ = BILE_RADIUS * BILE_RADIUS;
 
   for (let eid = 1; eid < world.nextEid; eid++) {

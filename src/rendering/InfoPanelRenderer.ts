@@ -36,10 +36,16 @@ export type AbilityCallback = (commandType: number, unitEids: number[]) => void;
 const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandType: number }>> = {
   [UnitType.Marine]: [{ name: 'Stim Pack', key: 'T', commandType: CommandType.Stim }],
   [UnitType.SiegeTank]: [{ name: 'Siege Mode', key: 'E', commandType: CommandType.SiegeToggle }],
-  [UnitType.Ghost]: [{ name: 'Cloak', key: 'C', commandType: CommandType.Cloak }],
+  [UnitType.Ghost]: [
+    { name: 'Cloak', key: 'C', commandType: CommandType.Cloak },
+    { name: 'Snipe', key: 'D', commandType: CommandType.Snipe },
+  ],
   [UnitType.Viking]: [{ name: 'Transform', key: 'E', commandType: CommandType.SiegeToggle }],
   [UnitType.Battlecruiser]: [{ name: 'Yamato', key: 'Y', commandType: CommandType.Yamato }],
-  [UnitType.Queen]: [{ name: 'Inject Larva', key: 'V', commandType: CommandType.InjectLarva }],
+  [UnitType.Queen]: [
+    { name: 'Inject Larva', key: 'V', commandType: CommandType.InjectLarva },
+    { name: 'Transfuse', key: 'X', commandType: CommandType.Transfuse },
+  ],
   [UnitType.Ravager]: [{ name: 'Bile', key: 'R', commandType: CommandType.CorrosiveBile }],
   [UnitType.Infestor]: [{ name: 'Fungal', key: 'F', commandType: CommandType.FungalGrowth }],
   [UnitType.Viper]: [{ name: 'Abduct', key: 'G', commandType: CommandType.Abduct }],

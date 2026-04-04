@@ -5,7 +5,7 @@ import {
   workerState, workerCarrying, workerTargetEid, workerMineTimer,
   workerBaseX, workerBaseY,
   movePathIndex, setPath,
-  resourceRemaining, hpCurrent, resourceType,
+  resourceRemaining, hpCurrent, hpMax, resourceType,
   buildingType, buildState,
   workerCountOnResource,
 } from '../ecs/components';
@@ -13,6 +13,7 @@ import { findNearestMineral } from '../ecs/queries';
 import {
   WorkerState, ResourceType, BuildingType, BuildState,
   WORKER_CARRY_MINERALS, WORKER_CARRY_GAS, MINE_DURATION, WORKER_MINE_RANGE,
+  REPAIR_RATE, REPAIR_COST_RATIO,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
@@ -48,6 +49,9 @@ export function gatherSystem(
         break;
       case WorkerState.ReturningToBase:
         tickReturningToBase(world, eid, map, resources);
+        break;
+      case WorkerState.Repairing:
+        tickRepairing(world, eid, dt, map, resources);
         break;
     }
   }
@@ -230,6 +234,91 @@ function tickReturningToBase(
         workerTargetEid[eid] = -1;
       }
     }
+  }
+}
+
+const REPAIR_RANGE = WORKER_MINE_RANGE * 2; // px — generous range for buildings
+
+function tickRepairing(
+  world: World,
+  eid: number,
+  dt: number,
+  map: MapData,
+  resources: Record<number, PlayerResources>,
+): void {
+  const target = workerTargetEid[eid];
+
+  // Validate target still exists and is alive
+  if (target < 1 || !entityExists(world, target) || hpCurrent[target] <= 0) {
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
+    return;
+  }
+
+  // Check if target is still damaged
+  if (hpCurrent[target] >= hpMax[target]) {
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
+    return;
+  }
+
+  // Check if player has minerals
+  const fac = faction[eid];
+  const res = resources[fac];
+  if (!res || res.minerals <= 0) {
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
+    return;
+  }
+
+  // Check range
+  const dx = posX[target] - posX[eid];
+  const dy = posY[target] - posY[eid];
+  const distSq = dx * dx + dy * dy;
+
+  if (distSq > REPAIR_RANGE * REPAIR_RANGE) {
+    // Out of range — path toward target
+    if (movePathIndex[eid] < 0) {
+      pathToEntity(eid, target, map);
+    }
+    return;
+  }
+
+  // In range — stop movement and repair
+  movePathIndex[eid] = -1;
+
+  const hpToRestore = Math.min(
+    REPAIR_RATE * (dt / 1000),
+    hpMax[target] - hpCurrent[target],
+  );
+
+  // Cap by available minerals
+  const affordable = Math.min(hpToRestore, res.minerals / REPAIR_COST_RATIO);
+  if (affordable <= 0) {
+    workerState[eid] = WorkerState.Idle;
+    workerTargetEid[eid] = -1;
+    return;
+  }
+
+  const actualRestore = Math.min(affordable, hpMax[target] - hpCurrent[target]);
+  hpCurrent[target] += actualRestore;
+  res.minerals -= actualRestore * REPAIR_COST_RATIO;
+}
+
+function pathToEntity(eid: number, target: number, map: MapData): void {
+  const targetTile = worldToTile(posX[target], posY[target]);
+  const walkable = findNearestWalkableTile(map, targetTile.col, targetTile.row);
+  if (!walkable) return;
+
+  const startTile = worldToTile(posX[eid], posY[eid]);
+  const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
+
+  if (tilePath.length > 0) {
+    const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+      const wp = tileToWorld(c, r);
+      return [wp.x, wp.y] as [number, number];
+    });
+    setPath(eid, worldPath);
   }
 }
 

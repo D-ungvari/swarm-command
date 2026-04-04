@@ -939,16 +939,16 @@ export class Game {
                 return; // No creep — can't build here
               }
             }
-            const res = this.resources[Faction.Zerg];
+            const res = this.resources[this.playerFaction];
             if (res.minerals >= def.costMinerals && res.gas >= def.costGas) {
               res.minerals -= def.costMinerals;
               res.gas -= def.costGas;
-              this.spawnBuilding(this.placementBuildingType as BuildingType, Faction.Zerg, tile.col, tile.row);
+              this.spawnBuilding(this.placementBuildingType as BuildingType, this.playerFaction, tile.col, tile.row);
               soundManager.playBuild();
               // Find and consume a Drone (Drone morphs into building)
               for (let eid = 1; eid < this.world.nextEid; eid++) {
                 if (unitType[eid] !== UnitType.Drone) continue;
-                if (faction[eid] !== Faction.Zerg) continue;
+                if (faction[eid] !== this.playerFaction) continue;
                 if (hpCurrent[eid] <= 0) continue;
                 if (selected[eid] !== 1) continue;
                 hpCurrent[eid] = 0; // Drone consumed — DeathSystem cleans up

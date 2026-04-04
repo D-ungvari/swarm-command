@@ -171,6 +171,10 @@ export const fungalLandX = new Float32Array(MAX_ENTITIES);
 /** World Y position of the fungal impact */
 export const fungalLandY = new Float32Array(MAX_ENTITIES);
 
+// ── Supply Depot lowered state ──
+/** 0 = raised (default), 1 = lowered (walkable) */
+export const depotLowered = new Uint8Array(MAX_ENTITIES);
+
 // ── Addon (Tech Lab / Reactor) ──
 /** 0=none, 1=TechLab, 2=Reactor */
 export const addonType = new Uint8Array(MAX_ENTITIES);
@@ -321,6 +325,7 @@ export function resetComponents(eid: number): void {
   fungalLandTime[eid] = 0;
   fungalLandX[eid] = 0;
   fungalLandY[eid] = 0;
+  depotLowered[eid] = 0;
   addonType[eid] = 0;
   buildingType[eid] = 0;
   buildState[eid] = 0;

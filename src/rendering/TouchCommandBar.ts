@@ -130,6 +130,16 @@ export class TouchCommandBar {
       forUnits: [UnitType.Viper],
       action: () => this.simulationQueue.push({ type: CommandType.Abduct, units: this.snapshotSelection() }),
     },
+    {
+      label: 'Snipe', shortcut: 'D', color: '#00ccff',
+      forUnits: [UnitType.Ghost],
+      action: () => this.simulationQueue.push({ type: CommandType.Snipe, units: this.snapshotSelection() }),
+    },
+    {
+      label: 'Transfuse', shortcut: 'X', color: '#44ff44',
+      forUnits: [UnitType.Queen],
+      action: () => this.simulationQueue.push({ type: CommandType.Transfuse, units: this.snapshotSelection() }),
+    },
   ];
 
   /** Call once per frame with the set of selected unit types */

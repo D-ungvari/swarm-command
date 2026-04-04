@@ -61,7 +61,7 @@ export const ResourceType = {
   Mineral: 1, Gas: 2,
 } as const;
 export const WorkerState = {
-  Idle: 0, MovingToResource: 1, Mining: 2, ReturningToBase: 3,
+  Idle: 0, MovingToResource: 1, Mining: 2, ReturningToBase: 3, Repairing: 4,
 } as const;
 export const BuildingType = {
   CommandCenter: 20, SupplyDepot: 21, Barracks: 22,

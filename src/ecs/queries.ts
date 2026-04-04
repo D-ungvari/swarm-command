@@ -248,6 +248,37 @@ export function findNearestCommandCenter(world: World, fac: Faction, wx: number,
 }
 
 /**
+ * Find the closest friendly building at or near a world position.
+ * Returns entity ID or 0 if none found within tolerance.
+ */
+export function findFriendlyBuildingAt(world: World, wx: number, wy: number, myFaction: number): number {
+  const bits = POSITION | BUILDING | RENDERABLE | HEALTH;
+  let closestEid = 0;
+  let closestDist = Infinity;
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (faction[eid] !== myFaction) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const halfW = renderWidth[eid] / 2 + 6;
+    const halfH = renderHeight[eid] / 2 + 6;
+
+    if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
+      const dist = dx * dx + dy * dy;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestEid = eid;
+      }
+    }
+  }
+
+  return closestEid;
+}
+
+/**
  * Find the closest friendly unit (not building) at or near a world position.
  * Returns entity ID or 0 if none found within tolerance.
  */

@@ -1,7 +1,7 @@
 import { type World, hasComponents } from '../ecs/world';
 import {
-  POSITION, SELECTABLE, MOVEMENT, UNIT_TYPE, BUILDING,
-  posX, posY, selected, moveTargetX, moveTargetY,
+  POSITION, SELECTABLE, MOVEMENT, UNIT_TYPE, BUILDING, HEALTH,
+  posX, posY, selected, moveTargetX, moveTargetY, hpMax,
   setPath, appendPath, getPathWaypoint, pathLengths, faction, movePathIndex, unitType, velX, velY,
   targetEntity, commandMode,
   patrolOriginX, patrolOriginY,
@@ -16,19 +16,22 @@ import {
   atkLastTime,
   bileLandTime, bileLandX, bileLandY,
   fungalLandTime, fungalLandX, fungalLandY,
+  depotLowered,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
-import { findEnemyAt, findResourceAt, findBuildingAt, findFriendlyAt, hasCompletedBuilding } from '../ecs/queries';
+import { findEnemyAt, findResourceAt, findBuildingAt, findFriendlyAt, findFriendlyBuildingAt, hasCompletedBuilding } from '../ecs/queries';
 import { CommandType, type GameCommand } from '../input/CommandQueue';
 import type { MapData } from '../map/MapData';
-import { worldToTile, tileToWorld, findNearestWalkableTile } from '../map/MapData';
+import { worldToTile, tileToWorld, findNearestWalkableTile, markBuildingTiles, clearBuildingTiles } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import {
   Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, TILE_SIZE,
   STIM_DURATION, STIM_HP_COST, STIM_HP_COST_MARAUDER, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
+  SNIPE_DAMAGE, SNIPE_ENERGY_COST, SNIPE_RANGE,
+  TRANSFUSE_HEAL, TRANSFUSE_ENERGY_COST, TRANSFUSE_RANGE,
 } from '../constants';
 import type { PlayerResources } from '../types';
 import type { Viewport } from 'pixi-viewport';
@@ -240,6 +243,107 @@ export function commandSystem(
         break;
       }
 
+      case CommandType.Snipe: {
+        if (!cmd.units) break;
+        const SNIPE_RANGE_PX = SNIPE_RANGE * TILE_SIZE;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Ghost) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (energy[eid] < SNIPE_ENERGY_COST) continue;
+          // Find nearest enemy biological unit in range
+          const myFac = faction[eid];
+          let bestTgt = 0;
+          let bestDist = Infinity;
+          for (let other = 1; other < world.nextEid; other++) {
+            if (!hasComponents(world, other, POSITION | UNIT_TYPE)) continue;
+            if (faction[other] === myFac || faction[other] === 0) continue;
+            if (hpCurrent[other] <= 0) continue;
+            const dx = posX[other] - posX[eid];
+            const dy = posY[other] - posY[eid];
+            const distSq = dx * dx + dy * dy;
+            if (distSq <= SNIPE_RANGE_PX * SNIPE_RANGE_PX && distSq < bestDist) {
+              bestDist = distSq;
+              bestTgt = other;
+            }
+          }
+          if (bestTgt === 0) continue;
+          energy[eid] -= SNIPE_ENERGY_COST;
+          hpCurrent[bestTgt] = Math.max(0, hpCurrent[bestTgt] - SNIPE_DAMAGE);
+          emitProjectile({
+            fromX: posX[eid], fromY: posY[eid],
+            toX: posX[bestTgt], toY: posY[bestTgt],
+            unitType: UnitType.Ghost,
+            speed: 400,
+            time: gameTime,
+          });
+          damageEvents.push({
+            x: posX[bestTgt],
+            y: posY[bestTgt],
+            amount: SNIPE_DAMAGE,
+            time: gameTime,
+            color: 0x00ccff,
+          });
+          addCommandPing(posX[bestTgt], posY[bestTgt], 0x00ccff, gameTime);
+          soundManager.playSnipe();
+        }
+        break;
+      }
+
+      case CommandType.Transfuse: {
+        if (!cmd.units) break;
+        const TRANSFUSE_RANGE_PX = TRANSFUSE_RANGE * TILE_SIZE;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Queen) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (energy[eid] < TRANSFUSE_ENERGY_COST) continue;
+          // Find nearest friendly damaged unit/building within range
+          const myFac = faction[eid];
+          let bestTgt = 0;
+          let bestDist = Infinity;
+          for (let other = 1; other < world.nextEid; other++) {
+            if (other === eid) continue;
+            if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+            if (faction[other] !== myFac) continue;
+            if (hpCurrent[other] <= 0) continue;
+            if (hpCurrent[other] >= hpMax[other]) continue; // must be damaged
+            const dx = posX[other] - posX[eid];
+            const dy = posY[other] - posY[eid];
+            const distSq = dx * dx + dy * dy;
+            if (distSq <= TRANSFUSE_RANGE_PX * TRANSFUSE_RANGE_PX && distSq < bestDist) {
+              bestDist = distSq;
+              bestTgt = other;
+            }
+          }
+          if (bestTgt === 0) continue;
+          energy[eid] -= TRANSFUSE_ENERGY_COST;
+          hpCurrent[bestTgt] = Math.min(hpMax[bestTgt], hpCurrent[bestTgt] + TRANSFUSE_HEAL);
+          addCommandPing(posX[bestTgt], posY[bestTgt], 0x44ff44, gameTime);
+          soundManager.playTransfuse();
+        }
+        break;
+      }
+
+      case CommandType.DepotLower: {
+        if (!cmd.units) break;
+        for (const eid of cmd.units) {
+          if (!hasComponents(world, eid, BUILDING)) continue;
+          if (buildingType[eid] !== BuildingType.SupplyDepot) continue;
+          if (buildState[eid] !== BuildState.Complete) continue;
+          const tile = worldToTile(posX[eid], posY[eid]);
+          const def = BUILDING_DEFS[BuildingType.SupplyDepot];
+          if (depotLowered[eid] === 0) {
+            // Lower the depot — make tiles walkable
+            depotLowered[eid] = 1;
+            clearBuildingTiles(map, tile.col, tile.row, def.tileWidth, def.tileHeight);
+          } else {
+            // Raise the depot — make tiles unwalkable
+            depotLowered[eid] = 0;
+            markBuildingTiles(map, tile.col, tile.row, def.tileWidth, def.tileHeight);
+          }
+        }
+        break;
+      }
+
       case CommandType.Cancel:
         if (resources) cancelSelectedBuildings(world, resources);
         break;
@@ -338,17 +442,67 @@ export function commandSystem(
           break;
         }
 
-        // Check if right-clicking on a friendly unit (Medivac heal-follow)
+        // Check if right-clicking on a friendly building (SCV repair)
+        const friendlyBuilding = findFriendlyBuildingAt(world, wx, wy, playerFaction);
+        if (friendlyBuilding > 0 && hpCurrent[friendlyBuilding] < hpMax[friendlyBuilding]) {
+          const scvs: number[] = [];
+          const others: number[] = [];
+          for (const eid of units) {
+            (unitType[eid] === UnitType.SCV ? scvs : others).push(eid);
+          }
+          for (const eid of scvs) {
+            workerTargetEid[eid] = friendlyBuilding;
+            workerState[eid] = WorkerState.Repairing;
+            commandMode[eid] = CommandMode.Gather;
+            targetEntity[eid] = -1;
+            const bldTile = worldToTile(posX[friendlyBuilding], posY[friendlyBuilding]);
+            const walkable = findNearestWalkableTile(map, bldTile.col, bldTile.row);
+            if (walkable) {
+              const startTile = worldToTile(posX[eid], posY[eid]);
+              const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
+              if (tilePath.length > 0) {
+                setPath(eid, tilePath.map(([c, r]) => { const wp = tileToWorld(c, r); return [wp.x, wp.y] as [number, number]; }));
+              }
+            }
+          }
+          if (others.length > 0) issuePathCommand(world, others, wx, wy, map, CommandMode.Move, cmd.shiftHeld ?? false);
+          if (scvs.length > 0) addCommandPing(wx, wy, 0x44ff44, gameTime);
+          break;
+        }
+
+        // Check if right-clicking on a friendly unit (Medivac heal-follow, SCV repair)
         const friendly = findFriendlyAt(world, wx, wy, playerFaction);
         if (friendly > 0) {
           const medivacs: number[] = [];
+          const scvs: number[] = [];
           const others: number[] = [];
           for (const eid of units) {
-            (unitType[eid] === UnitType.Medivac ? medivacs : others).push(eid);
+            if (unitType[eid] === UnitType.Medivac) medivacs.push(eid);
+            else if (unitType[eid] === UnitType.SCV) scvs.push(eid);
+            else others.push(eid);
           }
           if (medivacs.length > 0) {
             issuePathCommand(world, medivacs, posX[friendly], posY[friendly], map, CommandMode.Move);
             addCommandPing(posX[friendly], posY[friendly], 0x00ffff, gameTime);
+          }
+          // SCV repair: target must be damaged and Terran faction (mechanical)
+          if (scvs.length > 0 && hpCurrent[friendly] < hpMax[friendly] && faction[friendly] === Faction.Terran) {
+            for (const eid of scvs) {
+              workerTargetEid[eid] = friendly;
+              workerState[eid] = WorkerState.Repairing;
+              commandMode[eid] = CommandMode.Gather;
+              targetEntity[eid] = -1;
+            }
+            issuePathCommand(world, scvs, posX[friendly], posY[friendly], map, CommandMode.Move);
+            // Re-set worker state after issuePathCommand (it clears workerState to Idle)
+            for (const eid of scvs) {
+              workerState[eid] = WorkerState.Repairing;
+              workerTargetEid[eid] = friendly;
+              commandMode[eid] = CommandMode.Gather;
+            }
+            addCommandPing(posX[friendly], posY[friendly], 0x44ff44, gameTime);
+          } else if (scvs.length > 0) {
+            others.push(...scvs);
           }
           if (others.length > 0) {
             issuePathCommand(world, others, wx, wy, map, CommandMode.Move, cmd.shiftHeld ?? false);

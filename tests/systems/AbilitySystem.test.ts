@@ -246,7 +246,7 @@ describe('AbilitySystem', () => {
       abilitySystem(world, 1 / 60, gameTime + SIEGE_PACK_TIME + 0.01);
 
       expect(siegeMode[tank]).toBe(SiegeMode.Sieged);
-      expect(atkDamage[tank]).toBe(40);
+      expect(atkDamage[tank]).toBe(35);
       expect(atkRange[tank]).toBe(SIEGE_RANGE * TILE_SIZE);
       expect(atkSplash[tank]).toBe(1.25);
     });

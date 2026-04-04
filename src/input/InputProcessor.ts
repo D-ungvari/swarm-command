@@ -134,6 +134,10 @@ export class InputProcessor {
           this.simulationQueue.push({ type: CommandType.Produce, data: slot, units: this.snapshotSelection() });
         }
       }
+      // L: toggle Supply Depot lowering
+      if (keys.has('KeyL')) {
+        this.simulationQueue.push({ type: CommandType.DepotLower, units: this.snapshotSelection() });
+      }
     } else {
       // Unit ability keybindings
 
@@ -181,6 +185,14 @@ export class InputProcessor {
       // Abduct (Viper) — pulls current attack target to Viper
       if (keys.has('KeyG')) {
         this.simulationQueue.push({ type: CommandType.Abduct, units: this.snapshotSelection() });
+      }
+      // Snipe (Ghost) — instant 170 damage to nearest enemy bio
+      if (keys.has('KeyD')) {
+        this.simulationQueue.push({ type: CommandType.Snipe, units: this.snapshotSelection() });
+      }
+      // Transfuse (Queen) — heal 75 HP to nearest damaged friendly
+      if (keys.has('KeyX')) {
+        this.simulationQueue.push({ type: CommandType.Transfuse, units: this.snapshotSelection() });
       }
     }
   }

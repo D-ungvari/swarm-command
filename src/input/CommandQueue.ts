@@ -26,6 +26,9 @@ export const enum CommandType {
   CorrosiveBile = 23,
   FungalGrowth = 24,
   Abduct = 25,
+  Snipe = 27,
+  Transfuse = 28,
+  DepotLower = 29,
 }
 
 export interface GameCommand {

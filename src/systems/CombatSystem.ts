@@ -290,6 +290,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // Apply damage
     hpCurrent[tgt] -= rawDmg;
 
+    // Overkill prevention: subtract delivered damage from pending total
+    pendingDamage[tgt] = Math.max(0, pendingDamage[tgt] - rawDmg);
+
     // Push damage event for floating indicator
     if (damageEvents.length < MAX_DAMAGE_EVENTS) {
       // Color based on victim faction: red if Terran got hit, blue-white if Zerg got hit

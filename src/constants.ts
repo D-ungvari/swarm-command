@@ -133,6 +133,7 @@ export const enum WorkerState {
   MovingToResource = 1,
   Mining = 2,
   ReturningToBase = 3,
+  Repairing = 4,
 }
 
 // ── Siege mode states ──
@@ -160,6 +161,17 @@ export enum UpgradeType {
 }
 
 // ── Ability constants ──
+// Ghost Snipe
+export const SNIPE_DAMAGE = 170;
+export const SNIPE_ENERGY_COST = 75;
+export const SNIPE_RANGE = 10; // tiles
+export const SNIPE_CHANNEL_TIME = 1.5; // seconds (instant for now)
+
+// Queen Transfuse
+export const TRANSFUSE_HEAL = 75;
+export const TRANSFUSE_ENERGY_COST = 50;
+export const TRANSFUSE_RANGE = 7; // tiles
+
 // Stim Pack (Marine + Marauder)
 export const STIM_DURATION = 11.0;
 export const STIM_HP_COST = 10;            // Marine HP cost
@@ -173,7 +185,7 @@ export const SLOW_FACTOR = 0.5;
 
 // Siege Mode (Siege Tank)
 export const SIEGE_PACK_TIME = 2.7;
-export const SIEGE_DAMAGE = 40;
+export const SIEGE_DAMAGE = 35;
 export const SIEGE_RANGE = 13;
 export const SIEGE_SPLASH = 1.25;
 export const SIEGE_BONUS_DAMAGE = 30;      // +30 vs Armored
@@ -212,6 +224,10 @@ export const MINE_DURATION = 1.5; // seconds
 export const STARTING_MINERALS = 50;
 export const STARTING_GAS = 0;
 export const WORKER_MINE_RANGE = 48; // px (~1.5 tiles)
+
+// ── Repair constants ──
+export const REPAIR_RATE = 22.4;       // HP per second (SC2 SCV repair rate)
+export const REPAIR_COST_RATIO = 0.25; // minerals per HP restored (approximate)
 
 // ── Game speed ──
 export const GAME_SPEEDS = [0.5, 1.0, 1.5, 2.0] as const;

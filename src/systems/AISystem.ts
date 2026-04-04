@@ -1,12 +1,15 @@
 import { type World, entityExists, hasComponents } from '../ecs/world';
 import {
-  POSITION, BUILDING, HEALTH, UNIT_TYPE, ATTACK,
+  POSITION, BUILDING, HEALTH, UNIT_TYPE, ATTACK, WORKER,
   posX, posY, faction, hpCurrent, hpMax, commandMode, unitType,
   buildingType, buildState, targetEntity,
   setPath, movePathIndex,
   energy, injectTimer, atkDamage, atkRange, atkCooldown, atkLastTime,
+  prodUnitType, prodProgress, prodTimeTotal, prodQueue, prodQueueLen, PROD_QUEUE_MAX,
+  larvaCount, larvaRegenTimer,
+  workerState, workerTargetEid, workerBaseX, workerBaseY,
 } from '../ecs/components';
-import { findNearestCommandCenter } from '../ecs/queries';
+import { findNearestCommandCenter, findNearestMineral } from '../ecs/queries';
 import { isTileVisible } from './FogSystem';
 import {
   Faction, UnitType, CommandMode, MAX_ENTITIES, TILE_SIZE,
@@ -14,13 +17,16 @@ import {
   MAP_COLS, MAP_ROWS, UpgradeType,
   Difficulty, DIFFICULTY_CONFIGS,
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
+  WorkerState,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
+import { spatialHash } from '../ecs/SpatialHash';
 import {
   worldToTile, tileToWorld, findNearestWalkableTile, type MapData,
 } from '../map/MapData';
 import type { PlayerResources } from '../types';
 import { UNIT_DEFS } from '../data/units';
+import { BUILDING_DEFS } from '../data/buildings';
 import { rng } from '../utils/SeededRng';
 
 // ─────────────────────────────────────────
@@ -82,6 +88,239 @@ let buildOrderIndex = 0;
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
 type SpawnBuildingFn = (type: number, fac: number, col: number, row: number) => number;
+
+// ─────────────────────────────────────────
+// Fair-play production: queue units through buildings
+// ─────────────────────────────────────────
+function aiQueueUnit(
+  world: World,
+  uType: number,
+  resources: Record<number, PlayerResources>,
+): boolean {
+  const res = resources[currentAIFaction];
+  if (!res) return false;
+
+  const uDef = UNIT_DEFS[uType];
+  if (!uDef) return false;
+
+  // Check resources
+  if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) return false;
+
+  // Check supply (Overlords provide supply, don't cost it)
+  if (uDef.supply > 0 && res.supplyUsed + uDef.supply > res.supplyProvided) return false;
+
+  // Find a completed production building that can produce this unit
+  let prodBuilding = 0;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
+    if (faction[eid] !== currentAIFaction) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    if (hpCurrent[eid] <= 0) continue;
+
+    const bDef = BUILDING_DEFS[buildingType[eid]];
+    if (!bDef || !bDef.produces.includes(uType)) continue;
+
+    // Check queue not full
+    const totalQueued = (prodUnitType[eid] !== 0 ? 1 : 0) + prodQueueLen[eid];
+    if (totalQueued >= PROD_QUEUE_MAX) continue;
+
+    // Zerg: check larva
+    if (buildingType[eid] === BuildingType.Hatchery && larvaCount[eid] <= 0) continue;
+
+    prodBuilding = eid;
+    break;
+  }
+
+  if (prodBuilding === 0) return false;
+
+  // Deduct resources
+  res.minerals -= uDef.costMinerals;
+  res.gas -= uDef.costGas;
+
+  // Queue production
+  if (prodUnitType[prodBuilding] === 0) {
+    // Consume larva for Zerg
+    if (buildingType[prodBuilding] === BuildingType.Hatchery) {
+      larvaCount[prodBuilding]--;
+      if (larvaRegenTimer[prodBuilding] <= 0 && larvaCount[prodBuilding] < 3) {
+        larvaRegenTimer[prodBuilding] = 11;
+      }
+    }
+    prodUnitType[prodBuilding] = uType;
+    prodProgress[prodBuilding] = uDef.buildTime;
+    prodTimeTotal[prodBuilding] = uDef.buildTime;
+  } else {
+    const qBase = prodBuilding * PROD_QUEUE_MAX;
+    prodQueue[qBase + prodQueueLen[prodBuilding]] = uType;
+    prodQueueLen[prodBuilding]++;
+  }
+
+  return true;
+}
+
+// ─────────────────────────────────────────
+// Claim newly produced AI units into army sets
+// ─────────────────────────────────────────
+function claimNewUnits(world: World): void {
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, POSITION | HEALTH | UNIT_TYPE)) continue;
+    if (hasComponents(world, eid, BUILDING)) continue;
+    if (hasComponents(world, eid, WORKER)) continue;
+    if (faction[eid] !== currentAIFaction) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (unitType[eid] === UnitType.Overlord) continue;
+
+    const armySet = currentAIFaction === Faction.Terran ? terranArmyEids : armyEids;
+    if (armySet.has(eid) || harassEids.has(eid) || scoutEids.has(eid)
+        || defenseEids.has(eid) || harassSquad1.has(eid) || harassSquad2.has(eid)
+        || vanguardEids.has(eid) || terranArmyEids.has(eid)) continue;
+
+    armySet.add(eid);
+  }
+}
+
+// ─────────────────────────────────────────
+// Macro management helpers
+// ─────────────────────────────────────────
+function assignIdleWorkers(world: World, map: MapData): void {
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, WORKER | POSITION)) continue;
+    if (faction[eid] !== currentAIFaction) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (workerState[eid] !== WorkerState.Idle) continue;
+
+    // Find nearest mineral
+    const mineralEid = findNearestMineral(world, posX[eid], posY[eid]);
+    if (mineralEid === 0) continue;
+
+    // Find nearest base for return trips
+    let baseEid = 0;
+    let baseDist = Infinity;
+    const baseType = currentAIFaction === Faction.Zerg ? BuildingType.Hatchery : BuildingType.CommandCenter;
+    for (let b = 1; b < world.nextEid; b++) {
+      if (!hasComponents(world, b, BUILDING | POSITION)) continue;
+      if (faction[b] !== currentAIFaction) continue;
+      if (buildingType[b] !== baseType) continue;
+      if (buildState[b] !== BuildState.Complete) continue;
+      if (hpCurrent[b] <= 0) continue;
+      const dx = posX[b] - posX[eid];
+      const dy = posY[b] - posY[eid];
+      const d = dx * dx + dy * dy;
+      if (d < baseDist) { baseDist = d; baseEid = b; }
+    }
+    if (baseEid === 0) continue;
+
+    // Assign worker to mine
+    workerState[eid] = WorkerState.MovingToResource;
+    workerTargetEid[eid] = mineralEid;
+    workerBaseX[eid] = posX[baseEid];
+    workerBaseY[eid] = posY[baseEid];
+    commandMode[eid] = CommandMode.Move;
+    pathTo(eid, posX[mineralEid], posY[mineralEid], map);
+  }
+}
+
+function countAIWorkers(world: World): number {
+  let count = 0;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, WORKER | POSITION)) continue;
+    if (faction[eid] !== currentAIFaction) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    count++;
+  }
+  return count;
+}
+
+function countAIBases(world: World): number {
+  let count = 0;
+  const baseType = currentAIFaction === Faction.Zerg ? BuildingType.Hatchery : BuildingType.CommandCenter;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
+    if (faction[eid] !== currentAIFaction) continue;
+    if (buildingType[eid] !== baseType) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    count++;
+  }
+  return count;
+}
+
+function findTerranCC(world: World): number {
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
+    if (faction[eid] !== Faction.Terran) continue;
+    if (buildingType[eid] !== BuildingType.CommandCenter) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    return eid;
+  }
+  return 0;
+}
+
+function aiBuildBuilding(
+  _world: World,
+  bType: number,
+  col: number,
+  row: number,
+  _map: MapData,
+  resources: Record<number, PlayerResources>,
+  spawnBuildingFn: SpawnBuildingFn,
+): boolean {
+  const res = resources[currentAIFaction];
+  if (!res) return false;
+  const bDef = BUILDING_DEFS[bType];
+  if (!bDef) return false;
+  if (res.minerals < bDef.costMinerals || res.gas < bDef.costGas) return false;
+
+  res.minerals -= bDef.costMinerals;
+  res.gas -= bDef.costGas;
+  spawnBuildingFn(bType, currentAIFaction, col, row);
+  return true;
+}
+
+function runMacroManagement(
+  world: World,
+  map: MapData,
+  resources: Record<number, PlayerResources>,
+  gameTime: number,
+  spawnBuildingFn: SpawnBuildingFn,
+): void {
+  const res = resources[currentAIFaction];
+  if (!res) return;
+
+  // 1. Assign idle workers to mine
+  assignIdleWorkers(world, map);
+
+  // 2. Build supply when near cap (within 4 supply)
+  if (res.supplyProvided - res.supplyUsed < 4 && res.supplyProvided < 200) {
+    if (currentAIFaction === Faction.Zerg) {
+      aiQueueUnit(world, UnitType.Overlord, resources);
+    } else {
+      // Terran: build Supply Depot
+      const cc = findTerranCC(world);
+      if (cc > 0 && res.minerals >= 100) {
+        const ccTile = worldToTile(posX[cc], posY[cc]);
+        const depotCol = ccTile.col + 4 + rng.nextInt(3);
+        const depotRow = ccTile.row + rng.nextInt(3) - 1;
+        aiBuildBuilding(world, BuildingType.SupplyDepot, depotCol, depotRow, map, resources, spawnBuildingFn);
+      }
+    }
+  }
+
+  // 3. Keep making workers until saturated (max ~16 per base)
+  const workerCount = countAIWorkers(world);
+  const baseCount = countAIBases(world);
+  if (workerCount < baseCount * 16 && res.minerals >= 50) {
+    if (currentAIFaction === Faction.Zerg) {
+      aiQueueUnit(world, UnitType.Drone, resources);
+    } else {
+      aiQueueUnit(world, UnitType.SCV, resources);
+    }
+  }
+
+  // 4. Build tech buildings on schedule
+  checkAIBuildingSchedule(world, map, resources, spawnBuildingFn, gameTime);
+}
 
 // ─────────────────────────────────────────
 // B.1 — Defense tuning constants
@@ -146,9 +385,6 @@ const INITIAL_DELAYS: Record<Difficulty, number> = {
   [Difficulty.Brutal]: 0,
 };
 const DECISION_INTERVAL = 15;
-const BASE_INCOME = 3.0;
-const GAS_INCOME_RATIO = 0.35;
-const INCOME_GROWTH_PER_WAVE = 0.25;
 const MAX_SPAWNS_PER_DECISION = 3;
 
 const FIRST_WAVE_SIZES: Record<Difficulty, number> = {
@@ -278,8 +514,6 @@ let currentDifficulty: Difficulty = Difficulty.Normal;
 let currentAIFaction: Faction = Faction.Zerg;
 let playerBaseTile = { col: 15, row: 15 }; // where the player base is
 let enemyFaction: Faction = Faction.Terran; // who the AI is fighting
-let aiMinerals = 0;
-let aiGas = 0;
 let waveCount = 0;
 let lastAIUpgradeWave = 0; // last wave count when AI upgraded
 let nextAIUpgradeType = 3; // ZergMelee=3, ZergRanged=4, ZergCarapace=5 cycling
@@ -332,14 +566,13 @@ const VANGUARD_TILE = { col: 64, row: 64 }; // map center
 
 let hasExpanded = false;
 let currentMap: MapData | null = null;
+let cachedResources: Record<number, PlayerResources> | null = null;
 
 export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Faction = Faction.Zerg): void {
   currentDifficulty = difficulty;
   currentAIFaction = aiFaction;
   enemyFaction = aiFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg;
   playerBaseTile = aiFaction === Faction.Zerg ? { col: 15, row: 15 } : { col: 117, row: 117 };
-  aiMinerals = 0;
-  aiGas = 0;
   waveCount = 0;
   tickCounter = 0;
   lastDecisionTime = 0;
@@ -367,8 +600,6 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   vanguardEids = new Set();
   terranArmyEids = new Set();
   terranLastSpawnTime = 0;
-  terranAIMinerals = 0;
-  terranAIGas = 0;
   personality = randomPersonality();
   intel = resetIntel();
   apmBudget = 0;
@@ -401,12 +632,16 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
 }
 
 export function getAIState() {
-  return { aiMinerals, aiGas, waveCount, isAttacking, armySize: armyEids.size, defenseSize: defenseEids.size, apmBudget: Math.round(apmBudget), strategy: currentStrategy };
+  const res = cachedResources?.[currentAIFaction];
+  return { aiMinerals: res?.minerals ?? 0, aiGas: res?.gas ?? 0, waveCount, isAttacking, armySize: armyEids.size, defenseSize: defenseEids.size, apmBudget: Math.round(apmBudget), strategy: currentStrategy };
 }
 
 export function setAIMinerals(m: number, g: number = 0): void {
-  aiMinerals = m;
-  aiGas = g;
+  const res = cachedResources?.[currentAIFaction];
+  if (res) {
+    res.minerals = m;
+    res.gas = g;
+  }
 }
 
 // ─────────────────────────────────────────
@@ -416,7 +651,6 @@ function executeBuildOrder(
   world: World,
   resources: Record<number, PlayerResources>,
   gameTime: number,
-  spawnUnit: SpawnFn,
 ): void {
   if (!activeBuildOrder || buildOrderIndex >= activeBuildOrder.length) return;
   if (world.nextEid >= MAX_ENTITIES - 50) return; // entity cap safety
@@ -451,13 +685,8 @@ function executeBuildOrder(
     case 'unit': {
       const def = UNIT_DEFS[step.action.type];
       if (!def) { step.done = true; buildOrderIndex++; return; }
-      if (aiMinerals < def.costMinerals || aiGas < def.costGas) return; // wait for resources
-      aiMinerals -= def.costMinerals;
-      aiGas -= def.costGas;
-      const hatch = findZergHatchery(world);
-      if (!hatch) return;
-      const eid = spawnUnit(step.action.type, currentAIFaction, posX[hatch] + (rng.next() - 0.5) * 48, posY[hatch] + (rng.next() - 0.5) * 48);
-      armyEids.add(eid);
+      // aiQueueUnit handles resource check, deduction, and production queue
+      if (!aiQueueUnit(world, step.action.type, resources)) return; // wait for resources/larva
       step.done = true;
       if (step.trigger !== 'always') buildOrderIndex++;
       break;
@@ -487,7 +716,7 @@ function executeBuildOrder(
 // ─────────────────────────────────────────
 // Base Defense (B.1)
 // ─────────────────────────────────────────
-function checkBaseUnderAttack(world: World, gameTime: number, map: MapData, spawnFn: SpawnFn): void {
+function checkBaseUnderAttack(world: World, gameTime: number, map: MapData, resources: Record<number, PlayerResources>): void {
   if (gameTime - lastDefenseTime < 15) return; // 15s cooldown between defense activations
 
   // Find if any enemy units are within DEFENSE_DETECTION_RANGE tiles of any AI building
@@ -521,23 +750,11 @@ function checkBaseUnderAttack(world: World, gameTime: number, map: MapData, spaw
   // Determine which army set to peel from
   const armySet = currentAIFaction === Faction.Terran ? terranArmyEids : armyEids;
 
-  // Emergency spawn if army too small
+  // Emergency spawn if army too small — queue through production (fair-play)
   if (armySet.size < EMERGENCY_SPAWN_THRESHOLD && world.nextEid < MAX_ENTITIES - 50) {
-    // Find a production building
-    let prodBuildingEid = 0;
-    const targetBuildingType = currentAIFaction === Faction.Zerg ? BuildingType.Hatchery : BuildingType.Barracks;
-    for (let eid = 1; eid < world.nextEid; eid++) {
-      if (!hasComponents(world, eid, BUILDING)) continue;
-      if (faction[eid] !== currentAIFaction) continue;
-      if (hpCurrent[eid] <= 0) continue;
-      if (buildingType[eid] === targetBuildingType) { prodBuildingEid = eid; break; }
-    }
-    if (prodBuildingEid > 0) {
-      const spawnType = currentAIFaction === Faction.Zerg ? UnitType.Zergling : UnitType.Marine;
-      for (let i = 0; i < EMERGENCY_SPAWN_COUNT; i++) {
-        const eid = spawnFn(spawnType, currentAIFaction, posX[prodBuildingEid] + (rng.next() - 0.5) * 48, posY[prodBuildingEid] + (rng.next() - 0.5) * 48);
-        if (eid > 0) armySet.add(eid);
-      }
+    const spawnType = currentAIFaction === Faction.Zerg ? UnitType.Zergling : UnitType.Marine;
+    for (let i = 0; i < EMERGENCY_SPAWN_COUNT; i++) {
+      aiQueueUnit(world, spawnType, resources);
     }
   }
 
@@ -618,7 +835,13 @@ function updateDefenseGroup(world: World, gameTime: number): void {
 // ─────────────────────────────────────────
 // B.4 — Auto-build buildings as waves progress
 // ─────────────────────────────────────────
-function checkAIBuildingSchedule(world: World, spawnBuilding: SpawnBuildingFn): void {
+function checkAIBuildingSchedule(
+  world: World,
+  map: MapData,
+  resources: Record<number, PlayerResources>,
+  spawnBuildingFn: SpawnBuildingFn,
+  _gameTime: number,
+): void {
   if (waveCount === lastBuildingWaveCheck) return;
   lastBuildingWaveCheck = waveCount;
 
@@ -633,7 +856,8 @@ function checkAIBuildingSchedule(world: World, spawnBuilding: SpawnBuildingFn): 
     if (waveCount >= entry.minWave) {
       const col = hatchTile.col + entry.colOffset;
       const row = hatchTile.row + entry.rowOffset;
-      spawnBuilding(entry.type, currentAIFaction, col, row);
+      // Deduct resources for the building (Zerg buildings self-build)
+      aiBuildBuilding(world, entry.type, col, row, map, resources, spawnBuildingFn);
       aiBuildingsPlaced.add(i);
     }
   }
@@ -643,13 +867,7 @@ function checkAIBuildingSchedule(world: World, spawnBuilding: SpawnBuildingFn): 
 // B.6 — Persistent Harassment Squad Logic
 // ─────────────────────────────────────────
 function runHarassSquads(world: World, map: MapData): void {
-  // Prune dead units from squads
-  for (const eid of harassSquad1) {
-    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) harassSquad1.delete(eid);
-  }
-  for (const eid of harassSquad2) {
-    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) harassSquad2.delete(eid);
-  }
+  // Dead units already pruned in pruneDeadUnits()
 
   // Fill squads from newly spawned units in armyEids
   fillHarassSquad(harassSquad1, HARASS_SQUAD_SIZE);
@@ -724,10 +942,7 @@ function moveHarassSquadToTarget(
 // B.2 — Vanguard Map Presence
 // ─────────────────────────────────────────
 function updateVanguard(world: World, map: MapData): void {
-  // Prune dead
-  for (const eid of vanguardEids) {
-    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) vanguardEids.delete(eid);
-  }
+  // Dead units already pruned in pruneDeadUnits()
 
   const armySizeCap = Math.floor(MAX_WAVE_SIZE * DIFFICULTY_CONFIGS[currentDifficulty].armySizeCapMultiplier);
   const threshold = Math.min(
@@ -809,17 +1024,14 @@ function runAIAbilities(world: World, gameTime: number): void {
 // ─────────────────────────────────────────
 let terranArmyEids: Set<number> = new Set();
 let terranLastSpawnTime = 0;
-let terranAIMinerals = 0;
-let terranAIGas = 0;
 
 function runTerranAI(
   world: World,
   _dt: number,
   gameTime: number,
   map: MapData,
-  spawnUnit: SpawnFn,
   resources: Record<number, PlayerResources>,
-  _spawnBuilding: SpawnBuildingFn,
+  spawnBuildingFn: SpawnBuildingFn,
 ): void {
   currentMap = map;
   const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
@@ -829,52 +1041,33 @@ function runTerranAI(
   if (terranElapsed > 0) refillAPM(terranElapsed);
 
   // Build order execution (runs first, takes priority)
-  executeBuildOrder(world, resources, gameTime, spawnUnit);
+  executeBuildOrder(world, resources, gameTime);
 
   // Base defense check (B.1)
-  checkBaseUnderAttack(world, gameTime, map, spawnUnit);
+  checkBaseUnderAttack(world, gameTime, map, resources);
   updateDefenseGroup(world, gameTime);
 
-  // Income
-  terranAIMinerals += 3 * diffConfig.incomeMultiplier;
-  terranAIGas += 0.5 * diffConfig.incomeMultiplier;
+  // Macro management (worker production, supply, idle workers)
+  runMacroManagement(world, map, resources, gameTime, spawnBuildingFn);
 
   // Clean up dead army units
   for (const eid of [...terranArmyEids]) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) terranArmyEids.delete(eid);
   }
 
-  // Spawn Marines and Marauders (APM-gated)
-  if (gameTime - terranLastSpawnTime > 15 && terranAIMinerals >= 50 && world.nextEid < MAX_ENTITIES - 50 && spendAPM(APM_COST_SPAWN)) {
-    // Find a Terran Barracks
-    let barracksEid = 0;
-    for (let eid = 1; eid < world.nextEid; eid++) {
-      if (!hasComponents(world, eid, BUILDING)) continue;
-      if (faction[eid] !== Faction.Terran) continue;
-      if (buildingType[eid] !== BuildingType.Barracks) continue;
-      if (buildState[eid] !== BuildState.Complete) continue;
-      barracksEid = eid;
-      break;
-    }
-    if (barracksEid > 0) {
-      const bx = posX[barracksEid];
-      const by = posY[barracksEid];
-      // Alternate Marines and Marauders
-      const useMarauder = terranArmyEids.size % 3 === 2 && terranAIMinerals >= 100;
-      const uType = useMarauder ? UnitType.Marauder : UnitType.Marine;
-      const cost = useMarauder ? 100 : 50;
-      if (terranAIMinerals >= cost) {
-        terranAIMinerals -= cost;
-        if (useMarauder) terranAIGas -= 25;
-        const eid = spawnUnit(uType, Faction.Terran, bx + (rng.next() - 0.5) * 64, by + 48);
-        terranArmyEids.add(eid);
-        terranLastSpawnTime = gameTime;
-      }
+  // Claim newly produced units into army
+  claimNewUnits(world);
+
+  // Spawn Marines and Marauders via production queue (APM-gated)
+  const res = resources[currentAIFaction];
+  if (gameTime - terranLastSpawnTime > 15 && res && res.minerals >= 50 && world.nextEid < MAX_ENTITIES - 50 && spendAPM(APM_COST_SPAWN)) {
+    // Alternate Marines and Marauders
+    const useMarauder = terranArmyEids.size % 3 === 2 && res.minerals >= 100 && res.gas >= 25;
+    const uType = useMarauder ? UnitType.Marauder : UnitType.Marine;
+    if (aiQueueUnit(world, uType, resources)) {
+      terranLastSpawnTime = gameTime;
     }
   }
-
-  // Suppress unused warning for resources param (used by interface contract)
-  void resources;
 
   // Attack when army is large enough
   const targetSize = Math.min(4 + waveCount * 3, Math.floor(25 * diffConfig.armySizeCapMultiplier));
@@ -941,14 +1134,15 @@ export function aiSystem(
   _dt: number,
   gameTime: number,
   map: MapData,
-  spawnFn: SpawnFn,
+  _spawnFn: SpawnFn,
   resources: Record<number, PlayerResources>,
   spawnBuildingFn: SpawnBuildingFn,
 ): void {
   currentMap = map;
+  cachedResources = resources;
 
   if (currentAIFaction === Faction.Terran) {
-    runTerranAI(world, _dt, gameTime, map, spawnFn, resources, spawnBuildingFn);
+    runTerranAI(world, _dt, gameTime, map, resources, spawnBuildingFn);
     return;
   }
 
@@ -969,23 +1163,16 @@ export function aiSystem(
   refillAPM(elapsed);
 
   pruneDeadUnits(world);
+  claimNewUnits(world);
   gatherIntelFromUnits(world);
 
   // Base defense check (B.1) — free, always runs (survival instinct)
-  checkBaseUnderAttack(world, gameTime, map, spawnFn);
+  checkBaseUnderAttack(world, gameTime, map, resources);
 
   const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
 
-  // Accumulate resources
-  const incomeMultiplier = 1 + waveCount * INCOME_GROWTH_PER_WAVE;
-  aiMinerals += BASE_INCOME * diffConfig.incomeMultiplier * incomeMultiplier * personality.aggressionMult * elapsed;
-  aiGas += BASE_INCOME * GAS_INCOME_RATIO * diffConfig.incomeMultiplier * incomeMultiplier * elapsed;
-
-  // Expansion income bonus
-  if (hasExpanded) {
-    aiMinerals += BASE_INCOME * 0.5 * diffConfig.incomeMultiplier * elapsed;
-    aiGas += BASE_INCOME * GAS_INCOME_RATIO * 0.3 * diffConfig.incomeMultiplier * elapsed;
-  }
+  // Macro management (idle workers, supply, worker production, tech buildings)
+  runMacroManagement(world, map, resources, gameTime, spawnBuildingFn);
 
   // Attempt expansion after wave 5
   if (waveCount >= 5 && !hasExpanded) {
@@ -993,13 +1180,13 @@ export function aiSystem(
   }
 
   // Build order execution (runs first, takes priority)
-  executeBuildOrder(world, resources, gameTime, spawnFn);
+  executeBuildOrder(world, resources, gameTime);
 
   // Spawn units (APM-gated)
   const spawnsThisTick = Math.min(MAX_SPAWNS_PER_DECISION, 1 + Math.floor(waveCount / 2));
   for (let i = 0; i < spawnsThisTick; i++) {
     if (!spendAPM(APM_COST_SPAWN)) break;
-    trySpawnUnit(world, map, spawnFn);
+    trySpawnUnit(world, resources);
   }
 
   // Scouting (APM-gated)
@@ -1020,9 +1207,6 @@ export function aiSystem(
     checkRegroupComplete(world, gameTime, diffConfig.waveIntervalBase);
   }
 
-  // B.4 — Auto-build buildings as waves progress
-  checkAIBuildingSchedule(world, spawnBuildingFn);
-
   // B.2 — Vanguard map presence
   updateVanguard(world, map);
 
@@ -1038,13 +1222,9 @@ export function aiSystem(
     }
   }
 
-  // B.8 — After wave 12: bonus Ultralisk per wave
+  // B.8 — After wave 12: bonus Ultralisk per wave (queued through production)
   if (waveCount > prevWave && waveCount >= 12 && world.nextEid < MAX_ENTITIES - 50) {
-    const hatch = findZergHatchery(world);
-    if (hatch > 0) {
-      const eid = spawnFn(UnitType.Ultralisk, currentAIFaction, posX[hatch] + (rng.next() - 0.5) * 48, posY[hatch] + (rng.next() - 0.5) * 48);
-      armyEids.add(eid);
-    }
+    aiQueueUnit(world, UnitType.Ultralisk, resources);
   }
 
   // ── Iteration 2: Tactical micro (APM-gated) ──
@@ -1328,8 +1508,12 @@ function assignFocusTargets(world: World): void {
   // Sort by priority descending
   enemyTargets.sort((a, b) => b.priority - a.priority);
 
-  // Assign top 1-2 targets to army units
-  const primaryTarget = enemyTargets[0].eid;
+  // Assign units across top 3 priority targets to avoid overkill
+  const topTargets = enemyTargets.slice(0, Math.min(3, enemyTargets.length));
+  let targetIdx = 0;
+  // Track committed damage per target to distribute evenly
+  const committed = new Map<number, number>();
+  for (const t of topTargets) committed.set(t.eid, 0);
 
   for (const eid of armyEids) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
@@ -1337,7 +1521,19 @@ function assignFocusTargets(world: World): void {
     if (targetEntity[eid] >= 1 && entityExists(world, targetEntity[eid]) && hpCurrent[targetEntity[eid]] > 0) {
       continue;
     }
-    targetEntity[eid] = primaryTarget;
+    // Pick the target with least committed damage relative to HP
+    let bestTgt = topTargets[0].eid;
+    let bestRatio = Infinity;
+    for (const t of topTargets) {
+      const ratio = (committed.get(t.eid) ?? 0) / Math.max(1, hpCurrent[t.eid]);
+      if (ratio < bestRatio) {
+        bestRatio = ratio;
+        bestTgt = t.eid;
+      }
+    }
+    targetEntity[eid] = bestTgt;
+    committed.set(bestTgt, (committed.get(bestTgt) ?? 0) + atkDamage[eid]);
+    targetIdx++;
   }
 }
 
@@ -1452,9 +1648,9 @@ function attemptExpansion(
   if (hasExpanded) return;
 
   const res = resources[currentAIFaction];
-  if (!res || aiMinerals < 300) return;
+  if (!res || res.minerals < 300) return;
 
-  aiMinerals -= 300;
+  res.minerals -= 300;
   hasExpanded = true;
 
   // Expansion at bottom-left area (col 15, row 100) — flanking base opposite player
@@ -1482,8 +1678,8 @@ function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount:
   }
 
   // Cost check (simplified: 100m per upgrade)
-  if (aiMinerals < 100) return;
-  aiMinerals -= 100;
+  if (res.minerals < 100) return;
+  res.minerals -= 100;
 
   res.upgrades[upgradeType] = Math.min(3, currentLevel + 1) as 0 | 1 | 2 | 3;
   lastAIUpgradeWave = waveCount;
@@ -1503,28 +1699,28 @@ function getPhase(): AIPhase {
 }
 
 const EARLY_GAME_UNITS = [
-  { type: UnitType.Zergling, costM: 50, costG: 0, weight: 70 },
+  { type: UnitType.Zergling, costM: 25, costG: 0, weight: 70 },
   { type: UnitType.Roach, costM: 75, costG: 25, weight: 30 },
 ];
 const MID_GAME_UNITS = [
-  { type: UnitType.Zergling, costM: 50, costG: 0, weight: 30 },
+  { type: UnitType.Zergling, costM: 25, costG: 0, weight: 30 },
   { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 25 },
   { type: UnitType.Roach, costM: 75, costG: 25, weight: 25 },
-  { type: UnitType.Baneling, costM: 50, costG: 25, weight: 15 },
+  { type: UnitType.Baneling, costM: 25, costG: 25, weight: 15 },
   { type: UnitType.Ravager, costM: 25, costG: 75, weight: 8 },
   { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 5 },
 ];
 const LATE_GAME_UNITS = [
   { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 30 },
   { type: UnitType.Roach, costM: 75, costG: 25, weight: 25 },
-  { type: UnitType.Baneling, costM: 50, costG: 25, weight: 20 },
-  { type: UnitType.Zergling, costM: 50, costG: 0, weight: 15 },
+  { type: UnitType.Baneling, costM: 25, costG: 25, weight: 20 },
+  { type: UnitType.Zergling, costM: 25, costG: 0, weight: 15 },
   { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 10 },
   { type: UnitType.Ravager, costM: 25, costG: 75, weight: 8 },
   { type: UnitType.Corruptor, costM: 150, costG: 100, weight: 6 },
   { type: UnitType.Ultralisk, costM: 300, costG: 200, weight: 5 },
-  { type: UnitType.Infestor, costM: 150, costG: 150, weight: 3 },
-  { type: UnitType.Viper, costM: 200, costG: 50, weight: 3 },
+  { type: UnitType.Infestor, costM: 100, costG: 150, weight: 3 },
+  { type: UnitType.Viper, costM: 100, costG: 200, weight: 3 },
 ];
 
 function findZergHatchery(world: World): number {
@@ -1540,11 +1736,8 @@ function findZergHatchery(world: World): number {
   return 0;
 }
 
-function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
+function trySpawnUnit(world: World, resources: Record<number, PlayerResources>): void {
   if (world.nextEid >= MAX_ENTITIES - 50) return;
-
-  const hatchery = findZergHatchery(world);
-  if (hatchery === 0) return;
 
   // Iteration 4: Strategy-driven composition takes priority, then reactive, then phase
   const stratWeights = getStrategyWeights();
@@ -1570,19 +1763,8 @@ function trySpawnUnit(world: World, map: MapData, spawnFn: SpawnFn): void {
     }
   }
 
-  if (aiMinerals < chosen.costM || aiGas < chosen.costG) return;
-
-  const hatchTile = worldToTile(posX[hatchery], posY[hatchery]);
-  const jitterCol = hatchTile.col + rng.nextInt(5) - 2;
-  const jitterRow = hatchTile.row + rng.nextInt(5) - 2;
-  const walkable = findNearestWalkableTile(map, jitterCol, jitterRow);
-  if (!walkable) return;
-
-  const wp = tileToWorld(walkable.col, walkable.row);
-  aiMinerals -= chosen.costM;
-  aiGas -= chosen.costG;
-  const eid = spawnFn(chosen.type, currentAIFaction, wp.x, wp.y);
-  armyEids.add(eid);
+  // aiQueueUnit handles resource check, deduction, larva, and production queue
+  aiQueueUnit(world, chosen.type, resources);
 }
 
 function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: { waveIntervalBase: number; armySizeCapMultiplier: number }): void {
@@ -1857,7 +2039,7 @@ function tryKiteBack(world: World, eid: number, map: MapData, gameTime: number):
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < 0.01) return false;
 
-  const kiteDistPx = (atkRange[eid] + KITE_RANGE_BUFFER) * TILE_SIZE;
+  const kiteDistPx = atkRange[eid] + KITE_RANGE_BUFFER * TILE_SIZE;
   if (dist >= kiteDistPx) return false; // already at max range
 
   const nx = dx / dist;
@@ -1889,16 +2071,14 @@ function tryBanelingClumpTarget(world: World, eid: number, map: MapData): boolea
     const dy = posY[other] - posY[eid];
     if (dx * dx + dy * dy > scanRangeSq) continue;
 
-    // Count enemies near this one
+    // Count enemies near this one using spatial hash
     let clumpCount = 1;
-    for (let n = 1; n < world.nextEid; n++) {
+    const nearby = spatialHash.queryRadius(posX[other], posY[other], splashRange);
+    for (const n of nearby) {
       if (n === other) continue;
-      if (!hasComponents(world, n, POSITION | HEALTH)) continue;
       if (faction[n] === currentAIFaction || faction[n] === 0) continue;
       if (hpCurrent[n] <= 0) continue;
-      const cdx = posX[n] - posX[other];
-      const cdy = posY[n] - posY[other];
-      if (cdx * cdx + cdy * cdy < splashRangeSq) clumpCount++;
+      clumpCount++;
     }
 
     if (clumpCount > bestClump) {
@@ -2014,6 +2194,7 @@ function hasEnemyContact(world: World): boolean {
   const contactRange = COORDINATED_ENGAGE_RANGE * TILE_SIZE;
   const contactRangeSq = contactRange * contactRange;
 
+  let checked = 0;
   for (const eid of armyEids) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
     for (let other = 1; other < world.nextEid; other++) {
@@ -2024,7 +2205,7 @@ function hasEnemyContact(world: World): boolean {
       const dy = posY[other] - posY[eid];
       if (dx * dx + dy * dy < contactRangeSq) return true;
     }
-    break; // only check from first living unit for perf
+    if (++checked >= 3) break; // sample up to 3 units for accuracy
   }
   return false;
 }
@@ -2184,17 +2365,17 @@ function getStrategyWeights(): Array<{ type: UnitType; costM: number; costG: num
     case 'anti-bio':
       // Mass Banelings + Hydras to counter Marines
       return [
-        { type: UnitType.Baneling, costM: 50, costG: 25, weight: 40 },
+        { type: UnitType.Baneling, costM: 25, costG: 25, weight: 40 },
         { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 25 },
         { type: UnitType.Roach, costM: 75, costG: 25, weight: 15 },
-        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 10 },
+        { type: UnitType.Zergling, costM: 25, costG: 0, weight: 10 },
         { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 10 },
       ];
 
     case 'anti-mech':
       // Zergling swarm (surround tanks) + Hydras (outrange unsieged)
       return [
-        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 35 },
+        { type: UnitType.Zergling, costM: 25, costG: 0, weight: 35 },
         { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 25 },
         { type: UnitType.Ravager, costM: 25, costG: 75, weight: 15 },
         { type: UnitType.Roach, costM: 75, costG: 25, weight: 15 },
@@ -2204,17 +2385,17 @@ function getStrategyWeights(): Array<{ type: UnitType; costM: number; costG: num
     case 'timing-attack':
       // Cheap, fast army for immediate aggression
       return [
-        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 50 },
+        { type: UnitType.Zergling, costM: 25, costG: 0, weight: 50 },
         { type: UnitType.Roach, costM: 75, costG: 25, weight: 30 },
-        { type: UnitType.Baneling, costM: 50, costG: 25, weight: 20 },
+        { type: UnitType.Baneling, costM: 25, costG: 25, weight: 20 },
       ];
 
     case 'economy-punish':
       // Fast harass units to punish greed
       return [
-        { type: UnitType.Zergling, costM: 50, costG: 0, weight: 40 },
+        { type: UnitType.Zergling, costM: 25, costG: 0, weight: 40 },
         { type: UnitType.Mutalisk, costM: 100, costG: 100, weight: 25 },
-        { type: UnitType.Baneling, costM: 50, costG: 25, weight: 20 },
+        { type: UnitType.Baneling, costM: 25, costG: 25, weight: 20 },
         { type: UnitType.Hydralisk, costM: 100, costG: 50, weight: 15 },
       ];
 
@@ -2324,7 +2505,7 @@ function trySplashAvoidance(world: World, eid: number, map: MapData): boolean {
 function trySnipeLowHP(world: World, eid: number): boolean {
   if (atkRange[eid] <= 0) return false; // melee units don't snipe
 
-  const scanRange = (atkRange[eid] + 2) * TILE_SIZE;
+  const scanRange = atkRange[eid] + 2 * TILE_SIZE;
   const scanRangeSq = scanRange * scanRange;
 
   let bestTarget = 0;
@@ -2413,14 +2594,39 @@ function tryAvoidThreatZone(world: World, eid: number, map: MapData): boolean {
 // ─────────────────────────────────────────
 function pathTo(eid: number, destX: number, destY: number, map: MapData): void {
   const startTile = worldToTile(posX[eid], posY[eid]);
-  const endTile = worldToTile(destX, destY);
-  const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+  let endTile = worldToTile(destX, destY);
+  let tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+
+  // Fallback: if destination is unwalkable, find nearest walkable tile
+  if (tilePath.length === 0) {
+    const nearest = findNearestWalkableTile(map, endTile.col, endTile.row);
+    if (nearest) {
+      endTile = nearest;
+      tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+    }
+  }
 
   if (tilePath.length > 0) {
-    const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+    const worldPath: Array<[number, number]> = simplifyAIPath(tilePath.map(([c, r]) => {
       const wp = tileToWorld(c, r);
       return [wp.x, wp.y] as [number, number];
-    });
+    }));
     setPath(eid, worldPath);
   }
+}
+
+/** Remove collinear waypoints from AI paths */
+function simplifyAIPath(path: Array<[number, number]>): Array<[number, number]> {
+  if (path.length <= 2) return path;
+  const result: Array<[number, number]> = [path[0]];
+  for (let i = 1; i < path.length - 1; i++) {
+    const [px, py] = result[result.length - 1];
+    const [cx, cy] = path[i];
+    const [nx, ny] = path[i + 1];
+    if (Math.abs((cx - px) * (ny - cy) - (cy - py) * (nx - cx)) > 0.01) {
+      result.push(path[i]);
+    }
+  }
+  result.push(path[path.length - 1]);
+  return result;
 }

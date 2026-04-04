@@ -39,16 +39,31 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
   [UnitType.Ghost]: [
     { name: 'Cloak', key: 'C', commandType: CommandType.Cloak },
     { name: 'Snipe', key: 'D', commandType: CommandType.Snipe },
+    { name: 'EMP Round', key: 'E', commandType: CommandType.EMP },
   ],
+  [UnitType.Reaper]: [{ name: 'KD8 Charge', key: 'D', commandType: CommandType.KD8Charge }],
   [UnitType.Viking]: [{ name: 'Transform', key: 'E', commandType: CommandType.SiegeToggle }],
+  [UnitType.Hellion]: [{ name: 'Hellbat Mode', key: 'E', commandType: CommandType.SiegeToggle }],
+  [UnitType.Cyclone]: [{ name: 'Lock-On', key: 'Q', commandType: CommandType.LockOn }],
+  [UnitType.Thor]: [{ name: 'AA Mode', key: 'E', commandType: CommandType.SiegeToggle }],
   [UnitType.Battlecruiser]: [{ name: 'Yamato', key: 'Y', commandType: CommandType.Yamato }],
   [UnitType.Queen]: [
     { name: 'Inject Larva', key: 'V', commandType: CommandType.InjectLarva },
     { name: 'Transfuse', key: 'X', commandType: CommandType.Transfuse },
   ],
+  [UnitType.Baneling]: [{ name: 'Burrow', key: 'R', commandType: CommandType.BanelingBurrow }],
+  [UnitType.Roach]: [{ name: 'Burrow', key: 'R', commandType: CommandType.RoachBurrow }],
   [UnitType.Ravager]: [{ name: 'Bile', key: 'R', commandType: CommandType.CorrosiveBile }],
-  [UnitType.Infestor]: [{ name: 'Fungal', key: 'F', commandType: CommandType.FungalGrowth }],
-  [UnitType.Viper]: [{ name: 'Abduct', key: 'G', commandType: CommandType.Abduct }],
+  [UnitType.Infestor]: [
+    { name: 'Fungal', key: 'F', commandType: CommandType.FungalGrowth },
+    { name: 'Neural', key: 'N', commandType: CommandType.NeuralParasite },
+  ],
+  [UnitType.Corruptor]: [{ name: 'Caustic Spray', key: 'C', commandType: CommandType.CausticSpray }],
+  [UnitType.Viper]: [
+    { name: 'Abduct', key: 'G', commandType: CommandType.Abduct },
+    { name: 'Blinding Cloud', key: 'B', commandType: CommandType.BlindingCloud },
+    { name: 'Parasitic Bomb', key: 'P', commandType: CommandType.ParasiticBomb },
+  ],
 };
 
 /** Labels for the 3 Engineering Bay upgrades */
@@ -212,7 +227,7 @@ export class InfoPanelRenderer {
 
     // Production buttons row (clickable buttons for available units)
     this.prodButtonsRow = document.createElement('div');
-    this.prodButtonsRow.style.cssText = 'display: none; flex-direction: row; flex-wrap: wrap; gap: 3px; margin-top: 4px; pointer-events: auto; max-width: 228px;';
+    this.prodButtonsRow.style.cssText = 'display: none; flex-direction: row; flex-wrap: wrap; gap: 3px; margin-top: 4px; pointer-events: auto; max-width: 340px;';
     this.panel.appendChild(this.prodButtonsRow);
 
     // Production queue display row
@@ -517,6 +532,7 @@ export class InfoPanelRenderer {
         this.researchButtonsRow.style.display = 'none';
 
         const pType = prodUnitType[eid];
+        // Show training progress bar if producing
         if (pType > 0 && prodTimeTotal[eid] > 0) {
           const unitDef = UNIT_DEFS[pType];
           const unitName = unitDef ? unitDef.name : 'Unit';
@@ -526,44 +542,33 @@ export class InfoPanelRenderer {
           this.prodLabel.textContent = `Training: ${unitName}`;
           this.prodBarFill.style.width = `${pct * 100}%`;
           this.prodRow.style.display = 'flex';
-          this.detailEl.textContent = bs === BuildState.UnderConstruction
-            ? `${facName} | Under Construction`
-            : facName;
-
-          // Show production queue
           this.updateQueueDisplay(eid);
-
-          this.prodButtonsRow.style.display = 'none';
-          this.addonButtonsRow.style.display = 'none';
         } else {
           this.prodRow.style.display = 'none';
           this.queueRow.style.display = 'none';
+        }
 
-          // Addon-capable buildings: Barracks, Factory, Starport
-          const isAddonBuilding = bt === BuildingType.Barracks
-            || bt === BuildingType.Factory
-            || bt === BuildingType.Starport;
+        // Addon-capable buildings: Barracks, Factory, Starport
+        const isAddonBuilding = bt === BuildingType.Barracks
+          || bt === BuildingType.Factory
+          || bt === BuildingType.Starport;
 
-          // Show available production hotkeys/buttons for completed buildings
-          if (bs === BuildState.Complete && def && def.produces.length > 0) {
-            this.detailEl.textContent = `${facName} | ${def.produces.length} trainable`;
+        // Always show production buttons for completed buildings (can queue while training)
+        if (bs === BuildState.Complete && def && def.produces.length > 0) {
+          this.detailEl.textContent = facName;
+          this.updateProductionButtons(eid, def.produces, playerResources, world, fac);
 
-            // Show clickable production buttons
-            this.updateProductionButtons(eid, def.produces, playerResources, world, fac);
-
-            // Show addon buttons if no addon yet (and building is addon-capable)
-            if (isAddonBuilding) {
-              this.updateAddonButtons(eid);
-            } else {
-              this.addonButtonsRow.style.display = 'none';
-            }
+          if (isAddonBuilding) {
+            this.updateAddonButtons(eid);
           } else {
-            this.detailEl.textContent = bs === BuildState.UnderConstruction
-              ? `${facName} | Under Construction`
-              : facName;
-            this.prodButtonsRow.style.display = 'none';
             this.addonButtonsRow.style.display = 'none';
           }
+        } else {
+          this.detailEl.textContent = bs === BuildState.UnderConstruction
+            ? `${facName} | Under Construction`
+            : facName;
+          this.prodButtonsRow.style.display = 'none';
+          this.addonButtonsRow.style.display = 'none';
         }
       }
       // Hatchery: show larva count
@@ -726,58 +731,62 @@ export class InfoPanelRenderer {
 
         const btn = document.createElement('div');
         btn.style.cssText = `
-          width: 42px;
-          height: 42px;
+          width: 46px; height: 54px;
           border: 1px solid rgba(100, 160, 255, 0.4);
           border-radius: 3px;
-          cursor: pointer;
-          pointer-events: auto;
-          transition: background 0.1s;
+          cursor: pointer; pointer-events: auto;
+          transition: background 0.1s, border-color 0.1s;
           background: rgba(10, 18, 30, 0.8);
           position: relative;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          box-sizing: border-box;
+          display: flex; flex-direction: column; align-items: center;
+          overflow: hidden; box-sizing: border-box;
+          padding-top: 2px;
         `;
 
         const hotkey = i < hotkeys.length ? hotkeys[i] : '';
 
-        // Hotkey label (top-left)
+        // Hotkey badge (top-left)
         const hotkeyEl = document.createElement('div');
-        hotkeyEl.style.cssText = 'position: absolute; top: 1px; left: 3px; font-size: 9px; color: rgba(180,200,255,0.5); font-family: Consolas, monospace;';
+        hotkeyEl.style.cssText = 'position: absolute; top: 1px; left: 2px; font-size: 8px; color: rgba(180,210,255,0.6); font-family: Consolas, monospace; z-index: 1;';
         hotkeyEl.textContent = hotkey;
         btn.appendChild(hotkeyEl);
 
-        // Unit name (centered)
-        const nameEl = document.createElement('div');
-        nameEl.style.cssText = 'font-size: 9px; color: #cce0ff; font-family: Consolas, monospace; text-align: center; line-height: 1.1; margin-top: 2px; padding: 0 1px;';
-        nameEl.textContent = uDef.name;
-        btn.appendChild(nameEl);
+        // Supply badge (top-right)
+        if (uDef.supply > 0) {
+          const supEl = document.createElement('div');
+          supEl.style.cssText = 'position: absolute; top: 1px; right: 2px; font-size: 7px; color: rgba(255,220,80,0.6); font-family: Consolas, monospace; z-index: 1;';
+          supEl.textContent = uDef.supply === 0.5 ? '½' : String(uDef.supply);
+          btn.appendChild(supEl);
+        }
 
-        // Cost line (below name)
+        // Portrait (32x32 scaled from 44x44)
+        const portrait = this.portraitRenderer.getPortrait(uType);
+        portrait.style.cssText = 'width: 32px; height: 32px; image-rendering: pixelated; flex-shrink: 0;';
+        btn.appendChild(portrait);
+
+        // Cost line (bottom)
         const costEl = document.createElement('div');
-        const mineralColor = '#66ccff';
-        const gasColor = '#66ff88';
-        costEl.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; text-align: center; line-height: 1;';
+        costEl.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; text-align: center; line-height: 1; margin-top: 1px;';
         if (uDef.costGas > 0) {
-          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span><span style="color:#555">/</span><span style="color:${gasColor}">${uDef.costGas}</span>`;
+          costEl.innerHTML = `<span style="color:#66ccff">${uDef.costMinerals}</span><span style="color:#555">/</span><span style="color:#66ff88">${uDef.costGas}</span>`;
         } else {
-          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span>`;
+          costEl.innerHTML = `<span style="color:#66ccff">${uDef.costMinerals}</span>`;
         }
         btn.appendChild(costEl);
 
         btn.addEventListener('mouseenter', () => {
           if (!btn.classList.contains('prod-disabled')) {
             btn.style.background = 'rgba(40, 80, 160, 0.5)';
+            btn.style.borderColor = 'rgba(100, 180, 255, 0.7)';
           }
         });
         btn.addEventListener('mouseleave', () => {
           btn.style.background = btn.classList.contains('prod-disabled')
             ? 'rgba(10, 14, 20, 0.9)'
             : 'rgba(10, 18, 30, 0.8)';
+          btn.style.borderColor = btn.classList.contains('prod-disabled')
+            ? 'rgba(60, 60, 60, 0.3)'
+            : 'rgba(100, 160, 255, 0.4)';
         });
         btn.addEventListener('click', () => {
           if (this.productionCallback) {
@@ -827,48 +836,20 @@ export class InfoPanelRenderer {
         btn.style.opacity = '0.5';
       }
 
-      // Rebuild inner content to show tech requirement indicator
+      // Update styling without rebuilding DOM (preserves portrait canvas)
       if (!techMet && requiredBuilding !== undefined) {
         const reqDef = BUILDING_DEFS[requiredBuilding];
         const reqName = reqDef ? reqDef.name : 'Required';
-        btn.innerHTML = '';
-        // Hotkey
-        const hk = document.createElement('div');
-        hk.style.cssText = 'position: absolute; top: 1px; left: 3px; font-size: 9px; color: rgba(180,200,255,0.3); font-family: Consolas, monospace;';
-        hk.textContent = hotkey;
-        btn.appendChild(hk);
-        // Name
-        const nm = document.createElement('div');
-        nm.style.cssText = 'font-size: 9px; color: #777; font-family: Consolas, monospace; text-align: center; line-height: 1.1; margin-top: 2px; padding: 0 1px;';
-        nm.textContent = uDef.name;
-        btn.appendChild(nm);
-        // REQ indicator
-        const req = document.createElement('div');
-        req.style.cssText = 'font-size: 7px; color: #aa4444; font-family: Consolas, monospace; text-align: center; line-height: 1;';
-        req.textContent = `REQ`;
-        req.title = `Requires: ${reqName}`;
-        btn.appendChild(req);
+        btn.style.opacity = '0.4';
+        btn.title = `Requires: ${reqName}`;
+        // Dim the portrait
+        const canvas = btn.querySelector('canvas');
+        if (canvas) canvas.style.opacity = '0.3';
       } else {
-        // Rebuild with normal content (cost line)
-        btn.innerHTML = '';
-        const hk = document.createElement('div');
-        hk.style.cssText = `position: absolute; top: 1px; left: 3px; font-size: 9px; color: rgba(180,200,255,${enabled ? '0.5' : '0.3'}); font-family: Consolas, monospace;`;
-        hk.textContent = hotkey;
-        btn.appendChild(hk);
-        const nm = document.createElement('div');
-        nm.style.cssText = `font-size: 9px; color: ${enabled ? '#cce0ff' : '#777'}; font-family: Consolas, monospace; text-align: center; line-height: 1.1; margin-top: 2px; padding: 0 1px;`;
-        nm.textContent = uDef.name;
-        btn.appendChild(nm);
-        const costEl = document.createElement('div');
-        const mineralColor = enabled ? '#66ccff' : '#446';
-        const gasColor = enabled ? '#66ff88' : '#464';
-        costEl.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; text-align: center; line-height: 1;';
-        if (uDef.costGas > 0) {
-          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span><span style="color:#555">/</span><span style="color:${gasColor}">${uDef.costGas}</span>`;
-        } else {
-          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span>`;
-        }
-        btn.appendChild(costEl);
+        btn.style.opacity = enabled ? '1' : '0.5';
+        btn.title = '';
+        const canvas = btn.querySelector('canvas');
+        if (canvas) canvas.style.opacity = enabled ? '1' : '0.4';
       }
     }
 
@@ -888,26 +869,28 @@ export class InfoPanelRenderer {
 
     // Label
     const label = document.createElement('span');
-    label.style.cssText = 'font-size: 10px; color: #999; margin-right: 2px;';
-    label.textContent = 'Queue:';
+    label.style.cssText = 'font-size: 9px; color: #888; margin-right: 3px; align-self: center;';
+    label.textContent = 'Q';
     this.queueRow.appendChild(label);
 
     const qBase = buildingEid * PROD_QUEUE_MAX;
     for (let i = 0; i < qLen; i++) {
       const uType = prodQueue[qBase + i];
-      const uDef = UNIT_DEFS[uType];
-      const name = uDef ? uDef.name : '?';
 
-      const slot = document.createElement('span');
+      const slot = document.createElement('div');
       slot.style.cssText = `
-        font-size: 10px;
-        color: #ffcc44;
-        background: rgba(255, 170, 34, 0.15);
-        border: 1px solid rgba(255, 170, 34, 0.3);
+        width: 26px; height: 26px;
+        border: 1px solid rgba(255, 180, 44, 0.4);
         border-radius: 2px;
-        padding: 1px 4px;
+        background: rgba(40, 30, 10, 0.7);
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden;
       `;
-      slot.textContent = name;
+
+      const portrait = this.portraitRenderer.getPortrait(uType);
+      portrait.style.cssText = 'width: 22px; height: 22px; image-rendering: pixelated;';
+      slot.appendChild(portrait);
+
       this.queueRow.appendChild(slot);
     }
   }
@@ -916,12 +899,26 @@ export class InfoPanelRenderer {
   private updateAddonButtons(buildingEid: number): void {
     const addon = addonType[buildingEid];
     if (addon !== AddonType.None) {
-      // Already has an addon — show status label only, no build buttons
+      // Already has an addon — show "BUILT" status badge
       this.addonButtonsRow.innerHTML = '';
-      const label = document.createElement('div');
-      label.style.cssText = 'font-size: 11px; color: #88ffcc;';
-      label.textContent = addon === AddonType.TechLab ? 'Addon: Tech Lab' : 'Addon: Reactor (2x speed)';
-      this.addonButtonsRow.appendChild(label);
+      const badge = document.createElement('div');
+      const isTechLab = addon === AddonType.TechLab;
+      badge.style.cssText = `
+        display: flex; align-items: center; gap: 5px;
+        padding: 4px 8px;
+        border: 1px solid ${isTechLab ? 'rgba(80,180,255,0.4)' : 'rgba(255,160,60,0.4)'};
+        border-radius: 3px;
+        background: ${isTechLab ? 'rgba(20,40,80,0.6)' : 'rgba(60,30,10,0.6)'};
+      `;
+      const icon = document.createElement('span');
+      icon.style.cssText = `font-size: 14px; color: ${isTechLab ? '#44aaff' : '#ffaa44'};`;
+      icon.textContent = isTechLab ? '\u2697' : '\u26A1';
+      badge.appendChild(icon);
+      const text = document.createElement('span');
+      text.style.cssText = `font-size: 10px; color: ${isTechLab ? '#88ccff' : '#ffcc88'}; font-family: Consolas, monospace;`;
+      text.textContent = isTechLab ? 'Tech Lab' : 'Reactor (2x)';
+      badge.appendChild(text);
+      this.addonButtonsRow.appendChild(badge);
       this.addonButtonsRow.style.display = 'flex';
       return;
     }
@@ -929,25 +926,38 @@ export class InfoPanelRenderer {
     // No addon — show build buttons
     this.addonButtonsRow.innerHTML = '';
 
-    const addons: { label: string; typeVal: AddonType }[] = [
-      { label: 'Tech Lab (50m/25g)', typeVal: AddonType.TechLab },
-      { label: 'Reactor (50m/25g)', typeVal: AddonType.Reactor },
+    const addons: { label: string; symbol: string; color: string; typeVal: AddonType }[] = [
+      { label: 'Tech Lab', symbol: '\u2697', color: '#44aaff', typeVal: AddonType.TechLab },
+      { label: 'Reactor', symbol: '\u26A1', color: '#ffaa44', typeVal: AddonType.Reactor },
     ];
 
-    for (const { label, typeVal } of addons) {
+    for (const { label, symbol, color, typeVal } of addons) {
       const btn = document.createElement('div');
       btn.style.cssText = `
-        padding: 3px 6px;
+        width: 80px; padding: 4px 6px;
         border: 1px solid rgba(100, 160, 255, 0.4);
         border-radius: 3px;
-        font-size: 11px;
-        cursor: pointer;
-        white-space: nowrap;
-        pointer-events: auto;
-        transition: background 0.1s;
+        cursor: pointer; pointer-events: auto;
+        transition: background 0.1s, border-color 0.1s;
         color: #eee;
       `;
-      btn.textContent = label;
+      // Icon + name
+      const topRow = document.createElement('div');
+      topRow.style.cssText = 'display: flex; align-items: center; gap: 3px;';
+      const iconEl = document.createElement('span');
+      iconEl.style.cssText = `font-size: 13px; color: ${color};`;
+      iconEl.textContent = symbol;
+      topRow.appendChild(iconEl);
+      const nameEl = document.createElement('span');
+      nameEl.style.cssText = 'font-size: 10px; font-family: Consolas, monospace;';
+      nameEl.textContent = label;
+      topRow.appendChild(nameEl);
+      btn.appendChild(topRow);
+      // Cost
+      const costRow = document.createElement('div');
+      costRow.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; margin-top: 2px;';
+      costRow.innerHTML = '<span style="color:#66ccff">50</span><span style="color:#555">/</span><span style="color:#66ff88">25</span>';
+      btn.appendChild(costRow);
 
       btn.addEventListener('mouseenter', () => {
         btn.style.background = 'rgba(40, 80, 160, 0.5)';
@@ -975,6 +985,16 @@ export class InfoPanelRenderer {
     this.researchButtonsRow.innerHTML = '';
     this.researchButtons = [];
 
+    // Upgrade type icons: swords (weapons), shield (armor), claw (melee)
+    const UPGRADE_ICONS: Record<number, { symbol: string; color: string }> = {
+      [UpgradeType.InfantryWeapons]: { symbol: '\u2694', color: '#ff6644' },
+      [UpgradeType.InfantryArmor]:   { symbol: '\u26E8', color: '#4488ff' },
+      [UpgradeType.VehicleWeapons]:  { symbol: '\u2699', color: '#ff8822' },
+      [UpgradeType.ZergMelee]:       { symbol: '\u2694', color: '#cc3333' },
+      [UpgradeType.ZergRanged]:      { symbol: '\u2739', color: '#88ff22' },
+      [UpgradeType.ZergCarapace]:    { symbol: '\u26E8', color: '#cc3333' },
+    };
+
     for (const { type, label } of ENGBAY_UPGRADES) {
       const currentLevel = playerResources ? playerResources.upgrades[type] : 0;
       const cost = getUpgradeCost(type, currentLevel);
@@ -986,36 +1006,67 @@ export class InfoPanelRenderer {
 
       const btn = document.createElement('div');
       btn.style.cssText = `
-        padding: 3px 6px;
-        border: 1px solid rgba(100, 160, 255, 0.4);
+        width: 80px; padding: 4px 6px;
+        border: 1px solid ${enabled ? 'rgba(100, 160, 255, 0.4)' : 'rgba(80, 80, 80, 0.25)'};
         border-radius: 3px;
-        font-size: 11px;
         cursor: ${enabled ? 'pointer' : 'default'};
-        white-space: nowrap;
         pointer-events: auto;
-        transition: background 0.1s;
+        transition: background 0.1s, border-color 0.1s;
         color: ${enabled ? '#eee' : '#666'};
-        border-color: ${enabled ? 'rgba(100, 160, 255, 0.4)' : 'rgba(100, 100, 100, 0.2)'};
+        opacity: ${maxed ? '0.5' : '1'};
       `;
-
-      const levelStr = maxed ? ' (max)' : ` +${currentLevel}`;
       btn.title = maxed ? `${label} (maxed)` : `${label} — ${cost.minerals}m ${cost.gas}g`;
 
-      // Two-line inner layout: label + level on top, cost below
-      const topLine = document.createElement('div');
-      topLine.textContent = `${label}${levelStr}`;
-      const bottomLine = document.createElement('div');
-      bottomLine.style.cssText = 'font-size: 10px; color: #aaa;';
-      bottomLine.textContent = maxed ? 'maxed' : `${cost.minerals}m ${cost.gas}g`;
-      btn.appendChild(topLine);
-      btn.appendChild(bottomLine);
+      // Icon + label row
+      const iconInfo = UPGRADE_ICONS[type] || { symbol: '\u2B06', color: '#aaa' };
+      const topRow = document.createElement('div');
+      topRow.style.cssText = 'display: flex; align-items: center; gap: 3px;';
+      const icon = document.createElement('span');
+      icon.style.cssText = `font-size: 13px; color: ${iconInfo.color};`;
+      icon.textContent = iconInfo.symbol;
+      topRow.appendChild(icon);
+      const nameEl = document.createElement('span');
+      nameEl.style.cssText = 'font-size: 9px; font-family: Consolas, monospace; color: inherit;';
+      nameEl.textContent = label;
+      topRow.appendChild(nameEl);
+      btn.appendChild(topRow);
+
+      // Level pips (3 circles: filled = done, empty = not yet)
+      const pipRow = document.createElement('div');
+      pipRow.style.cssText = 'display: flex; gap: 3px; margin-top: 2px; margin-left: 1px;';
+      for (let lvl = 0; lvl < 3; lvl++) {
+        const pip = document.createElement('div');
+        const filled = lvl < currentLevel;
+        pip.style.cssText = `
+          width: 8px; height: 8px; border-radius: 50%;
+          border: 1px solid ${filled ? iconInfo.color : 'rgba(120,120,120,0.4)'};
+          background: ${filled ? iconInfo.color : 'transparent'};
+        `;
+        pipRow.appendChild(pip);
+      }
+      btn.appendChild(pipRow);
+
+      // Cost line
+      if (!maxed && cost) {
+        const costRow = document.createElement('div');
+        costRow.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; margin-top: 2px;';
+        costRow.innerHTML = `<span style="color:${enabled ? '#66ccff' : '#446'}">${cost.minerals}</span><span style="color:#555">/</span><span style="color:${enabled ? '#66ff88' : '#464'}">${cost.gas}</span>`;
+        btn.appendChild(costRow);
+      } else {
+        const maxLabel = document.createElement('div');
+        maxLabel.style.cssText = 'font-size: 8px; color: #888; font-family: Consolas, monospace; margin-top: 2px;';
+        maxLabel.textContent = 'MAX';
+        btn.appendChild(maxLabel);
+      }
 
       if (enabled) {
         btn.addEventListener('mouseenter', () => {
           btn.style.background = 'rgba(40, 80, 160, 0.5)';
+          btn.style.borderColor = 'rgba(100, 180, 255, 0.6)';
         });
         btn.addEventListener('mouseleave', () => {
           btn.style.background = 'transparent';
+          btn.style.borderColor = 'rgba(100, 160, 255, 0.4)';
         });
         btn.addEventListener('click', () => {
           if (this.researchCallback) {

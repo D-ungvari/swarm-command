@@ -4,7 +4,7 @@ import {
   posX, posY, faction, hpCurrent,
   atkRange,
 } from '../ecs/components';
-import { MAP_COLS, MAP_ROWS, TILE_SIZE, Faction } from '../constants';
+import { MAP_COLS, MAP_ROWS, TILE_SIZE, Faction, activePlayerFaction } from '../constants';
 import type { MapData } from '../map/MapData';
 
 /** Fog states: 0 = unexplored (black), 1 = explored but not visible (dark), 2 = currently visible */
@@ -58,7 +58,7 @@ export function fogSystem(world: World, map?: MapData): void {
   const posBit = POSITION;
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, posBit)) continue;
-    if (faction[eid] !== Faction.Terran) continue;
+    if (faction[eid] !== activePlayerFaction) continue;
     if (hpCurrent[eid] <= 0) continue;
 
     // Calculate sight range: atkRange / TILE_SIZE + 2, clamped [5, 12]

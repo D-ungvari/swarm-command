@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, CommandMode, WorkerState, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR, TERRAN_VISOR, TERRAN_METAL, TERRAN_DARK, TERRAN_HIGHLIGHT, ZERG_ACID, ZERG_EYE, ZERG_FLESH } from '../constants';
+import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, CommandMode, WorkerState, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR, TERRAN_VISOR, TERRAN_METAL, TERRAN_DARK, TERRAN_HIGHLIGHT, ZERG_ACID, ZERG_EYE, ZERG_FLESH, activePlayerFaction } from '../constants';
 import {
   POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING, WORKER,
   posX, posY, renderWidth, renderHeight, renderTint,
@@ -98,9 +98,9 @@ export class UnitRenderer {
       const tint = renderTint[eid];
       const isSelected = hasComponents(world, eid, SELECTABLE) && selected[eid] === 1;
 
-      // Fog of war: skip enemy entities (Zerg) on non-visible tiles
+      // Fog of war: skip enemy entities on non-visible tiles
       const fac = faction[eid] as Faction;
-      if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(x, y)) {
+      if (fac !== activePlayerFaction && fac !== Faction.None && !isTileVisible(x, y)) {
         continue;
       }
 
@@ -2011,6 +2011,60 @@ export class UnitRenderer {
           g.circle(x + 2, y - hh * 0.38, 1.5);
           g.fill({ color: ZERG_EYE, alpha: 0.9 });
 
+        } else if (uType === UnitType.Overlord) {
+          // ── Overlord: floating supply blimp, slow organic transport ──
+          const hw = w / 2;
+          const hh = h / 2;
+          const floatBob = Math.sin(gameTime * 1.5 + eid * 0.9) * 2;
+          const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+
+          // Ground shadow (air unit — larger, faint)
+          g.ellipse(x, y + 10, hw * 0.7, hh * 0.2);
+          g.fill({ color: 0x000000, alpha: 0.18 });
+
+          // Tentacles (4 dangling from underside, sway when moving)
+          const tentSway = isMoving ? Math.sin(gameTime * 3 + eid) * 2.5 : Math.sin(gameTime * 0.8 + eid) * 0.8;
+          for (let t = 0; t < 4; t++) {
+            const tx = x + (t - 1.5) * (hw * 0.35);
+            const tentPhase = tentSway + t * 0.5;
+            g.moveTo(tx, y + hh * 0.3 + floatBob);
+            g.lineTo(tx + tentPhase, y + hh * 0.8 + floatBob);
+            g.lineTo(tx + tentPhase * 0.5, y + hh * 1.1 + floatBob);
+            g.stroke({ color: darken(bodyColor, 20), width: 1.5, alpha: 0.6 });
+          }
+
+          // Main body (large inflated sac — wide ellipse)
+          g.ellipse(x, y + floatBob, hw * 0.85, hh * 0.55);
+          g.fill({ color: bodyColor, alpha: 0.9 });
+          g.ellipse(x, y + floatBob, hw * 0.85, hh * 0.55);
+          g.stroke({ color: lighten(bodyColor, 12), width: 1, alpha: 0.4 });
+
+          // Membrane veins across the sac
+          g.moveTo(x - hw * 0.4, y - hh * 0.1 + floatBob);
+          g.lineTo(x, y + hh * 0.2 + floatBob);
+          g.lineTo(x + hw * 0.4, y - hh * 0.1 + floatBob);
+          g.stroke({ color: darken(bodyColor, 25), width: 0.8, alpha: 0.35 });
+          g.moveTo(x - hw * 0.2, y - hh * 0.3 + floatBob);
+          g.lineTo(x + hw * 0.1, y + hh * 0.15 + floatBob);
+          g.stroke({ color: darken(bodyColor, 25), width: 0.6, alpha: 0.25 });
+
+          // Dorsal ridge (top crest)
+          g.ellipse(x, y - hh * 0.25 + floatBob, hw * 0.3, hh * 0.15);
+          g.fill({ color: lighten(bodyColor, 15), alpha: 0.7 });
+
+          // Eyes (small, front-facing)
+          g.circle(x - hw * 0.15, y - hh * 0.35 + floatBob, 1.8);
+          g.fill({ color: ZERG_EYE, alpha: 0.8 });
+          g.circle(x + hw * 0.15, y - hh * 0.35 + floatBob, 1.8);
+          g.fill({ color: ZERG_EYE, alpha: 0.8 });
+
+          // Slight gas shimmer underneath when moving
+          if (isMoving) {
+            const shimmer = 0.08 + Math.sin(gameTime * 5 + eid * 2) * 0.04;
+            g.ellipse(x, y + hh * 0.4 + floatBob, hw * 0.4, hh * 0.12);
+            g.fill({ color: 0x886622, alpha: shimmer });
+          }
+
         } else if (uType === UnitType.Queen) {
           // ── Queen: matriarch — power fantasy: COMMANDING PRESENCE ──
           // The hive mother. Scythes slash, crown spines flare, eye commands.
@@ -3506,7 +3560,7 @@ export class UnitRenderer {
       if (hpCurrent[eid] > 0) continue;          // alive — handled above
       if (deathTime[eid] <= 0) continue;          // not yet tagged by DeathSystem
       const fac = faction[eid] as Faction;
-      if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(posX[eid], posY[eid])) continue;
+      if (fac !== activePlayerFaction && fac !== Faction.None && !isTileVisible(posX[eid], posY[eid])) continue;
 
       const elapsed = gameTime - deathTime[eid];
       const progress = Math.min(1, Math.max(0, elapsed / DEATH_ANIM_DURATION));

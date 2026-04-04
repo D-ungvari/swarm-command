@@ -4,22 +4,20 @@
 **SC2 Mechanics Practice Tool** — true SC2 numbers, browser-based, no install.
 
 ## Current Phase
-PLAN — Backlog #91: Improve terrain visuals
+DEVELOP — Backlog #92: Continue unit visual polish
 
 ## Working On
-**#91 — Improve terrain visuals — detailed, smoother textures + elevation**
-- Replace flat tile colors with richer terrain rendering
-- Smooth tile transitions (no hard grid edges)
-- Add elevation system with ramps, high/low ground
-- SC2-style high ground vision advantage
+**#92 — Continue unit visual polish — remaining Terran/Zerg animations**
+Thor walking, Viking transform, Ultralisk charge, Corruptor hover, etc.
 
 ## What was completed
-SC2 stat accuracy audit corrections applied (commit 1ddc359):
-- 70+ value fixes across units, buildings, abilities
-- All unit stats now match Liquipedia SC2 LotV at Faster speed
-- Per-unit baseArmor, multi-shot damage, siege bonus damage
-- Stim works on Marauders, Fungal is 75% slow not root
-- 198 tests passing, 0 TypeScript errors
+Terrain visuals upgrade (commit 021f7ff):
+- Elevation data layer (Uint8Array: 0=low, 1=high, 2=ramp) threaded through all 10 maps
+- Tile transitions (shoreline, cliff edges), ground sub-variants (grass/dirt/mixed)
+- Elevation shading (high-ground brightness, cliff shadows)
+- SC2-style fog vision: low-ground can't see high-ground beyond adjacent
+- Minimap elevation tinting
+- 214 tests passing
 
 ## What to do next
-Complete planning phase, then develop.
+Implement backlog #92: remaining unit animations.

@@ -9,7 +9,7 @@ import {
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState,
   Difficulty, UpgradeType, AddonType,
-  GAME_SPEEDS,
+  GAME_SPEEDS, setActivePlayerFaction,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
@@ -117,6 +117,7 @@ export class Game {
 
   setPlayerFaction(f: Faction): void {
     this.playerFaction = f;
+    setActivePlayerFaction(f);
   }
 
   setScenario(scenario: Scenario): void {
@@ -862,8 +863,20 @@ export class Game {
 
     const input = this.input.state;
 
-    // B key opens build mode
+    // B key opens build mode — only if a worker of this faction is selected
     if (input.keysJustPressed.has('KeyB') && !this.placementMode) {
+      const workerType = this.playerFaction === Faction.Zerg ? UnitType.Drone : UnitType.SCV;
+      let hasWorkerSelected = false;
+      for (let eid = 1; eid < this.world.nextEid; eid++) {
+        if (selected[eid] !== 1) continue;
+        if (unitType[eid] !== workerType) continue;
+        if (faction[eid] !== this.playerFaction) continue;
+        if (hpCurrent[eid] <= 0) continue;
+        hasWorkerSelected = true;
+        break;
+      }
+      if (!hasWorkerSelected) return;
+
       this.placementMode = true;
       this.placementBuildingType = 0; // Wait for 1/2/3/4/5/6
       return;
@@ -1057,6 +1070,7 @@ export class Game {
       if (unitType[eid] !== UnitType.SCV) continue;
       if (faction[eid] !== this.playerFaction) continue;
       if (hpCurrent[eid] <= 0) continue;
+      if (commandMode[eid] === CommandMode.Build) continue; // already building
 
       const dx = posX[eid] - bx;
       const dy = posY[eid] - by;

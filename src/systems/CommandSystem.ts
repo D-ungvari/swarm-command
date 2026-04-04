@@ -19,7 +19,7 @@ import {
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
-import { findEnemyAt, findResourceAt, findBuildingAt, findFriendlyAt } from '../ecs/queries';
+import { findEnemyAt, findResourceAt, findBuildingAt, findFriendlyAt, hasCompletedBuilding } from '../ecs/queries';
 import { CommandType, type GameCommand } from '../input/CommandQueue';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile } from '../map/MapData';
@@ -490,6 +490,22 @@ function getSelectedBuildings(world: World): number[] {
   return buildings;
 }
 
+/** Tech building required before a unit can be trained */
+const UNIT_TECH_REQS: Partial<Record<number, number>> = {
+  [UnitType.Zergling]:  BuildingType.SpawningPool,
+  [UnitType.Queen]:     BuildingType.SpawningPool,
+  [UnitType.Baneling]:  BuildingType.SpawningPool,
+  [UnitType.Roach]:     BuildingType.RoachWarren,
+  [UnitType.Ravager]:   BuildingType.RoachWarren,
+  [UnitType.Hydralisk]: BuildingType.HydraliskDen,
+  [UnitType.Lurker]:    BuildingType.HydraliskDen,
+  [UnitType.Mutalisk]:  BuildingType.Spire,
+  [UnitType.Corruptor]: BuildingType.Spire,
+  [UnitType.Infestor]:  BuildingType.InfestationPit,
+  [UnitType.Viper]:     BuildingType.InfestationPit,
+  [UnitType.Ultralisk]: BuildingType.InfestationPit,
+};
+
 function handleProductionCommand(
   world: World,
   cmd: GameCommand,
@@ -516,6 +532,10 @@ function handleProductionCommand(
     const fac = faction[eid];
     const res = resources[fac];
     if (!res) continue;
+
+    // Check tech requirement
+    const techReq = UNIT_TECH_REQS[uType];
+    if (techReq !== undefined && !hasCompletedBuilding(world, fac as Faction, techReq as BuildingType)) continue;
 
     // Check resources
     if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) continue;

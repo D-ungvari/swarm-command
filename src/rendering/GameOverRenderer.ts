@@ -3,7 +3,7 @@ import {
   POSITION, HEALTH, BUILDING, UNIT_TYPE,
   faction, hpCurrent, buildingType, buildState, unitType,
 } from '../ecs/components';
-import { Faction, BuildingType, BuildState } from '../constants';
+import { Faction, BuildingType, BuildState, activePlayerFaction } from '../constants';
 import { getAIState } from '../systems/AISystem';
 import type { GameStatsSnapshot } from '../stats/GameStats';
 
@@ -115,30 +115,34 @@ export class GameOverRenderer {
     if (this.shown) return;
     if (gameTime < 45) return; // Don't check too early
 
-    // Check defeat: player has no Command Centers
-    let playerHasCC = false;
+    // Check defeat: player has no main base building
+    const playerMainBuilding = activePlayerFaction === Faction.Zerg
+      ? BuildingType.Hatchery : BuildingType.CommandCenter;
+    const enemyFaction = activePlayerFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg;
+    let playerHasBase = false;
     let enemyBuildingCount = 0;
 
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (hpCurrent[eid] <= 0) continue;
 
-      // Check for player CC
+      // Check for player's main base building
       if (hasComponents(world, eid, BUILDING) &&
-          faction[eid] === Faction.Terran &&
-          buildingType[eid] === BuildingType.CommandCenter &&
+          faction[eid] === activePlayerFaction &&
+          buildingType[eid] === playerMainBuilding &&
           buildState[eid] === BuildState.Complete) {
-        playerHasCC = true;
+        playerHasBase = true;
       }
 
-      // Count enemy buildings (Zerg buildings with hp > 0)
+      // Count enemy buildings with hp > 0
       if (hasComponents(world, eid, POSITION | HEALTH | BUILDING) &&
-          faction[eid] === Faction.Zerg) {
+          faction[eid] === enemyFaction) {
         enemyBuildingCount++;
       }
     }
 
-    if (!playerHasCC) {
-      this.show('DEFEAT', 'Your Command Center has been destroyed.', '#ff4444');
+    if (!playerHasBase) {
+      const baseName = activePlayerFaction === Faction.Zerg ? 'Hatchery' : 'Command Center';
+      this.show('DEFEAT', `Your ${baseName} has been destroyed.`, '#ff4444');
       return;
     }
 

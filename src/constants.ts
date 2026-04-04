@@ -25,6 +25,10 @@ export const enum Faction {
   Zerg = 2,
 }
 
+/** Which faction the human player controls (set at game init, default Terran) */
+export let activePlayerFaction: number = Faction.Terran;
+export function setActivePlayerFaction(f: number): void { activePlayerFaction = f; }
+
 // ── Tile types ──
 export const enum TileType {
   Ground = 0,

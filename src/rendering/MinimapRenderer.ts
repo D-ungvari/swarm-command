@@ -4,6 +4,7 @@ import {
   MAP_COLS, MAP_ROWS, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE,
   Faction, TERRAN_COLOR, ZERG_COLOR, MINERAL_COLOR, GAS_COLOR,
   GROUND_COLOR, WATER_COLOR, UNBUILDABLE_COLOR, TileType,
+  activePlayerFaction,
 } from '../constants';
 import {
   POSITION, HEALTH, BUILDING, RESOURCE,
@@ -185,7 +186,7 @@ export class MinimapRenderer {
       if (hasComponents(world, eid, BUILDING)) {
         const fac = faction[eid] as Faction;
         // Skip enemy buildings in fog
-        if (fac !== Faction.Terran && fac !== Faction.None && !isTileVisible(posX[eid], posY[eid])) continue;
+        if (fac !== activePlayerFaction && fac !== Faction.None && !isTileVisible(posX[eid], posY[eid])) continue;
         const color = fac === Faction.Terran ? TERRAN_COLOR
           : fac === Faction.Zerg ? ZERG_COLOR : 0x888888;
         g.rect(mx - 2.5, my - 2.5, 5, 5);
@@ -199,7 +200,7 @@ export class MinimapRenderer {
       const fac = faction[eid] as Faction;
       if (fac === Faction.None) continue;
       // Skip enemy units in fog
-      if (fac !== Faction.Terran && !isTileVisible(posX[eid], posY[eid])) continue;
+      if (fac !== activePlayerFaction && !isTileVisible(posX[eid], posY[eid])) continue;
       const color = fac === Faction.Terran ? TERRAN_COLOR : ZERG_COLOR;
       // Slightly larger dots for better visibility
       g.rect(mx - 1.2, my - 1.2, 2.4, 2.4);

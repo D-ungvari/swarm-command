@@ -1,4 +1,4 @@
-import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, STIM_DURATION } from '../constants';
+import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, STIM_DURATION, activePlayerFaction } from '../constants';
 import { CommandType } from '../input/CommandQueue';
 import { hasCompletedBuilding } from '../ecs/queries';
 import {
@@ -54,14 +54,18 @@ const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
 
 /** Units that require a tech building before they can be trained. */
 const UNIT_TECH_REQUIREMENTS: Partial<Record<number, number>> = {
+  [UnitType.Zergling]:  BuildingType.SpawningPool,
+  [UnitType.Queen]:     BuildingType.SpawningPool,
+  [UnitType.Baneling]:  BuildingType.SpawningPool,     // SC2: morphs from Zergling, simplified here
   [UnitType.Roach]:     BuildingType.RoachWarren,
-  [UnitType.Ravager]:   BuildingType.RoachWarren,
+  [UnitType.Ravager]:   BuildingType.RoachWarren,       // SC2: morphs from Roach, simplified here
   [UnitType.Hydralisk]: BuildingType.HydraliskDen,
-  [UnitType.Lurker]:    BuildingType.HydraliskDen,
+  [UnitType.Lurker]:    BuildingType.HydraliskDen,      // SC2: morphs from Hydralisk, simplified here
   [UnitType.Mutalisk]:  BuildingType.Spire,
   [UnitType.Corruptor]: BuildingType.Spire,
   [UnitType.Infestor]:  BuildingType.InfestationPit,
   [UnitType.Viper]:     BuildingType.InfestationPit,
+  [UnitType.Ultralisk]: BuildingType.InfestationPit,    // SC2: requires Hive (simplified to InfPit)
 };
 
 const UPGRADE_NAMES: Record<number, string> = {
@@ -202,7 +206,7 @@ export class InfoPanelRenderer {
 
     // Production buttons row (clickable buttons for available units)
     this.prodButtonsRow = document.createElement('div');
-    this.prodButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto;';
+    this.prodButtonsRow.style.cssText = 'display: none; flex-direction: row; flex-wrap: wrap; gap: 3px; margin-top: 4px; pointer-events: auto; max-width: 228px;';
     this.panel.appendChild(this.prodButtonsRow);
 
     // Production queue display row
@@ -536,15 +540,7 @@ export class InfoPanelRenderer {
 
           // Show available production hotkeys/buttons for completed buildings
           if (bs === BuildState.Complete && def && def.produces.length > 0) {
-            const hotkeys = ['Q', 'W'];
-            const hotkeyParts: string[] = [];
-            for (let i = 0; i < def.produces.length; i++) {
-              const uDef = UNIT_DEFS[def.produces[i]];
-              if (uDef && i < hotkeys.length) {
-                hotkeyParts.push(`${hotkeys[i]}: ${uDef.name}`);
-              }
-            }
-            this.detailEl.textContent = `${facName} | ${hotkeyParts.join('  ')}`;
+            this.detailEl.textContent = `${facName} | ${def.produces.length} trainable`;
 
             // Show clickable production buttons
             this.updateProductionButtons(eid, def.produces, playerResources, world, fac);
@@ -630,7 +626,7 @@ export class InfoPanelRenderer {
       }
 
       // Show upgrade bonuses
-      if (playerResources?.upgrades && fac === Faction.Terran) {
+      if (playerResources?.upgrades && fac === activePlayerFaction) {
         const upgrades = playerResources.upgrades;
         const ut = unitType[eid] as UnitType;
         let wBonus = 0;
@@ -707,7 +703,7 @@ export class InfoPanelRenderer {
     world?: World,
     fac?: Faction,
   ): void {
-    const hotkeys = ['Q', 'W'];
+    const hotkeys = ['Q','W','E','R','T','A','S','D','F','G','Z','X','C','V'];
     // Build a config string to detect changes and avoid unnecessary DOM rebuilds
     const configKey = `${buildingEid}:${produces.join(',')}`;
 
@@ -720,31 +716,62 @@ export class InfoPanelRenderer {
       for (let i = 0; i < produces.length; i++) {
         const uType = produces[i];
         const uDef = UNIT_DEFS[uType];
-        if (!uDef || i >= hotkeys.length) continue;
+        if (!uDef) continue;
 
         const btn = document.createElement('div');
         btn.style.cssText = `
-          padding: 3px 6px;
+          width: 42px;
+          height: 42px;
           border: 1px solid rgba(100, 160, 255, 0.4);
           border-radius: 3px;
-          font-size: 11px;
           cursor: pointer;
-          white-space: nowrap;
           pointer-events: auto;
           transition: background 0.1s;
+          background: rgba(10, 18, 30, 0.8);
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          box-sizing: border-box;
         `;
-        const costText = uDef.costGas > 0
-          ? `${uDef.costMinerals}m ${uDef.costGas}g`
-          : `${uDef.costMinerals}m`;
-        btn.textContent = `${hotkeys[i]}: ${uDef.name} ${costText}`;
+
+        const hotkey = i < hotkeys.length ? hotkeys[i] : '';
+
+        // Hotkey label (top-left)
+        const hotkeyEl = document.createElement('div');
+        hotkeyEl.style.cssText = 'position: absolute; top: 1px; left: 3px; font-size: 9px; color: rgba(180,200,255,0.5); font-family: Consolas, monospace;';
+        hotkeyEl.textContent = hotkey;
+        btn.appendChild(hotkeyEl);
+
+        // Unit name (centered)
+        const nameEl = document.createElement('div');
+        nameEl.style.cssText = 'font-size: 9px; color: #cce0ff; font-family: Consolas, monospace; text-align: center; line-height: 1.1; margin-top: 2px; padding: 0 1px;';
+        nameEl.textContent = uDef.name;
+        btn.appendChild(nameEl);
+
+        // Cost line (below name)
+        const costEl = document.createElement('div');
+        const mineralColor = '#66ccff';
+        const gasColor = '#66ff88';
+        costEl.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; text-align: center; line-height: 1;';
+        if (uDef.costGas > 0) {
+          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span><span style="color:#555">/</span><span style="color:${gasColor}">${uDef.costGas}</span>`;
+        } else {
+          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span>`;
+        }
+        btn.appendChild(costEl);
 
         btn.addEventListener('mouseenter', () => {
-          if (btn.style.color !== 'rgb(102, 102, 102)') {
+          if (!btn.classList.contains('prod-disabled')) {
             btn.style.background = 'rgba(40, 80, 160, 0.5)';
           }
         });
         btn.addEventListener('mouseleave', () => {
-          btn.style.background = 'transparent';
+          btn.style.background = btn.classList.contains('prod-disabled')
+            ? 'rgba(10, 14, 20, 0.9)'
+            : 'rgba(10, 18, 30, 0.8)';
         });
         btn.addEventListener('click', () => {
           if (this.productionCallback) {
@@ -777,31 +804,65 @@ export class InfoPanelRenderer {
         ? playerResources.supplyUsed >= playerResources.supplyProvided
         : false;
       const enabled = canAfford && !supplyCapped && techMet;
+      const btn = this.prodButtons[i];
+      const hotkey = i < hotkeys.length ? hotkeys[i] : '';
 
-      this.prodButtons[i].style.color = enabled ? '#eee' : '#666';
-      this.prodButtons[i].style.borderColor = enabled
-        ? 'rgba(100, 160, 255, 0.4)'
-        : 'rgba(100, 100, 100, 0.2)';
-      this.prodButtons[i].style.cursor = enabled ? 'pointer' : 'default';
+      if (enabled) {
+        btn.classList.remove('prod-disabled');
+        btn.style.borderColor = 'rgba(100, 160, 255, 0.4)';
+        btn.style.cursor = 'pointer';
+        btn.style.background = 'rgba(10, 18, 30, 0.8)';
+        btn.style.opacity = '1';
+      } else {
+        btn.classList.add('prod-disabled');
+        btn.style.borderColor = 'rgba(60, 60, 60, 0.3)';
+        btn.style.cursor = 'default';
+        btn.style.background = 'rgba(10, 14, 20, 0.9)';
+        btn.style.opacity = '0.5';
+      }
 
-      // Show tech requirement tooltip below the button name if not met
+      // Rebuild inner content to show tech requirement indicator
       if (!techMet && requiredBuilding !== undefined) {
         const reqDef = BUILDING_DEFS[requiredBuilding];
-        const reqName = reqDef ? reqDef.name : 'Required building';
-        const uDef2 = UNIT_DEFS[uType];
-        const hotkey = i < 2 ? ['Q', 'W'][i] : '';
-        const costText = uDef2.costGas > 0
-          ? `${uDef2.costMinerals}m ${uDef2.costGas}g`
-          : `${uDef2.costMinerals}m`;
-        this.prodButtons[i].innerHTML = `${hotkey}: ${uDef2.name} ${costText}<br><span style="color:#aa4444;font-size:9px;letter-spacing:0">Req: ${reqName}</span>`;
+        const reqName = reqDef ? reqDef.name : 'Required';
+        btn.innerHTML = '';
+        // Hotkey
+        const hk = document.createElement('div');
+        hk.style.cssText = 'position: absolute; top: 1px; left: 3px; font-size: 9px; color: rgba(180,200,255,0.3); font-family: Consolas, monospace;';
+        hk.textContent = hotkey;
+        btn.appendChild(hk);
+        // Name
+        const nm = document.createElement('div');
+        nm.style.cssText = 'font-size: 9px; color: #777; font-family: Consolas, monospace; text-align: center; line-height: 1.1; margin-top: 2px; padding: 0 1px;';
+        nm.textContent = uDef.name;
+        btn.appendChild(nm);
+        // REQ indicator
+        const req = document.createElement('div');
+        req.style.cssText = 'font-size: 7px; color: #aa4444; font-family: Consolas, monospace; text-align: center; line-height: 1;';
+        req.textContent = `REQ`;
+        req.title = `Requires: ${reqName}`;
+        btn.appendChild(req);
       } else {
-        // Restore plain text if tech is met
-        const uDef2 = UNIT_DEFS[uType];
-        const hotkey = i < 2 ? ['Q', 'W'][i] : '';
-        const costText = uDef2.costGas > 0
-          ? `${uDef2.costMinerals}m ${uDef2.costGas}g`
-          : `${uDef2.costMinerals}m`;
-        this.prodButtons[i].textContent = `${hotkey}: ${uDef2.name} ${costText}`;
+        // Rebuild with normal content (cost line)
+        btn.innerHTML = '';
+        const hk = document.createElement('div');
+        hk.style.cssText = `position: absolute; top: 1px; left: 3px; font-size: 9px; color: rgba(180,200,255,${enabled ? '0.5' : '0.3'}); font-family: Consolas, monospace;`;
+        hk.textContent = hotkey;
+        btn.appendChild(hk);
+        const nm = document.createElement('div');
+        nm.style.cssText = `font-size: 9px; color: ${enabled ? '#cce0ff' : '#777'}; font-family: Consolas, monospace; text-align: center; line-height: 1.1; margin-top: 2px; padding: 0 1px;`;
+        nm.textContent = uDef.name;
+        btn.appendChild(nm);
+        const costEl = document.createElement('div');
+        const mineralColor = enabled ? '#66ccff' : '#446';
+        const gasColor = enabled ? '#66ff88' : '#464';
+        costEl.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; text-align: center; line-height: 1;';
+        if (uDef.costGas > 0) {
+          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span><span style="color:#555">/</span><span style="color:${gasColor}">${uDef.costGas}</span>`;
+        } else {
+          costEl.innerHTML = `<span style="color:${mineralColor}">${uDef.costMinerals}</span>`;
+        }
+        btn.appendChild(costEl);
       }
     }
 

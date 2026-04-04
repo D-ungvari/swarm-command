@@ -1,5 +1,5 @@
-import { type World } from '../ecs/world';
-import { selected, faction } from '../ecs/components';
+import { type World, hasComponents } from '../ecs/world';
+import { selected, faction, BUILDING } from '../ecs/components';
 import { InputManager, type InputState } from './InputManager';
 import { CommandType, type GameCommand, GameCommandQueue } from './CommandQueue';
 import { Faction } from '../constants';
@@ -70,6 +70,14 @@ export class InputProcessor {
     this.processMouseEvents(state);
   }
 
+  /** Check if any selected entity is a building */
+  private isSelectedBuilding(): boolean {
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (selected[eid] === 1 && hasComponents(this.world, eid, BUILDING)) return true;
+    }
+    return false;
+  }
+
   private processKeys(state: InputState): void {
     const keys = state.keysJustPressed;
 
@@ -95,65 +103,85 @@ export class InputProcessor {
       this.fungalPending = false;
     }
 
-    // A: enter attack-move mode
-    if (keys.has('KeyA')) {
-      this.attackMovePending = true;
-    }
-
-    // Unit orders — snapshot selection at key time
-    if (keys.has('KeyS')) {
-      this.simulationQueue.push({ type: CommandType.Stop, units: this.snapshotSelection() });
-    }
-    if (keys.has('KeyH')) {
-      this.simulationQueue.push({ type: CommandType.HoldPosition, units: this.snapshotSelection() });
-    }
-    if (keys.has('KeyP')) {
-      this.patrolPending = true;
-    }
-    if (keys.has('KeyT')) {
-      this.simulationQueue.push({ type: CommandType.Stim, units: this.snapshotSelection() });
-    }
-    if (keys.has('KeyE')) {
-      this.simulationQueue.push({ type: CommandType.SiegeToggle, units: this.snapshotSelection() });
-    }
-    if (keys.has('Delete')) {
-      this.simulationQueue.push({ type: CommandType.Cancel, units: this.snapshotSelection() });
-    }
-    if (keys.has('KeyQ')) {
-      this.simulationQueue.push({ type: CommandType.Produce, data: 0, units: this.snapshotSelection() });
-    }
-    if (keys.has('KeyW')) {
-      this.simulationQueue.push({ type: CommandType.Produce, data: 1, units: this.snapshotSelection() });
-    }
+    // Tab / CycleSubgroup — works in both building and unit contexts
     if (keys.has('Tab') || keys.has('ArrowRight')) {
       this.selectionQueue.push({ type: CommandType.CycleSubgroup, data: 1 });
     }
     if (keys.has('ArrowLeft')) {
       this.selectionQueue.push({ type: CommandType.CycleSubgroup, data: -1 });
     }
-    if (keys.has('KeyC')) {
-      this.simulationQueue.push({ type: CommandType.Cloak, units: this.snapshotSelection() });
+
+    // Delete (Cancel) — works in both contexts
+    if (keys.has('Delete')) {
+      this.simulationQueue.push({ type: CommandType.Cancel, units: this.snapshotSelection() });
     }
-    if (keys.has('KeyV')) {
-      this.simulationQueue.push({ type: CommandType.InjectLarva, units: this.snapshotSelection() });
-    }
-    // Yamato Cannon (Battlecruiser) — fires at current attack target
-    if (keys.has('KeyY')) {
-      this.simulationQueue.push({ type: CommandType.Yamato, units: this.snapshotSelection() });
-    }
-    // Corrosive Bile (Ravager) — location ability, left-click to place
-    if (keys.has('KeyR')) {
-      this.corrosiveBilePending = true;
-      this.fungalPending = false;
-    }
-    // Fungal Growth (Infestor) — location ability, left-click to place
-    if (keys.has('KeyF')) {
-      this.fungalPending = true;
-      this.corrosiveBilePending = false;
-    }
-    // Abduct (Viper) — pulls current attack target to Viper
-    if (keys.has('KeyG')) {
-      this.simulationQueue.push({ type: CommandType.Abduct, units: this.snapshotSelection() });
+
+    // Context-aware hotkeys: building vs unit selection
+    const selectionIsBuilding = this.isSelectedBuilding();
+
+    if (selectionIsBuilding) {
+      // Production hotkeys (mapped to produces[] slot index)
+      // Row 1: Q=0  W=1  E=2  R=3  T=4
+      // Row 2: A=5  S=6  D=7  F=8  G=9
+      // Row 3: Z=10 X=11 C=12 V=13
+      const prodKeys: [string, number][] = [
+        ['KeyQ', 0], ['KeyW', 1], ['KeyE', 2], ['KeyR', 3], ['KeyT', 4],
+        ['KeyA', 5], ['KeyS', 6], ['KeyD', 7], ['KeyF', 8], ['KeyG', 9],
+        ['KeyZ', 10], ['KeyX', 11], ['KeyC', 12], ['KeyV', 13],
+      ];
+      for (const [key, slot] of prodKeys) {
+        if (keys.has(key)) {
+          this.simulationQueue.push({ type: CommandType.Produce, data: slot, units: this.snapshotSelection() });
+        }
+      }
+    } else {
+      // Unit ability keybindings
+
+      // A: enter attack-move mode
+      if (keys.has('KeyA')) {
+        this.attackMovePending = true;
+      }
+
+      // Unit orders — snapshot selection at key time
+      if (keys.has('KeyS')) {
+        this.simulationQueue.push({ type: CommandType.Stop, units: this.snapshotSelection() });
+      }
+      if (keys.has('KeyH')) {
+        this.simulationQueue.push({ type: CommandType.HoldPosition, units: this.snapshotSelection() });
+      }
+      if (keys.has('KeyP')) {
+        this.patrolPending = true;
+      }
+      if (keys.has('KeyT')) {
+        this.simulationQueue.push({ type: CommandType.Stim, units: this.snapshotSelection() });
+      }
+      if (keys.has('KeyE')) {
+        this.simulationQueue.push({ type: CommandType.SiegeToggle, units: this.snapshotSelection() });
+      }
+      if (keys.has('KeyC')) {
+        this.simulationQueue.push({ type: CommandType.Cloak, units: this.snapshotSelection() });
+      }
+      if (keys.has('KeyV')) {
+        this.simulationQueue.push({ type: CommandType.InjectLarva, units: this.snapshotSelection() });
+      }
+      // Yamato Cannon (Battlecruiser) — fires at current attack target
+      if (keys.has('KeyY')) {
+        this.simulationQueue.push({ type: CommandType.Yamato, units: this.snapshotSelection() });
+      }
+      // Corrosive Bile (Ravager) — location ability, left-click to place
+      if (keys.has('KeyR')) {
+        this.corrosiveBilePending = true;
+        this.fungalPending = false;
+      }
+      // Fungal Growth (Infestor) — location ability, left-click to place
+      if (keys.has('KeyF')) {
+        this.fungalPending = true;
+        this.corrosiveBilePending = false;
+      }
+      // Abduct (Viper) — pulls current attack target to Viper
+      if (keys.has('KeyG')) {
+        this.simulationQueue.push({ type: CommandType.Abduct, units: this.snapshotSelection() });
+      }
     }
   }
 

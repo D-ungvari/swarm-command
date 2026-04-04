@@ -266,5 +266,8 @@ function pathToBase(eid: number, map: MapData): void {
       return [wp.x, wp.y] as [number, number];
     });
     setPath(eid, worldPath);
+  } else {
+    // Fallback: direct movement toward base (no path found)
+    movePathIndex[eid] = -1;
   }
 }

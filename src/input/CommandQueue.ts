@@ -29,6 +29,18 @@ export const enum CommandType {
   Snipe = 27,
   Transfuse = 28,
   DepotLower = 29,
+  ControlGroupRecallCenter = 30,
+  ControlGroupSteal = 31,
+  CausticSpray = 32,
+  LockOn = 33,
+  BlindingCloud = 34,
+  ParasiticBomb = 35,
+  ViperConsume = 36,
+  BanelingBurrow = 37,
+  RoachBurrow = 38,
+  EMP = 39,
+  KD8Charge = 40,
+  NeuralParasite = 41,
 }
 
 export interface GameCommand {

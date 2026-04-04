@@ -8,6 +8,14 @@ export interface ScenarioUnit {
   type: UnitType;
   col: number;
   row: number;
+  energy?: number;  // override starting energy (e.g. Queens for transfuse)
+}
+
+export interface ScenarioWave {
+  delay: number;           // seconds after scenario start
+  unitIndices: number[];   // indices into setup.enemyUnits array
+  targetCol: number;       // attack-move destination tile
+  targetRow: number;
 }
 
 export interface ScenarioSetup {
@@ -21,6 +29,8 @@ export interface ScenarioSetup {
   disableBuilding?: boolean;  // cannot place buildings
   disableProduction?: boolean; // cannot train units
   timeLimit?: number;         // seconds — scenario ends when exceeded
+  countdownDuration?: number;  // pre-game countdown in seconds (default 10)
+  enemyWaves?: ScenarioWave[];  // timed enemy attack-move commands
 }
 
 export interface ScenarioObjective {
@@ -42,6 +52,7 @@ export interface Scenario {
 }
 
 export function gradeFromScore(score: number, maxScore: number): ScenarioGrade {
+  if (maxScore <= 0) return 'F';
   const pct = score / maxScore;
   if (pct >= 0.95) return 'S';
   if (pct >= 0.85) return 'A';

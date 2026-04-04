@@ -10,6 +10,11 @@ import {
   TileType, CommandMode, WorkerState,
   Difficulty, UpgradeType, AddonType,
   GAME_SPEEDS, setActivePlayerFaction,
+  SNIPE_RANGE, TRANSFUSE_RANGE, LOCKON_RANGE,
+  EMP_RANGE, EMP_RADIUS,
+  BLINDING_CLOUD_RANGE, BLINDING_CLOUD_RADIUS,
+  PARASITIC_BOMB_RANGE,
+  KD8_RANGE, KD8_RADIUS,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
@@ -18,7 +23,7 @@ import {
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
-  atkDamage, atkRange, atkCooldown, atkLastTime, movePathIndex,
+  atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, movePathIndex,
   bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount,
   targetEntity, commandMode,
   stimEndTime, slowEndTime, slowFactor,
@@ -48,7 +53,7 @@ import { hasCompletedBuilding } from './ecs/queries';
 import { findPath } from './map/Pathfinder';
 import { InputManager } from './input/InputManager';
 import { TilemapRenderer } from './rendering/TilemapRenderer';
-import { UnitRenderer, addCommandPing } from './rendering/UnitRenderer';
+import { UnitRenderer, addCommandPing, setAbilityPendingRange, setAoePreview } from './rendering/UnitRenderer';
 import { SelectionRenderer } from './rendering/SelectionRenderer';
 import { HudRenderer } from './rendering/HudRenderer';
 import { BuildMenuRenderer } from './rendering/BuildMenuRenderer';
@@ -62,9 +67,9 @@ import { AlertRenderer } from './rendering/AlertRenderer';
 import { DebugOverlay } from './rendering/DebugOverlay';
 import { movementSystem } from './systems/MovementSystem';
 import { spatialHash } from './ecs/SpatialHash';
-import { selectionSystem, getControlGroupInfo, getLastActiveGroup } from './systems/SelectionSystem';
-import { commandSystem } from './systems/CommandSystem';
-import { GameCommandQueue } from './input/CommandQueue';
+import { selectionSystem, getControlGroupInfo, getLastActiveGroup, controlGroupCenterX, controlGroupCenterY, controlGroupCenterFrame } from './systems/SelectionSystem';
+import { commandSystem, issuePathCommand } from './systems/CommandSystem';
+import { CommandType, GameCommandQueue } from './input/CommandQueue';
 import { InputProcessor } from './input/InputProcessor';
 import { buildSystem } from './systems/BuildSystem';
 import { productionSystem } from './systems/ProductionSystem';
@@ -103,7 +108,7 @@ export class Game {
   // Per-player resource state
   resources: Record<number, PlayerResources> = {
     [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(6) },
-    [Faction.Zerg]: { minerals: 0, gas: 0, supplyUsed: 0, supplyProvided: 200, upgrades: new Uint8Array(6) }, // Cheating AI: unlimited supply
+    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(6) },
   };
 
   // Building placement state
@@ -114,6 +119,10 @@ export class Game {
   private scenarioResult?: ScenarioResultRenderer;
   private scenarioHud?: ScenarioHudRenderer;
   private initialPlayerUnitCount = 0;
+  private scenarioCountdown = 0;  // seconds remaining in pre-game countdown (0 = active)
+  private scenarioCountdownEnded = false;
+  private lastControlGroupCenterFrame = 0;
+  private containerEl?: HTMLElement;
 
   setPlayerFaction(f: Faction): void {
     this.playerFaction = f;
@@ -251,6 +260,7 @@ export class Game {
   }
 
   async init(container: HTMLElement): Promise<void> {
+    this.containerEl = container;
     this.app = new Application();
     await this.app.init({
       background: 0x0a0a0a,
@@ -283,7 +293,7 @@ export class Game {
     // Re-initialize resources based on player faction
     if (this.playerFaction === Faction.Zerg) {
       this.resources = {
-        [Faction.Terran]: { minerals: 0, gas: 0, supplyUsed: 0, supplyProvided: 200, upgrades: new Uint8Array(6) },
+        [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(6) },
         [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(6) },
       };
     }
@@ -353,7 +363,13 @@ export class Game {
     this.scenarioResult = new ScenarioResultRenderer(container);
     if (this.scenarioManager) {
       this.scenarioHud = new ScenarioHudRenderer(container);
-      this.scenarioHud.show();
+      // Panel shows after countdown ends; countdown overlay shows during countdown
+      if (this.scenarioCountdown <= 0) {
+        this.scenarioHud.show();
+      } else {
+        // Hide game UI during countdown
+        container.classList.add('scenario-countdown');
+      }
     }
     this.alertRenderer = new AlertRenderer(container);
     this.debugOverlay = new DebugOverlay(container);
@@ -390,8 +406,18 @@ export class Game {
     });
 
     // Wire up ability button callback (subgroup abilities like Stim, Siege, Cloak, etc.)
-    this.infoPanelRenderer.setAbilityCallback((commandType, unitEids) => {
-      this.simulationQueue.push({ type: commandType, units: unitEids });
+    this.infoPanelRenderer.setAbilityCallback((commandType, _unitEids) => {
+      // Targeted abilities enter pending mode instead of firing directly
+      switch (commandType) {
+        case CommandType.Snipe: this.inputProcessor.setSnipePending(true); return;
+        case CommandType.Yamato: this.inputProcessor.setYamatoPending(true); return;
+        case CommandType.Abduct: this.inputProcessor.setAbductPending(true); return;
+        case CommandType.Transfuse: this.inputProcessor.setTransfusePending(true); return;
+        case CommandType.CorrosiveBile: this.inputProcessor.cancelAllPending(); this.inputProcessor.setCorrosiveBilePending(true); return;
+        case CommandType.FungalGrowth: this.inputProcessor.cancelAllPending(); this.inputProcessor.setFungalPending(true); return;
+        default: break;
+      }
+      this.simulationQueue.push({ type: commandType, units: _unitEids });
     });
 
     // Generate map with selected layout (setMapType is called before init)
@@ -430,8 +456,19 @@ export class Game {
           this.resources[this.playerFaction].gas = gas;
         },
         tileToWorld,
+        (eid, val) => { energy[eid] = val; },
       );
-      this.scenarioManager.setStartTime(0);
+      // Countdown phase: freeze simulation, lock camera, start time set when countdown ends
+      // Scale countdown by difficulty if not explicitly set: 1★=5s, 2★=7s, 3★=10s
+      const sc = this.scenarioManager.getScenario();
+      const difficultyDefault = sc ? [5, 5, 7, 10][sc.difficulty] ?? 10 : 10;
+      const countdownDuration = sc?.setup.countdownDuration ?? difficultyDefault;
+      this.scenarioCountdown = countdownDuration;
+      this.paused = true;
+      // Disable viewport interaction during countdown
+      this.viewport.plugins.pause('drag');
+      this.viewport.plugins.pause('wheel');
+      this.viewport.plugins.pause('pinch');
       // Count initial player units and center camera on them
       let count = 0;
       let sumX = 0;
@@ -446,6 +483,8 @@ export class Game {
       this.initialPlayerUnitCount = count;
       if (count > 0) {
         this.viewport.moveCenter(sumX / count, sumY / count);
+        // Set a comfortable zoom level for the countdown view
+        this.viewport.setZoom(0.85, true);
       }
       spawnRockEntities(this.world, this.map);
     } else {
@@ -454,9 +493,11 @@ export class Game {
       if (this.playerFaction === Faction.Zerg) {
         this.spawnZergBase(15, 15, true);   // player's Zerg base with 12 Drones
         this.spawnTerranAIBase();            // AI's Terran base at (112, 112)
+        this.sendWorkersToMine(Faction.Terran); // auto-mine for AI workers
       } else {
         this.spawnStartingBase();            // player's Terran base with 12 SCVs
-        this.spawnZergBase(117, 117, false); // AI's Zerg base (AI spawns its own units)
+        this.spawnZergBase(117, 117, true);  // AI's Zerg base with 12 Drones
+        this.sendWorkersToMine(Faction.Zerg);   // auto-mine for AI workers
       }
       spawnRockEntities(this.world, this.map);
     }
@@ -498,12 +539,58 @@ export class Game {
 
     this.input.update();
 
+    // Scenario countdown — tick down using real frame time, then unpause
+    if (this.scenarioCountdown > 0) {
+      // Space or Enter skips countdown
+      if (this.input.state.keysJustPressed.has('Space') || this.input.state.keysJustPressed.has('Enter')) {
+        this.scenarioCountdown = 0;
+      } else {
+        this.scenarioCountdown -= frameTime / 1000;
+      }
+      if (this.scenarioCountdown <= 0) {
+        this.scenarioCountdown = 0;
+        this.paused = false;
+        this.accumulator = 0;  // prevent tick burst from accumulated countdown time
+        this.scenarioManager?.setStartTime(0);
+        this.containerEl?.classList.remove('scenario-countdown');
+        // Re-enable viewport interaction
+        this.viewport.plugins.resume('drag');
+        this.viewport.plugins.resume('wheel');
+        this.viewport.plugins.resume('pinch');
+      } else {
+        // Lock camera on player unit center during countdown
+        let cx = 0, cy = 0, n = 0;
+        for (let eid = 1; eid < this.world.nextEid; eid++) {
+          if (hasComponents(this.world, eid, POSITION | HEALTH) && faction[eid] === this.playerFaction && hpCurrent[eid] > 0) {
+            cx += posX[eid];
+            cy += posY[eid];
+            n++;
+          }
+        }
+        if (n > 0) this.viewport.moveCenter(cx / n, cy / n);
+      }
+      // During countdown: skip all input processing and simulation
+      this.render();
+      this.input.lateUpdate();
+      return;
+    }
+
     // Escape toggles pause — only when no modal modes are active
     if (this.input.state.keysJustPressed.has('Escape')
         && !this.placementMode
         && !this.inputProcessor.isAttackMovePending
-        && !this.inputProcessor.isPatrolPending) {
+        && !this.inputProcessor.isPatrolPending
+        && !this.inputProcessor.isAnyAbilityPending) {
+      if (this.paused && this.scenarioManager) {
+        // Second Escape while paused in scenario mode → abandon to scenario browser
+        sessionStorage.setItem('show-scenarios', '1');
+        window.location.reload();
+        return;
+      }
       this.paused = !this.paused;
+      if (this.paused && this.scenarioManager) {
+        this.alertRenderer.show('ESC again to quit scenario', 3, this.gameTime);
+      }
     }
 
     this.handleMinimapClick();         // runs first — consumes minimap clicks
@@ -512,6 +599,11 @@ export class Game {
       this.handleBuildPlacement();       // runs second — consumes build placement clicks
       this.inputProcessor.processFrame(); // processes remaining raw events into queues
       this.applySelectionCommands();     // frame-rate: drain selectionQueue immediately
+      // Double-tap control group → center camera
+      if (controlGroupCenterFrame > this.lastControlGroupCenterFrame) {
+        this.lastControlGroupCenterFrame = controlGroupCenterFrame;
+        this.viewport.moveCenter(controlGroupCenterX, controlGroupCenterY);
+      }
     }
 
     const currentMsPerTick = MS_PER_TICK / GAME_SPEEDS[this.gameSpeedIndex];
@@ -560,7 +652,7 @@ export class Game {
       this.stats.recordAction();
     }
     commandSystem(this.world, this.simulationQueue.flushWithRecord(this.replayMode ? null : this.recorder, this.tickCount, this.gameTime), this.viewport, this.map, this.gameTime, this.resources, this.playerFaction);
-    buildSystem(this.world, dt, this.resources);
+    buildSystem(this.world, dt, this.resources, this.gameTime);
     productionSystem(this.world, dt, this.resources, this.map,
       (type, fac, x, y) => {
         const eid = this.spawnUnitAt(type, fac, x, y);
@@ -594,11 +686,27 @@ export class Game {
     }
 
     deathSystem(this.world, this.gameTime, this.map, this.resources);
-    aiSystem(this.world, dt, this.gameTime, this.map,
-      (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources,
-      (type, fac, col, row) => this.spawnBuilding(type as BuildingType, fac as Faction, col, row));
+    if (!this.scenarioManager?.getScenario()?.setup.disableAI) {
+      aiSystem(this.world, dt, this.gameTime, this.map,
+        (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources,
+        (type, fac, col, row) => this.spawnBuilding(type as BuildingType, fac as Faction, col, row));
+    }
     if (this.fogEnabled) fogSystem(this.world, this.map);
     creepSystem(this.world, this.map, dt);
+
+    // Scenario wave scripting — issue attack-move commands at scheduled times
+    if (this.scenarioManager) {
+      this.scenarioManager.tickBehavior(
+        this.gameTime,
+        (eids, targetX, targetY) => {
+          const alive = eids.filter(eid => hpCurrent[eid] > 0);
+          if (alive.length > 0) {
+            issuePathCommand(this.world, alive, targetX, targetY, this.map, CommandMode.AttackMove);
+          }
+        },
+        tileToWorld,
+      );
+    }
 
     // Track waves defeated
     const aiState = getAIState();
@@ -636,6 +744,8 @@ export class Game {
           timeElapsed: this.gameTime,
           unitsLost: playerLost,
           tips: scenario.tips,
+          objectiveType: scenario.objective.type,
+          totalPlayerUnits: this.initialPlayerUnitCount,
         });
         // Pause the game when result shows
         this.paused = true;
@@ -652,6 +762,36 @@ export class Game {
 
     this.tilemapRenderer.updateWater(this.gameTime);
     this.tilemapRenderer.updateCreep(this.map, this.gameTime);
+    // Set ability range info for renderer
+    if (this.inputProcessor.isSnipePending) setAbilityPendingRange(SNIPE_RANGE * TILE_SIZE, UnitType.Ghost, 0x00ccff);
+    else if (this.inputProcessor.isEmpPending) setAbilityPendingRange(EMP_RANGE * TILE_SIZE, UnitType.Ghost, 0x00ccff);
+    else if (this.inputProcessor.isYamatoPending) setAbilityPendingRange(10 * TILE_SIZE, UnitType.Battlecruiser, 0xff6600);
+    else if (this.inputProcessor.isAbductPending) setAbilityPendingRange(9 * TILE_SIZE, UnitType.Viper, 0xcc44ff);
+    else if (this.inputProcessor.isTransfusePending) setAbilityPendingRange(TRANSFUSE_RANGE * TILE_SIZE, UnitType.Queen, 0x44ff44);
+    else if (this.inputProcessor.isLockOnPending) setAbilityPendingRange(LOCKON_RANGE * TILE_SIZE, UnitType.Cyclone, 0xff4444);
+    else if (this.inputProcessor.isCorrosiveBilePending) setAbilityPendingRange(9 * TILE_SIZE, UnitType.Ravager, 0xff4444);
+    else if (this.inputProcessor.isFungalPending) setAbilityPendingRange(10 * TILE_SIZE, UnitType.Infestor, 0x44ff88);
+    else if (this.inputProcessor.isBlindingCloudPending) setAbilityPendingRange(BLINDING_CLOUD_RANGE * TILE_SIZE, UnitType.Viper, 0x8844ff);
+    else if (this.inputProcessor.isParasiticBombPending) setAbilityPendingRange(PARASITIC_BOMB_RANGE * TILE_SIZE, UnitType.Viper, 0xff4488);
+    else if (this.inputProcessor.isKD8ChargePending) setAbilityPendingRange(KD8_RANGE * TILE_SIZE, UnitType.Reaper, 0xff6622);
+    else setAbilityPendingRange(0, -1, 0);
+    // AoE cursor preview for location-targeted abilities
+    if (this.inputProcessor.isCorrosiveBilePending || this.inputProcessor.isFungalPending || this.inputProcessor.isBlindingCloudPending || this.inputProcessor.isEmpPending || this.inputProcessor.isKD8ChargePending) {
+      const mouseWorld = this.viewport.toWorld(this.input.state.mouse.x, this.input.state.mouse.y);
+      const radius = this.inputProcessor.isCorrosiveBilePending ? 1.5 * TILE_SIZE
+        : this.inputProcessor.isBlindingCloudPending ? BLINDING_CLOUD_RADIUS * TILE_SIZE
+        : this.inputProcessor.isEmpPending ? EMP_RADIUS * TILE_SIZE
+        : this.inputProcessor.isKD8ChargePending ? KD8_RADIUS * TILE_SIZE
+        : 2.25 * TILE_SIZE;
+      const color = this.inputProcessor.isCorrosiveBilePending ? 0xff4444
+        : this.inputProcessor.isBlindingCloudPending ? 0x8844ff
+        : this.inputProcessor.isEmpPending ? 0x00ccff
+        : this.inputProcessor.isKD8ChargePending ? 0xff6622
+        : 0x44ff88;
+      setAoePreview(mouseWorld.x, mouseWorld.y, radius, color);
+    } else {
+      setAoePreview(0, 0, 0, 0);
+    }
     this.unitRenderer.render(this.world, this.gameTime, this.viewport.scale.x);
     this.projRenderer.update(this.gameTime);
     this.projRenderer.render(this.gameTime);
@@ -691,18 +831,44 @@ export class Game {
       }
       this.touchCommandBar.update(selectedTypes, anySelected);
     }
-    this.modeIndicatorRenderer.update(this.inputProcessor.isAttackMovePending, this.placementMode, this.inputProcessor.isPatrolPending);
-    if (this.paused) {
+    // Compute active ability targeting name
+    const ip = this.inputProcessor;
+    const abilityName = ip.isSnipePending ? 'SNIPE — click target'
+      : ip.isYamatoPending ? 'YAMATO CANNON — click target'
+      : ip.isAbductPending ? 'ABDUCT — click target'
+      : ip.isTransfusePending ? 'TRANSFUSE — click friendly'
+      : ip.isLockOnPending ? 'LOCK ON — click target'
+      : ip.isCausticSprayPending ? 'CAUSTIC SPRAY — click building'
+      : ip.isCorrosiveBilePending ? 'CORROSIVE BILE — click location'
+      : ip.isFungalPending ? 'FUNGAL GROWTH — click location'
+      : ip.isBlindingCloudPending ? 'BLINDING CLOUD — click location'
+      : ip.isEmpPending ? 'EMP ROUND — click location'
+      : ip.isKD8ChargePending ? 'KD8 CHARGE — click location'
+      : ip.isParasiticBombPending ? 'PARASITIC BOMB — click air target'
+      : ip.isNeuralParasitePending ? 'NEURAL PARASITE — click target'
+      : '';
+    this.modeIndicatorRenderer.update(ip.isAttackMovePending, this.placementMode, ip.isPatrolPending, abilityName);
+    if (this.paused && this.scenarioCountdown <= 0) {
       this.modeIndicatorRenderer.showPaused();
     }
     this.hotkeyPanelRenderer.update(this.input.state.keysJustPressed);
     this.minimapRenderer.render(this.world, this.gameTime);
 
-    // Scenario objective HUD
+    // Scenario HUD: countdown or active timer
     if (this.scenarioHud && this.scenarioManager) {
       const sc = this.scenarioManager.getScenario();
       if (sc) {
-        this.scenarioHud.update(sc.title, sc.objective.label, this.gameTime, sc.setup.timeLimit);
+        if (this.scenarioCountdown > 0) {
+          this.scenarioHud.updateCountdown(this.scenarioCountdown, sc.title, sc.objective.label, sc.tips);
+        } else {
+          if (!this.scenarioCountdownEnded) {
+            // One-time transition from countdown to active
+            this.scenarioHud.updateCountdown(0, sc.title, sc.objective.label, sc.tips);
+            this.scenarioHud.show();
+            this.scenarioCountdownEnded = true;
+          }
+          this.scenarioHud.update(sc.title, sc.objective.label, this.gameTime, sc.setup.timeLimit);
+        }
       }
     }
 
@@ -755,8 +921,8 @@ export class Game {
       this.minimapRenderer.showAttackPing(hit.x, hit.y, this.gameTime);
     }
 
-    // Game speed: + / - (disabled in turbo mode)
-    if (!this.turboMode) {
+    // Game speed: + / - (disabled in turbo mode and during countdown)
+    if (!this.turboMode && this.scenarioCountdown <= 0) {
       if (this.input.state.keysJustPressed.has('Equal')) {
         this.gameSpeedIndex = Math.min(3, this.gameSpeedIndex + 1);
       }
@@ -765,8 +931,8 @@ export class Game {
       }
     }
 
-    // F9 = toggle fog of war
-    if (this.input.state.keysJustPressed.has('F9')) {
+    // F9 = toggle fog of war (disabled during countdown)
+    if (this.input.state.keysJustPressed.has('F9') && this.scenarioCountdown <= 0) {
       this.fogEnabled = !this.fogEnabled;
     }
 
@@ -783,17 +949,17 @@ export class Game {
       }
     }
 
-    // Spacebar = jump camera to base
-    if (this.input.state.keysJustPressed.has('Space') && !this.placementMode) {
+    // Spacebar = jump camera to base (disabled during countdown)
+    if (this.input.state.keysJustPressed.has('Space') && !this.placementMode && this.scenarioCountdown <= 0) {
       const ccPos = tileToWorld(15, 15);
       this.viewport.moveCenter(ccPos.x, ccPos.y);
     }
 
-    // F2 = select all combat units, F3 = select all workers
-    if (this.input.state.keysJustPressed.has('F2')) {
+    // F2 = select all combat units, F3 = select all workers (disabled during countdown)
+    if (this.input.state.keysJustPressed.has('F2') && this.scenarioCountdown <= 0) {
       this.selectAllCombatUnits();
     }
-    if (this.input.state.keysJustPressed.has('F3')) {
+    if (this.input.state.keysJustPressed.has('F3') && this.scenarioCountdown <= 0) {
       this.selectAllWorkers();
     }
     this.alertRenderer.update(this.gameTime);
@@ -801,7 +967,7 @@ export class Game {
     // Cursor change based on current mode
     if (this.placementMode) {
       document.body.style.cursor = 'cell';
-    } else if (this.inputProcessor.isAttackMovePending) {
+    } else if (this.inputProcessor.isAttackMovePending || this.inputProcessor.isAnyAbilityPending || this.inputProcessor.isPatrolPending) {
       document.body.style.cursor = 'crosshair';
     } else {
       document.body.style.cursor = 'default';
@@ -844,6 +1010,8 @@ export class Game {
         this.isTechAvailable(BuildingType.Spire),                             // 5: Spire (req Hatchery)
         this.isTechAvailable(BuildingType.EvolutionChamber),                  // 6: EvoChamber (req SpawningPool)
         this.isTechAvailable(BuildingType.InfestationPit),                    // 7: InfestationPit (req SpawningPool)
+        this.isTechAvailable(BuildingType.SpineCrawler),                      // 8: SpineCrawler (req SpawningPool)
+        this.isTechAvailable(BuildingType.SporeCrawler),                      // 9: SporeCrawler (req SpawningPool)
       ];
     }
     // Existing Terran logic
@@ -855,6 +1023,8 @@ export class Game {
       this.isTechAvailable(BuildingType.Factory),
       this.isTechAvailable(BuildingType.Starport),
       this.isTechAvailable(BuildingType.EngineeringBay),
+      this.isTechAvailable(BuildingType.MissileTurret),
+      true, // slot 9 unused for Terran
     ];
   }
 
@@ -919,6 +1089,18 @@ export class Game {
             this.placementBuildingType = BuildingType.InfestationPit;
           } else {
             this.buildMenuRenderer.flashLocked(6, this.getRequiresName(BuildingType.InfestationPit));
+          }
+        } else if (input.keysJustPressed.has('Digit8')) {
+          if (this.isTechAvailable(BuildingType.SpineCrawler)) {
+            this.placementBuildingType = BuildingType.SpineCrawler;
+          } else {
+            this.buildMenuRenderer.flashLocked(7, this.getRequiresName(BuildingType.SpineCrawler));
+          }
+        } else if (input.keysJustPressed.has('Digit9')) {
+          if (this.isTechAvailable(BuildingType.SporeCrawler)) {
+            this.placementBuildingType = BuildingType.SporeCrawler;
+          } else {
+            this.buildMenuRenderer.flashLocked(8, this.getRequiresName(BuildingType.SporeCrawler));
           }
         }
         if (input.keysJustPressed.has('Escape')) {
@@ -1006,6 +1188,12 @@ export class Game {
           this.placementBuildingType = BuildingType.EngineeringBay;
         } else {
           this.buildMenuRenderer.flashLocked(6, this.getRequiresName(BuildingType.EngineeringBay));
+        }
+      } else if (input.keysJustPressed.has('Digit8')) {
+        if (this.isTechAvailable(BuildingType.MissileTurret)) {
+          this.placementBuildingType = BuildingType.MissileTurret;
+        } else {
+          this.buildMenuRenderer.flashLocked(7, this.getRequiresName(BuildingType.MissileTurret));
         }
       }
 
@@ -1427,6 +1615,50 @@ export class Game {
     }
   }
 
+  /** Send all idle workers of a given faction to mine the nearest mineral patch. */
+  private sendWorkersToMine(fac: number): void {
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (!hasComponents(this.world, eid, WORKER | POSITION)) continue;
+      if (faction[eid] !== fac) continue;
+      if (workerState[eid] !== WorkerState.Idle) continue;
+
+      // Find nearest mineral patch
+      let bestDist = Infinity;
+      let bestMineral = -1;
+      for (let rid = 1; rid < this.world.nextEid; rid++) {
+        if (!hasComponents(this.world, rid, RESOURCE | POSITION)) continue;
+        if (resourceType[rid] !== ResourceType.Mineral) continue;
+        const dx = posX[rid] - posX[eid];
+        const dy = posY[rid] - posY[eid];
+        const dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestMineral = rid;
+        }
+      }
+      if (bestMineral < 0) continue;
+
+      // Set worker to gather from this mineral
+      workerState[eid] = WorkerState.MovingToResource;
+      workerTargetEid[eid] = bestMineral;
+      commandMode[eid] = CommandMode.Gather;
+
+      // Path the worker to the mineral patch
+      const resTile = worldToTile(posX[bestMineral], posY[bestMineral]);
+      const walkable = findNearestWalkableTile(this.map, resTile.col, resTile.row);
+      if (walkable) {
+        const startTile = worldToTile(posX[eid], posY[eid]);
+        const tilePath = findPath(this.map, startTile.col, startTile.row, walkable.col, walkable.row);
+        if (tilePath.length > 0) {
+          setPath(eid, tilePath.map(([c, r]) => {
+            const wp = tileToWorld(c, r);
+            return [wp.x, wp.y] as [number, number];
+          }));
+        }
+      }
+    }
+  }
+
   private spawnResourceNodes(): void {
     const tiles = getResourceTiles(this.map);
     for (const t of tiles) {
@@ -1557,6 +1789,7 @@ export class Game {
     atkDamage[eid] = def.damage;
     atkRange[eid] = def.range * TILE_SIZE;
     atkCooldown[eid] = def.attackCooldown;
+    atkSplash[eid] = def.splashRadius;
     atkLastTime[eid] = 0;
     bonusDmg[eid] = def.bonusDamage;
     bonusVsTag[eid] = def.bonusVsTag;
@@ -1572,7 +1805,7 @@ export class Game {
     siegeMode[eid] = 0;
     siegeTransitionEnd[eid] = 0;
     lastCombatTime[eid] = 0;
-    supplyCost[eid] = SUPPLY_PER_UNIT;
+    supplyCost[eid] = def.supply;
 
     renderWidth[eid] = def.width;
     renderHeight[eid] = def.height;
@@ -1586,15 +1819,18 @@ export class Game {
     cloaked[eid] = 0;
     veterancyLevel[eid] = 0;
 
-    // Energy setup for caster units
+    // Energy setup for caster units (SC2: casters spawn with 50 energy, Queen with 25)
     if (type === UnitType.Ghost) {
-      energy[eid] = 200; // start with full energy
+      energy[eid] = 50;
     }
     if (type === UnitType.Infestor) {
-      energy[eid] = 200; // start with full energy
+      energy[eid] = 50;
     }
     if (type === UnitType.Viper) {
-      energy[eid] = 200; // start with full energy
+      energy[eid] = 50;
+    }
+    if (type === UnitType.Queen) {
+      energy[eid] = 25;
     }
 
     // Overlord provides 8 supply when spawned
@@ -1617,7 +1853,7 @@ export class Game {
     // Track supply
     const res = this.resources[fac];
     if (res) {
-      res.supplyUsed += SUPPLY_PER_UNIT;
+      res.supplyUsed += def.supply;
     }
 
     return eid;
@@ -1646,14 +1882,44 @@ export class Game {
     if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) return;
 
     // Check supply
-    if (res.supplyUsed >= res.supplyProvided) return;
+    if (uDef.supply > 0 && res.supplyUsed + uDef.supply > res.supplyProvided) return;
 
     // Deduct cost
     res.minerals -= uDef.costMinerals;
     res.gas -= uDef.costGas;
 
+    // Check tech requirement
+    const UNIT_TECH_REQS_MAP: Record<number, number | undefined> = {
+      [UnitType.Zergling]:  BuildingType.SpawningPool,
+      [UnitType.Queen]:     BuildingType.SpawningPool,
+      [UnitType.Baneling]:  BuildingType.SpawningPool,
+      [UnitType.Roach]:     BuildingType.RoachWarren,
+      [UnitType.Ravager]:   BuildingType.RoachWarren,
+      [UnitType.Hydralisk]: BuildingType.HydraliskDen,
+      [UnitType.Lurker]:    BuildingType.HydraliskDen,
+      [UnitType.Mutalisk]:  BuildingType.Spire,
+      [UnitType.Corruptor]: BuildingType.Spire,
+      [UnitType.Infestor]:  BuildingType.InfestationPit,
+      [UnitType.Viper]:     BuildingType.InfestationPit,
+      [UnitType.Ultralisk]: BuildingType.InfestationPit,
+    };
+    const techReq = UNIT_TECH_REQS_MAP[uType];
+    if (techReq !== undefined && !hasCompletedBuilding(this.world, fac as Faction, techReq as BuildingType)) return;
+
+    // Zerg Hatchery: consume larva when starting production
+    if (buildingType[buildingEid] === BuildingType.Hatchery) {
+      if (larvaCount[buildingEid] <= 0) return;
+    }
+
     // If nothing is currently producing, start immediately
     if (prodUnitType[buildingEid] === 0) {
+      // Consume larva for Zerg
+      if (buildingType[buildingEid] === BuildingType.Hatchery) {
+        larvaCount[buildingEid]--;
+        if (larvaRegenTimer[buildingEid] <= 0 && larvaCount[buildingEid] < 3) {
+          larvaRegenTimer[buildingEid] = 11; // LARVA_REGEN_TIME
+        }
+      }
       prodUnitType[buildingEid] = uType;
       prodProgress[buildingEid] = uDef.buildTime;
       prodTimeTotal[buildingEid] = uDef.buildTime;

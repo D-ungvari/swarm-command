@@ -3,17 +3,18 @@ import {
   POSITION, HEALTH, BUILDING, UNIT_TYPE,
   posX, posY, faction, hpCurrent,
   resetComponents, unitType,
-  buildingType, buildState, builderEid, supplyProvided,
+  buildingType, buildState, builderEid, supplyProvided, supplyCost,
   commandMode, workerState, workerTargetEid,
   deathTime, renderWidth, renderHeight,
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
 import { clearBuildingTiles, worldToTile } from '../map/MapData';
-import { BuildingType, CommandMode, WorkerState } from '../constants';
+import { BuildingType, CommandMode, WorkerState, Faction } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { soundManager } from '../audio/SoundManager';
 import { triggerCameraShake } from '../rendering/CameraShake';
+import { markCreepDirty } from './CreepSystem';
 
 export interface DeathEvent {
   x: number;
@@ -94,6 +95,8 @@ export function deathSystem(
         }
         clearBuildingTiles(map, tile.col, tile.row, bDef.tileWidth, bDef.tileHeight);
       }
+      // Zerg building destroyed — mark creep for re-spread
+      if (faction[eid] === Faction.Zerg) markCreepDirty();
       // Release supply
       if (supplyProvided[eid] > 0 && resources) {
         const fac = faction[eid];
@@ -107,6 +110,14 @@ export function deathSystem(
         commandMode[builder] = CommandMode.Idle;
         workerState[builder] = WorkerState.Idle;
         workerTargetEid[builder] = -1;
+      }
+    }
+
+    // Release supply used by the unit
+    if (resources && supplyCost[eid] > 0) {
+      const fac = faction[eid];
+      if (resources[fac]) {
+        resources[fac].supplyUsed -= supplyCost[eid];
       }
     }
 

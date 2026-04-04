@@ -41,6 +41,7 @@ export interface UnitDef {
   isAir: number;          // 1 = air unit (Medivac, Mutalisk)
   canTargetGround: number; // 1 = can attack ground units
   canTargetAir: number;   // 1 = can attack air units
+  supply: number;         // supply cost (SC2 values: Marine=1, Zergling=0.5, Thor=6, etc.)
 }
 
 /** Building stat definition from data tables */
@@ -59,4 +60,10 @@ export interface BuildingDef {
   color: number;
   /** Prerequisite building type that must exist and be complete, null = no requirement */
   requires: BuildingType | null;
+  /** Optional attack stats for defensive buildings (Missile Turret, Spine/Spore Crawler) */
+  damage?: number;
+  range?: number;
+  attackCooldown?: number;
+  canTargetGround?: number;
+  canTargetAir?: number;
 }

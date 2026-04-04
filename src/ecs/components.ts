@@ -37,6 +37,7 @@ export const atkSplash = new Float32Array(MAX_ENTITIES);
 
 // ── Movement ──
 export const moveSpeed = new Float32Array(MAX_ENTITIES);
+export const groupSpeed = new Float32Array(MAX_ENTITIES); // 0 = use own speed, >0 = capped group speed
 export const moveTargetX = new Float32Array(MAX_ENTITIES);
 export const moveTargetY = new Float32Array(MAX_ENTITIES);
 /** Index into path array, -1 = no path */
@@ -120,6 +121,8 @@ export const deathTime = new Float32Array(MAX_ENTITIES);
 export const energy = new Float32Array(MAX_ENTITIES);
 /** 1 = cloaked, 0 = visible */
 export const cloaked = new Uint8Array(MAX_ENTITIES);
+/** 1 = burrowed (Lurker, WidowMine), 0 = unburrowed. Separate from cloak. */
+export const burrowed = new Uint8Array(MAX_ENTITIES);
 
 // ── Resource node ──
 /** ResourceType enum: Mineral=1, Gas=2 */
@@ -171,9 +174,53 @@ export const fungalLandX = new Float32Array(MAX_ENTITIES);
 /** World Y position of the fungal impact */
 export const fungalLandY = new Float32Array(MAX_ENTITIES);
 
+// ── Ability: KD8 Charge (Reaper) ──
+/** gameTime when the KD8 charge detonates at the target location, 0 = inactive */
+export const kd8LandTime = new Float32Array(MAX_ENTITIES);
+/** World X position of the KD8 charge detonation */
+export const kd8LandX = new Float32Array(MAX_ENTITIES);
+/** World Y position of the KD8 charge detonation */
+export const kd8LandY = new Float32Array(MAX_ENTITIES);
+
+// ── Ability: Caustic Spray (Corruptor) ──
+/** Entity ID of the building being channeled on, -1 = no channel */
+export const causticTarget = new Int16Array(MAX_ENTITIES);
+
+// ── Ability: Cyclone Lock-On ──
+/** Target entity ID for Lock-On channel, -1 = no lock */
+export const lockOnTarget = new Int16Array(MAX_ENTITIES);
+/** gameTime when Lock-On expires (0 = inactive) */
+export const lockOnEndTime = new Float32Array(MAX_ENTITIES);
+
+// ── Ability: Thor Anti-Air Mode ──
+/** 0 = Javelin Missiles (single-target, 24 dmg, 11 range), 1 = Explosive Payload (splash, 6 dmg, 10 range) */
+export const thorMode = new Uint8Array(MAX_ENTITIES);
+
+// ── Ability: Blinding Cloud (debuff on victim) ──
+/** gameTime when blinding cloud range reduction expires (0 = not affected) */
+export const blindingCloudEndTime = new Float32Array(MAX_ENTITIES);
+
+// ── Ability: Parasitic Bomb (debuff on target air unit) ──
+/** gameTime when parasitic bomb expires (0 = not affected) */
+export const parasiticBombEndTime = new Float32Array(MAX_ENTITIES);
+/** Faction of the caster who applied the parasitic bomb */
+export const parasiticBombCasterFaction = new Uint8Array(MAX_ENTITIES);
+
+// ── Ability: Neural Parasite (Infestor) ──
+/** Entity ID of the target being mind-controlled, -1 = none (on Infestor) */
+export const neuralTarget = new Int16Array(MAX_ENTITIES);
+/** gameTime when the channel ends (on Infestor) */
+export const neuralEndTime = new Float32Array(MAX_ENTITIES);
+/** gameTime when the stun ends (on victim). While > gameTime, victim is stunned. */
+export const neuralStunEndTime = new Float32Array(MAX_ENTITIES);
+
 // ── Supply Depot lowered state ──
 /** 0 = raised (default), 1 = lowered (walkable) */
 export const depotLowered = new Uint8Array(MAX_ENTITIES);
+
+// ── Ability: Hellion/Hellbat Transform ──
+/** 0 = Hellion (ranged), 1 = Hellbat (melee) */
+export const hellbatMode = new Uint8Array(MAX_ENTITIES);
 
 // ── Addon (Tech Lab / Reactor) ──
 /** 0=none, 1=TechLab, 2=Reactor */
@@ -304,6 +351,7 @@ export function resetComponents(eid: number): void {
   deathTime[eid] = 0;
   energy[eid] = 0;
   cloaked[eid] = 0;
+  burrowed[eid] = 0;
   resourceType[eid] = 0;
   resourceRemaining[eid] = 0;
   workerCountOnResource[eid] = 0;
@@ -325,6 +373,20 @@ export function resetComponents(eid: number): void {
   fungalLandTime[eid] = 0;
   fungalLandX[eid] = 0;
   fungalLandY[eid] = 0;
+  kd8LandTime[eid] = 0;
+  kd8LandX[eid] = 0;
+  kd8LandY[eid] = 0;
+  causticTarget[eid] = -1;
+  lockOnTarget[eid] = -1;
+  lockOnEndTime[eid] = 0;
+  thorMode[eid] = 0;
+  hellbatMode[eid] = 0;
+  blindingCloudEndTime[eid] = 0;
+  parasiticBombEndTime[eid] = 0;
+  parasiticBombCasterFaction[eid] = 0;
+  neuralTarget[eid] = -1;
+  neuralEndTime[eid] = 0;
+  neuralStunEndTime[eid] = 0;
   depotLowered[eid] = 0;
   addonType[eid] = 0;
   buildingType[eid] = 0;

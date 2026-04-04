@@ -1,16 +1,19 @@
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import {
-  POSITION, BUILDING, WORKER,
+  POSITION, BUILDING, WORKER, ATTACK,
   posX, posY, faction,
   buildState, buildProgress, buildTimeTotal, builderEid,
   buildingType, hpCurrent, hpMax,
   supplyProvided as supplyProvidedArr,
   commandMode, workerState, workerTargetEid,
   movePathIndex,
+  atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash,
+  canTargetGround, canTargetAir, targetEntity,
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
-import { BuildState, CommandMode, WorkerState, WORKER_MINE_RANGE, Faction } from '../constants';
+import { BuildState, CommandMode, WorkerState, WORKER_MINE_RANGE, Faction, TILE_SIZE } from '../constants';
 import type { PlayerResources } from '../types';
+import { markCreepDirty } from './CreepSystem';
 
 /**
  * Handles building construction progress.
@@ -20,6 +23,7 @@ export function buildSystem(
   world: World,
   dt: number,
   resources: Record<number, PlayerResources>,
+  gameTime: number = 0,
 ): void {
   const bits = BUILDING | POSITION;
 
@@ -44,7 +48,7 @@ export function buildSystem(
       if (distSq > range * range) continue;
 
       // Orbit SCV around building during construction
-      const angle = (Date.now() * 0.001) + eid * 0.5; // slow rotation, unique per building
+      const angle = (gameTime * 1.0) + eid * 0.5; // slow rotation, unique per building
       const orbitRadius = 40; // px from building center
       posX[builder] = posX[eid] + Math.cos(angle) * orbitRadius;
       posY[builder] = posY[eid] + Math.sin(angle) * orbitRadius;
@@ -64,6 +68,9 @@ export function buildSystem(
       hpCurrent[eid] = hpMax[eid];
       buildProgress[eid] = 1.0;
 
+      // Zerg building completed — mark creep for re-spread
+      if (isZerg) markCreepDirty();
+
       // Grant supply
       const def = BUILDING_DEFS[buildingType[eid]];
       if (def && def.supplyProvided > 0) {
@@ -72,6 +79,21 @@ export function buildSystem(
         if (resources[fac]) {
           resources[fac].supplyProvided += def.supplyProvided;
         }
+      }
+
+      // Defensive building: add ATTACK component so CombatSystem targets enemies
+      if (def && def.damage && def.damage > 0) {
+        world.mask[eid] |= ATTACK;
+        atkDamage[eid] = def.damage;
+        atkRange[eid] = (def.range ?? 0) * TILE_SIZE;
+        atkCooldown[eid] = def.attackCooldown ?? 0;
+        atkLastTime[eid] = 0;
+        atkSplash[eid] = 0;
+        canTargetGround[eid] = def.canTargetGround ?? 0;
+        canTargetAir[eid] = def.canTargetAir ?? 0;
+        targetEntity[eid] = -1;
+        // HoldPosition prevents CombatSystem from trying to chase targets
+        commandMode[eid] = CommandMode.HoldPosition;
       }
 
       // Release builder SCV (Terran only — Zerg drone was already consumed)

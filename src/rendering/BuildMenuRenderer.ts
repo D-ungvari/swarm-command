@@ -11,7 +11,7 @@ export class BuildMenuRenderer {
   /** Prerequisite building name per slot index (empty string = no requirement). */
   private prereqNames: string[] = [];
   /** Per-slot flash state: timestamp until which the slot border is bright red. */
-  private flashUntil: number[] = new Array(7).fill(0);
+  private flashUntil: number[] = new Array(9).fill(0);
   private tooltip: HTMLDivElement;
   private tooltipTimeout = 0;
   private wasVisible = false;
@@ -57,6 +57,8 @@ export class BuildMenuRenderer {
       { key: '5', type: BuildingType.Factory },
       { key: '6', type: BuildingType.Starport },
       { key: '7', type: BuildingType.EngineeringBay },
+      { key: '8', type: BuildingType.MissileTurret },
+      { key: '9', type: BuildingType.MissileTurret }, // placeholder; overwritten by setFaction
     ];
 
     for (const entry of entries) {
@@ -106,7 +108,7 @@ export class BuildMenuRenderer {
     container.appendChild(this.panel);
   }
 
-  private static readonly TERRAN_BUILDING_TYPES: BuildingType[] = [
+  private static readonly TERRAN_BUILDING_TYPES: Array<BuildingType | 0> = [
     BuildingType.CommandCenter,
     BuildingType.SupplyDepot,
     BuildingType.Barracks,
@@ -114,6 +116,8 @@ export class BuildMenuRenderer {
     BuildingType.Factory,
     BuildingType.Starport,
     BuildingType.EngineeringBay,
+    BuildingType.MissileTurret,
+    0, // unused slot (Zerg has 9 buildings)
   ];
 
   private static readonly ZERG_BUILDING_TYPES: Array<BuildingType | 0> = [
@@ -124,6 +128,8 @@ export class BuildMenuRenderer {
     BuildingType.Spire,
     BuildingType.EvolutionChamber,
     BuildingType.InfestationPit,
+    BuildingType.SpineCrawler,
+    BuildingType.SporeCrawler,
   ];
 
   private get buildingTypes(): Array<BuildingType | 0> {
@@ -135,7 +141,7 @@ export class BuildMenuRenderer {
   setFaction(f: Faction): void {
     this.playerFaction = f;
     const types = this.buildingTypes;
-    const keys = ['1', '2', '3', '4', '5', '6', '7'];
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
     this.prereqNames = [];
     for (let i = 0; i < this.options.length; i++) {
       const bType = types[i];
@@ -172,7 +178,7 @@ export class BuildMenuRenderer {
     if (!visible) return;
 
     const now = Date.now();
-    const keys = ['1', '2', '3', '4', '5', '6', '7'];
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
     for (let i = 0; i < this.options.length; i++) {
       const bType = this.buildingTypes[i];

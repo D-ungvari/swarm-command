@@ -24,6 +24,7 @@ export interface InputState {
   keysJustPressed: Set<string>;
   shiftHeld: boolean;
   ctrlHeld: boolean;
+  altHeld: boolean;
 }
 
 export class InputManager {
@@ -71,6 +72,7 @@ export class InputManager {
       keysJustPressed: new Set(),
       shiftHeld: false,
       ctrlHeld: false,
+      altHeld: false,
     };
 
     this.bindEvents();
@@ -267,6 +269,7 @@ export class InputManager {
 
     this.state.shiftHeld = this.rawKeysDown.has('ShiftLeft') || this.rawKeysDown.has('ShiftRight');
     this.state.ctrlHeld = this.rawKeysDown.has('ControlLeft') || this.rawKeysDown.has('ControlRight');
+    this.state.altHeld = this.rawKeysDown.has('AltLeft') || this.rawKeysDown.has('AltRight');
   }
 
   /** Reset per-frame flags (call at end of frame) */

@@ -15,6 +15,10 @@ import {
   cloaked, energy, isAir,
   veterancyLevel,
   depotLowered,
+  bileLandX, bileLandY, bileLandTime,
+  fungalLandX, fungalLandY, fungalLandTime,
+  lockOnTarget, lockOnEndTime,
+  hellbatMode,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -31,6 +35,25 @@ interface CommandPing {
 
 const commandPings: CommandPing[] = [];
 const PING_DURATION = 0.5;
+
+/** Ability pending range info — set by Game.ts each frame, read by UnitRenderer */
+export let abilityPendingRange = 0;   // range in px (0 = no pending ability)
+export let abilityPendingUnitType = -1; // UnitType filter (-1 = any)
+export let abilityPendingColor = 0xff88cc;
+export function setAbilityPendingRange(range: number, unitTypeFilter: number, color: number): void {
+  abilityPendingRange = range;
+  abilityPendingUnitType = unitTypeFilter;
+  abilityPendingColor = color;
+}
+
+/** AoE cursor preview — set by Game.ts each frame for location-targeted abilities */
+export let aoePreviewX = 0;
+export let aoePreviewY = 0;
+export let aoePreviewRadius = 0; // in px (0 = no preview)
+export let aoePreviewColor = 0xff4444;
+export function setAoePreview(wx: number, wy: number, radius: number, color: number): void {
+  aoePreviewX = wx; aoePreviewY = wy; aoePreviewRadius = radius; aoePreviewColor = color;
+}
 
 /** Add a command feedback ping at a world-space position */
 export function addCommandPing(x: number, y: number, color: number, gameTime: number): void {
@@ -226,7 +249,8 @@ export class UnitRenderer {
         const isZergBuilding = bt === BuildingType.Hatchery || bt === BuildingType.SpawningPool
           || bt === BuildingType.EvolutionChamber || bt === BuildingType.RoachWarren
           || bt === BuildingType.HydraliskDen || bt === BuildingType.Spire
-          || bt === BuildingType.InfestationPit;
+          || bt === BuildingType.InfestationPit
+          || bt === BuildingType.SpineCrawler || bt === BuildingType.SporeCrawler;
 
         if (isZergBuilding) {
           // === Zerg buildings: organic ellipses ===
@@ -498,6 +522,120 @@ export class UnitRenderer {
               g.circle(sx, sy, 2.5);
               g.fill({ color: 0xaa4488, alpha: sAlpha * baseAlpha });
             }
+          } else if (bt === BuildingType.SpineCrawler) {
+            // SpineCrawler: ground defense — tall organic spine with sweeping attack
+            const isAttacking = atkFlashTimer[eid] > 0;
+            const attackT = isAttacking ? atkFlashTimer[eid] / 0.12 : 0;
+
+            // Base tendrils anchoring to ground
+            for (let t = 0; t < 5; t++) {
+              const tAngle = (t / 5) * Math.PI * 2;
+              const tLen = w * 0.35;
+              const tx = x + Math.cos(tAngle) * tLen;
+              const ty = y + Math.sin(tAngle) * tLen;
+              g.moveTo(x, y + 2);
+              g.lineTo(tx, ty);
+              g.stroke({ color: 0x664422, width: 2.5, alpha: 0.6 * baseAlpha });
+            }
+
+            // Central body mass
+            g.ellipse(x, y, w * 0.25, h * 0.25);
+            g.fill({ color: 0x883322, alpha: 0.8 * baseAlpha });
+            g.ellipse(x, y, w * 0.25, h * 0.25);
+            g.stroke({ color: 0xaa4433, width: 1.5, alpha: 0.6 * baseAlpha });
+
+            // Main spine — sways slightly, recoils on attack
+            const sway = Math.sin(gameTime * 1.2) * 2;
+            const recoil = isAttacking ? attackT * 4 : 0;
+            const spineTopX = x + sway;
+            const spineTopY = y - h * 0.45 + recoil;
+            g.moveTo(x - 2, y);
+            g.lineTo(spineTopX, spineTopY);
+            g.lineTo(x + 2, y);
+            g.closePath();
+            g.fill({ color: 0xbb5544, alpha: 0.9 * baseAlpha });
+
+            // Spine tip — glows when attacking
+            const tipGlow = isAttacking ? 0.9 : 0.4 + 0.2 * Math.sin(gameTime * 2.5);
+            g.circle(spineTopX, spineTopY, isAttacking ? 3.5 : 2.5);
+            g.fill({ color: isAttacking ? 0xff6633 : 0xcc5544, alpha: tipGlow * baseAlpha });
+
+            // Attack flash: bright projectile trail
+            if (isAttacking) {
+              g.circle(spineTopX, spineTopY, 5);
+              g.fill({ color: 0xff8844, alpha: attackT * 0.4 * baseAlpha });
+            }
+          } else if (bt === BuildingType.SporeCrawler) {
+            // SporeCrawler: air defense — bulbous spore sac with floating spores
+            const isAttacking = atkFlashTimer[eid] > 0;
+            const attackT = isAttacking ? atkFlashTimer[eid] / 0.12 : 0;
+
+            // Root tendrils
+            for (let t = 0; t < 4; t++) {
+              const tAngle = (t / 4) * Math.PI * 2 + Math.PI / 4;
+              const tLen = w * 0.3;
+              const tx = x + Math.cos(tAngle) * tLen;
+              const ty = y + Math.sin(tAngle) * tLen;
+              g.moveTo(x, y + 2);
+              g.lineTo(tx, ty);
+              g.stroke({ color: 0x336633, width: 2, alpha: 0.5 * baseAlpha });
+            }
+
+            // Central stalk
+            const stalkSway = Math.sin(gameTime * 0.8) * 1.5;
+            g.moveTo(x - 2, y + 3);
+            g.lineTo(x + stalkSway, y - h * 0.2);
+            g.lineTo(x + 2, y + 3);
+            g.closePath();
+            g.fill({ color: 0x447744, alpha: 0.7 * baseAlpha });
+
+            // Spore sac (bulbous top) — inflates when attacking
+            const sacScale = isAttacking ? 1 + attackT * 0.15 : 1 + 0.04 * Math.sin(gameTime * 1.8);
+            const sacY = y - h * 0.25;
+            g.ellipse(x + stalkSway * 0.5, sacY, w * 0.22 * sacScale, h * 0.2 * sacScale);
+            g.fill({ color: 0x55aa55, alpha: 0.8 * baseAlpha });
+            g.ellipse(x + stalkSway * 0.5, sacY, w * 0.22 * sacScale, h * 0.2 * sacScale);
+            g.stroke({ color: 0x77cc77, width: 1.5, alpha: 0.5 * baseAlpha });
+
+            // Pulsing spore dots on the sac
+            for (let s = 0; s < 3; s++) {
+              const sAngle = (s / 3) * Math.PI * 2 + gameTime * 0.6;
+              const sr = w * 0.12;
+              const sx = x + stalkSway * 0.5 + Math.cos(sAngle) * sr;
+              const sy = sacY + Math.sin(sAngle) * sr * 0.7;
+              const sp = 0.4 + 0.3 * Math.sin(gameTime * 3 + s * 2);
+              g.circle(sx, sy, 2);
+              g.fill({ color: 0x88ff88, alpha: sp * baseAlpha });
+            }
+
+            // Attack flash: spore burst
+            if (isAttacking) {
+              g.circle(x + stalkSway * 0.5, sacY, 7);
+              g.fill({ color: 0xaaff66, alpha: attackT * 0.35 * baseAlpha });
+              // Spore particles flying upward
+              for (let p = 0; p < 3; p++) {
+                const pAngle = (p / 3) * Math.PI * 2 + gameTime * 8;
+                const pDist = 4 + attackT * 6;
+                const px = x + stalkSway * 0.5 + Math.cos(pAngle) * pDist;
+                const py = sacY - attackT * 8 + Math.sin(pAngle) * pDist * 0.5;
+                g.circle(px, py, 1.5);
+                g.fill({ color: 0x88ff44, alpha: attackT * 0.6 * baseAlpha });
+              }
+            }
+
+            // Ambient floating spores when complete
+            if (bs === BuildState.Complete && !isAttacking) {
+              for (let f = 0; f < 2; f++) {
+                const rise = ((gameTime * 0.4 + f * 0.5) % 1.0);
+                const fx = x + Math.sin(gameTime * 1.5 + f * 3) * 5;
+                const fy = sacY - 4 - rise * 12;
+                const fAlpha = Math.max(0, 0.3 * (1 - rise));
+                if (fAlpha > 0.02) {
+                  g.circle(fx, fy, 1.5 - rise * 0.5);
+                  g.fill({ color: 0x66dd66, alpha: fAlpha * baseAlpha });
+                }
+              }
+            }
           }
         } else {
         // === Terran buildings: unique silhouettes per type ===
@@ -512,6 +650,7 @@ export class UnitRenderer {
         else if (bt === BuildingType.Factory) borderColor = 0x886644;
         else if (bt === BuildingType.Starport) borderColor = 0x4466aa;
         else if (bt === BuildingType.EngineeringBay) borderColor = 0x5577cc;
+        else if (bt === BuildingType.MissileTurret) borderColor = 0x668899;
 
         if (bt === BuildingType.CommandCenter) {
           // Octagonal footprint
@@ -877,6 +1016,63 @@ export class UnitRenderer {
             g.circle(x, y, Math.max(w, h) * 0.35);
             g.stroke({ color: 0x5577cc, width: 2, alpha: resGlow * baseAlpha });
           }
+        } else if (bt === BuildingType.MissileTurret) {
+          // Compact rotating turret with dual missile pods
+          const turretR = Math.min(hw, hh) * 0.7;
+
+          // Base platform — octagonal
+          const bCut = turretR * 0.4;
+          g.moveTo(x - hw + bCut, y - hh);
+          g.lineTo(x + hw - bCut, y - hh);
+          g.lineTo(x + hw, y - hh + bCut);
+          g.lineTo(x + hw, y + hh - bCut);
+          g.lineTo(x + hw - bCut, y + hh);
+          g.lineTo(x - hw + bCut, y + hh);
+          g.lineTo(x - hw, y + hh - bCut);
+          g.lineTo(x - hw, y - hh + bCut);
+          g.closePath();
+          g.fill({ color: darken(tint, 15), alpha: baseAlpha });
+          g.stroke({ color: 0x446688, width: 1.5, alpha: baseAlpha });
+
+          if (bs === BuildState.Complete) {
+            // Rotating turret head
+            const turretAngle = gameTime * 1.5 + eid * 0.7;
+            const headX = Math.cos(turretAngle) * turretR * 0.3;
+            const headY = Math.sin(turretAngle) * turretR * 0.3;
+
+            // Turret housing
+            g.circle(x, y, turretR * 0.45);
+            g.fill({ color: TERRAN_METAL, alpha: baseAlpha });
+            g.stroke({ color: 0x556677, width: 1, alpha: baseAlpha });
+
+            // Twin missile pods
+            const podLen = turretR * 0.7;
+            for (const side of [-1, 1]) {
+              const px = x + Math.cos(turretAngle + side * 0.4) * podLen;
+              const py = y + Math.sin(turretAngle + side * 0.4) * podLen;
+              g.moveTo(x + headX, y + headY);
+              g.lineTo(px, py);
+              g.stroke({ color: 0x667788, width: 2.5, alpha: baseAlpha });
+              // Pod tip
+              g.circle(px, py, 2);
+              g.fill({ color: 0x88aacc, alpha: baseAlpha });
+            }
+
+            // Center sensor dot
+            g.circle(x, y, 2);
+            g.fill({ color: 0xff4422, alpha: (0.5 + 0.4 * Math.sin(gameTime * 4)) * baseAlpha });
+
+            // Attack flash — missile launch flare
+            if (atkFlashTimer[eid] > 0) {
+              const fa = atkFlashTimer[eid] / 0.12;
+              const flashX = x + Math.cos(turretAngle) * podLen;
+              const flashY = y + Math.sin(turretAngle) * podLen;
+              g.circle(flashX, flashY, 4 * fa);
+              g.fill({ color: 0xffaa22, alpha: fa * 0.8 });
+              g.circle(flashX, flashY, 2 * fa);
+              g.fill({ color: 0xffffff, alpha: fa * 0.9 });
+            }
+          }
         }
         } // close Terran buildings else block
 
@@ -1028,6 +1224,12 @@ export class UnitRenderer {
         g.lineTo(x + hw + bOff, y + hh + bOff);
         g.lineTo(x + hw + bOff, y + hh + bOff - bracketLen);
         g.stroke({ color: SELECTION_COLOR, width: 1.5 });
+
+        // Ability range circle when targeting
+        if (abilityPendingRange > 0 && (abilityPendingUnitType < 0 || unitType[eid] === abilityPendingUnitType)) {
+          g.circle(posX[eid], posY[eid], abilityPendingRange);
+          g.stroke({ color: abilityPendingColor, width: 1, alpha: 0.35 });
+        }
 
         // Mode indicator badge
         const halfH = h / 2;
@@ -2777,64 +2979,106 @@ export class UnitRenderer {
           g.stroke({ color: 0x334466, width: 0.8, alpha: 0.5 * ghostAlpha });
 
         } else if (uType === UnitType.Hellion) {
-          // ── Hellion: fast attack buggy with Infernal flamethrower ──
-          // SC2: "Lightly armored, fast-moving vehicle. Burns groups of
-          // light units with a line of fire from its Infernal flamethrower."
           const hw = w / 2;
           const hh = h / 2;
           const isMoving = Math.abs(velX[eid]) > 0.1 || Math.abs(velY[eid]) > 0.1;
+          const isHellbat = hellbatMode[eid] === 1;
 
-          // Shadow
-          g.ellipse(x, y + hh + 2, hw * 1.1, hh * 0.3);
-          g.fill({ color: 0x000000, alpha: 0.3 });
-          // Main body — angular vehicle profile
-          g.moveTo(x - hw, y - hh * 0.7);
-          g.lineTo(x + hw * 0.6, y - hh);
-          g.lineTo(x + hw, y);
-          g.lineTo(x + hw * 0.6, y + hh);
-          g.lineTo(x - hw, y + hh * 0.7);
-          g.closePath();
-          g.fill({ color: bodyColor });
-          g.stroke({ color: 0xcc4400, width: 1, alpha: 0.7 });
-          // Flame nozzle (front-facing)
-          g.moveTo(x + hw, y - 3);
-          g.lineTo(x + hw + 7, y - 5);
-          g.moveTo(x + hw, y + 3);
-          g.lineTo(x + hw + 7, y + 5);
-          g.stroke({ color: 0xffcc44, width: 2, alpha: 0.9 });
-          // Flame burst on attack
-          if (atkFlashTimer[eid] > 0) {
-            const flameLen = hw * 0.8;
-            for (let f = 0; f < 3; f++) {
-              const fx = x + hw + 4 + f * flameLen * 0.3;
-              const fy = y + (Math.random() - 0.5) * 6;
-              const fr = 3 - f * 0.8;
-              g.circle(fx, fy, fr);
-              g.fill({ color: f === 0 ? 0xffdd44 : 0xff6622, alpha: 0.7 - f * 0.2 });
+          if (isHellbat) {
+            // ── Hellbat: bulky bipedal mech with wide flame cone ──
+            // Shadow
+            g.ellipse(x, y + hh + 2, hw * 1.2, hh * 0.35);
+            g.fill({ color: 0x000000, alpha: 0.3 });
+            // Legs — two thick stumps
+            g.rect(x - hw * 0.6, y + hh * 0.3, hw * 0.35, hh * 0.7);
+            g.fill({ color: TERRAN_DARK, alpha: 0.9 });
+            g.rect(x + hw * 0.25, y + hh * 0.3, hw * 0.35, hh * 0.7);
+            g.fill({ color: TERRAN_DARK, alpha: 0.9 });
+            // Main body — wide, boxy torso
+            g.roundRect(x - hw * 0.8, y - hh * 0.6, w * 0.8, h * 0.7, 2);
+            g.fill({ color: bodyColor });
+            g.stroke({ color: 0xcc4400, width: 1.2, alpha: 0.8 });
+            // Flame shield plates (shoulder pauldrons)
+            g.rect(x - hw, y - hh * 0.5, hw * 0.3, hh * 0.8);
+            g.fill({ color: 0xaa3300, alpha: 0.7 });
+            g.rect(x + hw * 0.5, y - hh * 0.5, hw * 0.3, hh * 0.8);
+            g.fill({ color: 0xaa3300, alpha: 0.7 });
+            // Central visor
+            g.rect(x - hw * 0.2, y - hh * 0.4, hw * 0.4, hh * 0.25);
+            g.fill({ color: TERRAN_VISOR, alpha: 0.8 });
+            // Flame nozzles (wide, front-facing)
+            g.moveTo(x + hw * 0.5, y - 4);
+            g.lineTo(x + hw + 5, y - 7);
+            g.moveTo(x + hw * 0.5, y + 4);
+            g.lineTo(x + hw + 5, y + 7);
+            g.stroke({ color: 0xffcc44, width: 2.5, alpha: 0.9 });
+            // Flame burst on attack (wider cone than Hellion)
+            if (atkFlashTimer[eid] > 0) {
+              for (let f = 0; f < 4; f++) {
+                const fx = x + hw * 0.5 + 3 + f * hw * 0.25;
+                const fy = y + (Math.random() - 0.5) * (8 + f * 3);
+                const fr = 3.5 - f * 0.6;
+                g.circle(fx, fy, fr);
+                g.fill({ color: f === 0 ? 0xffdd44 : 0xff6622, alpha: 0.8 - f * 0.15 });
+              }
             }
-          }
-          // Wheels with spin animation
-          const wheelSpin = isMoving ? gameTime * 15 : 0;
-          const wheelPositions = [[-hw + 3, hh + 2], [hw - 5, hh + 2], [-hw + 3, -hh - 2], [hw - 5, -hh - 2]] as const;
-          for (const [wx, wy] of wheelPositions) {
-            g.circle(x + wx, y + wy, 2.5);
-            g.fill({ color: 0x444444, alpha: 0.9 });
-            // Spoke line (rotates when moving)
-            const spokeX = Math.cos(wheelSpin) * 2;
-            const spokeY = Math.sin(wheelSpin) * 2;
-            g.moveTo(x + wx - spokeX, y + wy - spokeY);
-            g.lineTo(x + wx + spokeX, y + wy + spokeY);
-            g.stroke({ color: 0x666666, width: 0.6, alpha: 0.7 });
-          }
-          // Dust trail when moving fast
-          if (isMoving) {
-            for (let d = 0; d < 2; d++) {
-              const dustAge = ((gameTime * 3 + d * 0.5) % 1.0);
-              const dx2 = x - hw - 3 - dustAge * 8;
-              const dAlpha = Math.max(0, 0.3 * (1 - dustAge));
-              if (dAlpha > 0.02) {
-                g.circle(dx2, y + (d === 0 ? hh : -hh) + 2, 2 + dustAge * 2);
-                g.fill({ color: 0x887766, alpha: dAlpha });
+          } else {
+            // ── Hellion: fast attack buggy with Infernal flamethrower ──
+            // SC2: "Lightly armored, fast-moving vehicle. Burns groups of
+            // light units with a line of fire from its Infernal flamethrower."
+
+            // Shadow
+            g.ellipse(x, y + hh + 2, hw * 1.1, hh * 0.3);
+            g.fill({ color: 0x000000, alpha: 0.3 });
+            // Main body — angular vehicle profile
+            g.moveTo(x - hw, y - hh * 0.7);
+            g.lineTo(x + hw * 0.6, y - hh);
+            g.lineTo(x + hw, y);
+            g.lineTo(x + hw * 0.6, y + hh);
+            g.lineTo(x - hw, y + hh * 0.7);
+            g.closePath();
+            g.fill({ color: bodyColor });
+            g.stroke({ color: 0xcc4400, width: 1, alpha: 0.7 });
+            // Flame nozzle (front-facing)
+            g.moveTo(x + hw, y - 3);
+            g.lineTo(x + hw + 7, y - 5);
+            g.moveTo(x + hw, y + 3);
+            g.lineTo(x + hw + 7, y + 5);
+            g.stroke({ color: 0xffcc44, width: 2, alpha: 0.9 });
+            // Flame burst on attack
+            if (atkFlashTimer[eid] > 0) {
+              const flameLen = hw * 0.8;
+              for (let f = 0; f < 3; f++) {
+                const fx = x + hw + 4 + f * flameLen * 0.3;
+                const fy = y + (Math.random() - 0.5) * 6;
+                const fr = 3 - f * 0.8;
+                g.circle(fx, fy, fr);
+                g.fill({ color: f === 0 ? 0xffdd44 : 0xff6622, alpha: 0.7 - f * 0.2 });
+              }
+            }
+            // Wheels with spin animation
+            const wheelSpin = isMoving ? gameTime * 15 : 0;
+            const wheelPositions = [[-hw + 3, hh + 2], [hw - 5, hh + 2], [-hw + 3, -hh - 2], [hw - 5, -hh - 2]] as const;
+            for (const [wx, wy] of wheelPositions) {
+              g.circle(x + wx, y + wy, 2.5);
+              g.fill({ color: 0x444444, alpha: 0.9 });
+              // Spoke line (rotates when moving)
+              const spokeX = Math.cos(wheelSpin) * 2;
+              const spokeY = Math.sin(wheelSpin) * 2;
+              g.moveTo(x + wx - spokeX, y + wy - spokeY);
+              g.lineTo(x + wx + spokeX, y + wy + spokeY);
+              g.stroke({ color: 0x666666, width: 0.6, alpha: 0.7 });
+            }
+            // Dust trail when moving fast
+            if (isMoving) {
+              for (let d = 0; d < 2; d++) {
+                const dustAge = ((gameTime * 3 + d * 0.5) % 1.0);
+                const dx2 = x - hw - 3 - dustAge * 8;
+                const dAlpha = Math.max(0, 0.3 * (1 - dustAge));
+                if (dAlpha > 0.02) {
+                  g.circle(dx2, y + (d === 0 ? hh : -hh) + 2, 2 + dustAge * 2);
+                  g.fill({ color: 0x887766, alpha: dAlpha });
+                }
               }
             }
           }
@@ -3105,17 +3349,33 @@ export class UnitRenderer {
           g.circle(x, y - hh * 0.55 - turretH * 0.3, 2);
           g.fill({ color: TERRAN_VISOR, alpha: 0.7 });
 
-          // Layer 8: Lock-on indicator — pulsing circle at target when attacking
-          if (targetEntity[eid] > 0 && entityExists(world, targetEntity[eid])) {
-            const tgtX = posX[targetEntity[eid]];
-            const tgtY = posY[targetEntity[eid]];
-            const lockPulse = 0.4 + 0.4 * Math.sin(gameTime * 6);
-            g.circle(tgtX, tgtY, 8);
-            g.stroke({ color: 0xff4444, width: 1.5, alpha: lockPulse });
-            g.circle(tgtX, tgtY, 4);
-            g.stroke({ color: 0xff6666, width: 1, alpha: lockPulse * 0.7 });
-            // Dashed line to target
-            drawDashedLine(g, x, y, tgtX, tgtY, 0xff4444, lockPulse * 0.3, 4, 3);
+          // Layer 8: Lock-on indicator — pulsing circle at target when Lock-On ability or auto-attack
+          {
+            const lockTgt = lockOnTarget[eid] >= 0 && entityExists(world, lockOnTarget[eid]) ? lockOnTarget[eid]
+              : (targetEntity[eid] > 0 && entityExists(world, targetEntity[eid]) ? targetEntity[eid] : -1);
+            if (lockTgt >= 0) {
+              const tgtX = posX[lockTgt];
+              const tgtY = posY[lockTgt];
+              const isAbilityLock = lockOnTarget[eid] >= 0 && entityExists(world, lockOnTarget[eid]);
+              const lockPulse = isAbilityLock
+                ? 0.6 + 0.3 * Math.sin(gameTime * 8) // faster, brighter pulse for ability lock
+                : 0.4 + 0.4 * Math.sin(gameTime * 6);
+              const lockColor = isAbilityLock ? 0xff2222 : 0xff4444;
+              g.circle(tgtX, tgtY, isAbilityLock ? 10 : 8);
+              g.stroke({ color: lockColor, width: isAbilityLock ? 2 : 1.5, alpha: lockPulse });
+              g.circle(tgtX, tgtY, isAbilityLock ? 5 : 4);
+              g.stroke({ color: 0xff6666, width: 1, alpha: lockPulse * 0.7 });
+              // Beam line to target
+              drawDashedLine(g, x, y, tgtX, tgtY, lockColor, lockPulse * (isAbilityLock ? 0.5 : 0.3), 4, 3);
+              // Lock-On ability: additional crosshair reticle
+              if (isAbilityLock) {
+                const crSize = 6;
+                g.moveTo(tgtX - crSize, tgtY); g.lineTo(tgtX + crSize, tgtY);
+                g.stroke({ color: 0xff4444, width: 1, alpha: lockPulse * 0.6 });
+                g.moveTo(tgtX, tgtY - crSize); g.lineTo(tgtX, tgtY + crSize);
+                g.stroke({ color: 0xff4444, width: 1, alpha: lockPulse * 0.6 });
+              }
+            }
           }
 
         } else if (uType === UnitType.Thor) {
@@ -3623,6 +3883,37 @@ export class UnitRenderer {
         g.circle(ping.x, ping.y, 3);
         g.fill({ color: ping.color, alpha: innerAlpha * 0.6 });
       }
+    }
+
+    // Landing zone indicators for in-flight Bile and Fungal projectiles
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      // Corrosive Bile landing zone
+      if (bileLandTime[eid] > 0 && bileLandTime[eid] > gameTime) {
+        const timeLeft = bileLandTime[eid] - gameTime;
+        const pulse = 0.3 + Math.sin(gameTime * 8) * 0.15;
+        const bileRadius = 1.5 * TILE_SIZE;
+        g.circle(bileLandX[eid], bileLandY[eid], bileRadius);
+        g.stroke({ color: 0xff4444, width: 2, alpha: pulse });
+        g.circle(bileLandX[eid], bileLandY[eid], bileRadius * 0.3);
+        g.fill({ color: 0xff4444, alpha: pulse * 0.5 });
+      }
+      // Fungal Growth landing zone
+      if (fungalLandTime[eid] > 0 && fungalLandTime[eid] > gameTime) {
+        const pulse = 0.3 + Math.sin(gameTime * 6) * 0.15;
+        const fungalRadius = 2.25 * TILE_SIZE;
+        g.circle(fungalLandX[eid], fungalLandY[eid], fungalRadius);
+        g.stroke({ color: 0x44ff88, width: 2, alpha: pulse });
+        g.circle(fungalLandX[eid], fungalLandY[eid], fungalRadius * 0.3);
+        g.fill({ color: 0x44ff88, alpha: pulse * 0.5 });
+      }
+    }
+
+    // AoE cursor preview for location-targeted abilities (Bile, Fungal)
+    if (aoePreviewRadius > 0) {
+      g.circle(aoePreviewX, aoePreviewY, aoePreviewRadius);
+      g.fill({ color: aoePreviewColor, alpha: 0.12 });
+      g.circle(aoePreviewX, aoePreviewY, aoePreviewRadius);
+      g.stroke({ color: aoePreviewColor, width: 1.5, alpha: 0.5 });
     }
 
     // Death effects — dramatic explosions with size-dependent scale

@@ -13,6 +13,11 @@ import { soundManager } from '../audio/SoundManager';
 // Control groups: 10 groups (0-9), each stores a set of entity IDs
 const controlGroups: Set<number>[] = Array.from({ length: 10 }, () => new Set());
 
+// Signal for double-tap center camera (read by Game.ts)
+export let controlGroupCenterX = 0;
+export let controlGroupCenterY = 0;
+export let controlGroupCenterFrame = 0;
+
 // Subgroup cycling state
 let subgroupIndex = 0;
 
@@ -77,6 +82,58 @@ export function selectionSystem(
             if (selected[eid] === 1 && faction[eid] === playerFaction) {
               controlGroups[cmd.data].add(eid);
             }
+          }
+        }
+        break;
+
+      case CommandType.ControlGroupRecallCenter:
+        // Double-tap: recall selection + signal camera center (handled by Game.ts)
+        if (cmd.data !== undefined) {
+          const grp = controlGroups[cmd.data];
+          if (grp.size > 0) {
+            lastActiveGroup = cmd.data;
+            clearSelection(world);
+            for (const eid of grp) {
+              if (entityExists(world, eid) && hasComponents(world, eid, SELECTABLE)) {
+                selected[eid] = 1;
+              } else {
+                grp.delete(eid);
+              }
+            }
+            // Compute centroid and store for Game.ts to read
+            let cx = 0, cy = 0, n = 0;
+            for (const eid of grp) {
+              if (entityExists(world, eid)) {
+                cx += posX[eid]; cy += posY[eid]; n++;
+              }
+            }
+            if (n > 0) {
+              controlGroupCenterX = cx / n;
+              controlGroupCenterY = cy / n;
+              controlGroupCenterFrame++;
+            }
+          }
+        }
+        break;
+
+      case CommandType.ControlGroupSteal:
+        // Alt+#: remove from all other groups, assign to target group
+        if (cmd.data !== undefined) {
+          const selectedEids: number[] = [];
+          for (let eid = 1; eid < world.nextEid; eid++) {
+            if (selected[eid] === 1 && faction[eid] === playerFaction) {
+              selectedEids.push(eid);
+            }
+          }
+          // Remove from all groups
+          for (let g = 0; g < 10; g++) {
+            for (const eid of selectedEids) {
+              controlGroups[g].delete(eid);
+            }
+          }
+          // Add to target group
+          for (const eid of selectedEids) {
+            controlGroups[cmd.data].add(eid);
           }
         }
         break;
@@ -159,16 +216,25 @@ export function selectionSystem(
 
         if (!cmd.shiftHeld) clearSelection(world);
 
+        // SC2 box select: if box contains both units and buildings, only select units
         const bits = POSITION | SELECTABLE;
+        const unitEids: number[] = [];
+        const buildingEids: number[] = [];
         for (let eid = 1; eid < world.nextEid; eid++) {
           if (!hasComponents(world, eid, bits)) continue;
           if (faction[eid] !== playerFaction) continue;
           const x = posX[eid];
           const y = posY[eid];
           if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
-            selected[eid] = 1;
+            if (hasComponents(world, eid, BUILDING)) {
+              buildingEids.push(eid);
+            } else {
+              unitEids.push(eid);
+            }
           }
         }
+        const toSelect = unitEids.length > 0 ? unitEids : buildingEids;
+        for (const eid of toSelect) selected[eid] = 1;
         soundManager.playSelect();
         break;
       }

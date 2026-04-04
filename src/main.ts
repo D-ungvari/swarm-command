@@ -117,11 +117,14 @@ const scenarioBrowser = document.getElementById('scenario-browser');
 const practiceBtn = document.getElementById('practice-btn');
 const backBtn = document.getElementById('back-to-menu');
 
+const lastPlayedId = sessionStorage.getItem('last-played-scenario');
+
 if (scenarioList) {
   for (const s of SCENARIOS) {
     const card = document.createElement('div');
+    const isLastPlayed = s.id === lastPlayedId;
     card.style.cssText = `
-      background: rgba(20,40,60,0.8); border: 1px solid rgba(60,100,160,0.4);
+      background: rgba(20,40,60,0.8); border: 1px solid ${isLastPlayed ? 'rgba(100,180,255,0.6)' : 'rgba(60,100,160,0.4)'};
       padding: 10px 14px; cursor: pointer; border-radius: 4px;
       transition: border-color 0.15s;
     `;
@@ -129,18 +132,27 @@ if (scenarioList) {
     const bestBadge = best
       ? `<span style="color:#ffdd00;font-size:11px;font-weight:bold;margin-left:8px;background:rgba(255,220,0,0.12);padding:1px 5px;border-radius:2px;">${best.grade}</span>`
       : '';
+    const isTerran = s.setup.playerFaction === Faction.Terran;
+    const factionBadge = isTerran
+      ? '<span style="color:#88ccff;font-size:9px;background:rgba(60,120,200,0.2);padding:1px 5px;border-radius:2px;margin-right:6px;letter-spacing:1px;">TERRAN</span>'
+      : '<span style="color:#cc66aa;font-size:9px;background:rgba(200,60,120,0.2);padding:1px 5px;border-radius:2px;margin-right:6px;letter-spacing:1px;">ZERG</span>';
     card.innerHTML = `
-      <div style="color:#cce0ff;font-size:13px;font-weight:bold">${s.title}
+      <div style="color:#cce0ff;font-size:13px;font-weight:bold">${factionBadge}${s.title}
         <span style="color:#667;font-size:11px;margin-left:8px">${'\u2605'.repeat(s.difficulty)}${'\u2606'.repeat(3 - s.difficulty)}</span>
         ${bestBadge}
       </div>
       <div style="color:#8899aa;font-size:11px;margin-top:4px">${s.description}</div>
       <div style="color:#557799;font-size:10px;margin-top:4px">SC2 concept: ${s.sc2Concept}</div>
     `;
+    const defaultBorder = isLastPlayed ? 'rgba(100,180,255,0.6)' : 'rgba(60,100,160,0.4)';
     card.addEventListener('mouseenter', () => { card.style.borderColor = 'rgba(60,140,255,0.7)'; });
-    card.addEventListener('mouseleave', () => { card.style.borderColor = 'rgba(60,100,160,0.4)'; });
+    card.addEventListener('mouseleave', () => { card.style.borderColor = defaultBorder; });
     card.addEventListener('click', () => { startScenario(s); });
     scenarioList.appendChild(card);
+    if (isLastPlayed) {
+      // Scroll to the last played scenario when returning to browser
+      requestAnimationFrame(() => card.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    }
   }
 }
 
@@ -155,6 +167,7 @@ backBtn?.addEventListener('click', () => {
 });
 
 function startScenario(scenario: Scenario): void {
+  sessionStorage.setItem('last-played-scenario', scenario.id);
   if (startScreen) startScreen.style.display = 'none';
   const game = new Game();
   game.setPlayerFaction(scenario.setup.playerFaction === Faction.Terran ? Faction.Terran : Faction.Zerg);
@@ -163,6 +176,20 @@ function startScenario(scenario: Scenario): void {
   game.init(container!).catch((err) => {
     console.error('Failed to initialize scenario:', err);
   });
+}
+
+// ── Auto-start from sessionStorage (retry / back-to-scenarios) ──
+const retryId = sessionStorage.getItem('retry-scenario');
+if (retryId) {
+  sessionStorage.removeItem('retry-scenario');
+  const scenario = SCENARIOS.find(s => s.id === retryId);
+  if (scenario) {
+    startScenario(scenario);
+  }
+} else if (sessionStorage.getItem('show-scenarios')) {
+  sessionStorage.removeItem('show-scenarios');
+  if (mainMenu) mainMenu.style.display = 'none';
+  if (scenarioBrowser) scenarioBrowser.style.display = 'block';
 }
 
 // Map editor vaulted — code preserved in src/map/MapEditor.ts

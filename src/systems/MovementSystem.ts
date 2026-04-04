@@ -7,19 +7,21 @@ import {
   slowFactor, siegeMode, faction, hpCurrent,
   patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
   isAir, lastMovedTime,
+  neuralStunEndTime,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
 import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, Faction } from '../constants';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
+import { simplifyPath } from '../utils/pathUtils';
 
-const ARRIVAL_THRESHOLD = 4; // px — close enough to waypoint
+const ARRIVAL_THRESHOLD = 8; // px — close enough to waypoint (generous to prevent oscillation)
 
 // ── Separation constants ──
-const SEPARATION_RADIUS = 12; // px — half a tile
+const SEPARATION_RADIUS = 18; // px — slightly over half a tile, matches typical unit widths
 const SEPARATION_RADIUS_SQ = SEPARATION_RADIUS * SEPARATION_RADIUS;
-const SEPARATION_STRENGTH = 0.5;
+const SEPARATION_STRENGTH = 0.6;
 
 /**
  * Moves entities along their paths toward their targets,
@@ -41,15 +43,44 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
       velX[eid] = 0;
       velY[eid] = 0;
       movePathIndex[eid] = -1;
+
       continue;
     }
 
-    const pathIdx = movePathIndex[eid];
+    // Neural Parasite stun: stunned units can't move
+    if (neuralStunEndTime[eid] > 0 && neuralStunEndTime[eid] > gameTime) {
+      velX[eid] = 0;
+      velY[eid] = 0;
+      continue;
+    }
 
-    // Stuck detection: if has a path but hasn't moved in 0.5s, force a repath
-    if (gameTime > 0 && pathIdx >= 0 && gameTime - lastMovedTime[eid] > 0.5) {
-      movePathIndex[eid] = -1;
+    let pathIdx = movePathIndex[eid];
+
+    // Stuck detection: if has a path but hasn't moved in 1.5s, repath to destination
+    if (gameTime > 0 && pathIdx >= 0 && gameTime - lastMovedTime[eid] > 1.5) {
+      // Try to repath to the final waypoint instead of just stopping
+      const finalIdx = pathLengths[eid] - 1;
+      const finalWp = finalIdx >= 0 ? getPathWaypoint(eid, finalIdx) : null;
+      if (finalWp && map) {
+        const startTile = worldToTile(posX[eid], posY[eid]);
+        const endTile = worldToTile(finalWp[0], finalWp[1]);
+        const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+        if (tilePath.length > 0) {
+          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+            const wp = tileToWorld(c, r);
+            return [wp.x, wp.y] as [number, number];
+          });
+          setPath(eid, simplifyPath(worldPath));
+        } else {
+          movePathIndex[eid] = -1;
+    
+        }
+      } else {
+        movePathIndex[eid] = -1;
+  
+      }
       lastMovedTime[eid] = gameTime;
+      pathIdx = movePathIndex[eid]; // re-read after potential repath
     }
     if (pathIdx < 0) {
       // If patrolling and idle (path cleared by combat), re-issue path toward origin
@@ -62,8 +93,25 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
             const wp = tileToWorld(c, r);
             return [wp.x, wp.y] as [number, number];
           });
-          setPath(eid, worldPath);
+          setPath(eid, simplifyPath(worldPath));
           // Don't continue — fall through to the path-following logic below
+        } else {
+          velX[eid] = 0;
+          velY[eid] = 0;
+          continue;
+        }
+      } else if (commandMode[eid] === CommandMode.AttackMove && map && targetEntity[eid] < 1
+                 && moveTargetX[eid] >= 0 && moveTargetY[eid] >= 0) {
+        // Attack-move resume: re-path toward original destination after killing a target
+        const startTile = worldToTile(posX[eid], posY[eid]);
+        const endTile = worldToTile(moveTargetX[eid], moveTargetY[eid]);
+        const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+        if (tilePath.length > 0) {
+          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+            const wp = tileToWorld(c, r);
+            return [wp.x, wp.y] as [number, number];
+          });
+          setPath(eid, simplifyPath(worldPath));
         } else {
           velX[eid] = 0;
           velY[eid] = 0;
@@ -89,18 +137,18 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
     const [tx, ty] = wp;
     const dx = tx - posX[eid];
     const dy = ty - posY[eid];
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const distSq = dx * dx + dy * dy;
 
-    if (dist < ARRIVAL_THRESHOLD) {
+    if (distSq < ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD) {
       movePathIndex[eid]++;
       if (movePathIndex[eid] >= pathLengths[eid]) {
         // Path complete
         if (commandMode[eid] === CommandMode.Patrol && map) {
-          // Swap: current pos becomes new origin, old origin becomes new target
+          // Swap endpoints: use waypoint destination (not current pos) to prevent drift
           const newTargetX = patrolOriginX[eid];
           const newTargetY = patrolOriginY[eid];
-          patrolOriginX[eid] = posX[eid];
-          patrolOriginY[eid] = posY[eid];
+          patrolOriginX[eid] = tx;
+          patrolOriginY[eid] = ty;
           // Re-path to the old origin
           const startTile = worldToTile(posX[eid], posY[eid]);
           const endTile = worldToTile(newTargetX, newTargetY);
@@ -110,16 +158,18 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
               const wp = tileToWorld(c, r);
               return [wp.x, wp.y] as [number, number];
             });
-            setPath(eid, worldPath);
+            setPath(eid, simplifyPath(worldPath));
           } else {
             // No path found — stop patrol
             movePathIndex[eid] = -1;
+      
             commandMode[eid] = CommandMode.Idle;
             velX[eid] = 0;
             velY[eid] = 0;
           }
         } else {
           movePathIndex[eid] = -1;
+    
           velX[eid] = 0;
           velY[eid] = 0;
         }
@@ -143,6 +193,7 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
       }
     }
 
+    const dist = Math.sqrt(distSq);
     const speed = effectiveSpeed * dt;
     const nx = dx / dist;
     const ny = dy / dist;
@@ -159,10 +210,10 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
   // ── Separation pass ──
   // Push overlapping same-faction units apart. Only affects entities with MOVEMENT
   // (not buildings/resources). O(n^2) but fine for <200 units.
-  separationPass(world, map);
+  separationPass(world, map, gameTime);
 }
 
-function separationPass(world: World, map?: MapData): void {
+function separationPass(world: World, map?: MapData, gameTime = 0): void {
   const bits = POSITION | MOVEMENT;
 
   spatialHash.ensureBuilt(world);
@@ -170,8 +221,6 @@ function separationPass(world: World, map?: MapData): void {
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (hpCurrent[eid] <= 0) continue;
-    // Skip stationary units for performance — only separate moving units
-    if (velX[eid] === 0 && velY[eid] === 0 && movePathIndex[eid] < 0) continue;
     // Skip buildings and resources
     if (hasComponents(world, eid, BUILDING) || hasComponents(world, eid, RESOURCE)) continue;
 
@@ -231,6 +280,7 @@ function separationPass(world: World, map?: MapData): void {
           if (isAir[eid] === 1 || map.walkable[rowA * map.cols + colA] === 1) {
             posX[eid] = newAX;
             posY[eid] = newAY;
+            if (gameTime > 0) lastMovedTime[eid] = gameTime;
           }
         }
 
@@ -240,6 +290,7 @@ function separationPass(world: World, map?: MapData): void {
           if (isAir[other] === 1 || map.walkable[rowB * map.cols + colB] === 1) {
             posX[other] = newBX;
             posY[other] = newBY;
+            if (gameTime > 0) lastMovedTime[other] = gameTime;
           }
         }
       } else {
@@ -247,6 +298,10 @@ function separationPass(world: World, map?: MapData): void {
         posY[eid] = newAY;
         posX[other] = newBX;
         posY[other] = newBY;
+        if (gameTime > 0) {
+          lastMovedTime[eid] = gameTime;
+          lastMovedTime[other] = gameTime;
+        }
       }
     }
   }

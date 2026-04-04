@@ -96,6 +96,7 @@ export const enum BuildingType {
   Factory = 24,
   Starport = 25,
   EngineeringBay = 26,
+  MissileTurret = 27,
   // Zerg
   Hatchery = 30,
   SpawningPool = 31,
@@ -104,6 +105,8 @@ export const enum BuildingType {
   HydraliskDen = 35,
   Spire = 36,
   InfestationPit = 37,
+  SpineCrawler = 38,
+  SporeCrawler = 39,
   // Neutral / Map objects
   Rock = 40,
 }
@@ -167,13 +170,24 @@ export const SNIPE_ENERGY_COST = 75;
 export const SNIPE_RANGE = 10; // tiles
 export const SNIPE_CHANNEL_TIME = 1.5; // seconds (instant for now)
 
+// Corruptor Caustic Spray
+export const CAUSTIC_SPRAY_DPS = 4.7;
+export const CAUSTIC_SPRAY_RANGE = 6; // tiles
+
+// Cyclone Lock-On
+export const LOCKON_TOTAL_DAMAGE = 400;
+export const LOCKON_DURATION = 14; // seconds
+export const LOCKON_RANGE = 7; // tiles (activation range)
+export const LOCKON_BREAK_RANGE = 15; // tiles (lock breaks beyond this)
+export const LOCKON_COOLDOWN = 4; // seconds
+
 // Queen Transfuse
 export const TRANSFUSE_HEAL = 75;
 export const TRANSFUSE_ENERGY_COST = 50;
 export const TRANSFUSE_RANGE = 7; // tiles
 
 // Stim Pack (Marine + Marauder)
-export const STIM_DURATION = 11.0;
+export const STIM_DURATION = 7.5;
 export const STIM_HP_COST = 10;            // Marine HP cost
 export const STIM_HP_COST_MARAUDER = 20;   // Marauder HP cost
 export const STIM_SPEED_MULT = 1.5;
@@ -198,6 +212,10 @@ export const MEDIVAC_HEAL_RANGE = 4;
 export const ROACH_REGEN_COMBAT = 0.38;
 export const ROACH_REGEN_IDLE = 7.0;
 export const ROACH_COMBAT_TIMEOUT = 3.0;
+
+// Reaper Regen (passive out-of-combat only)
+export const REAPER_REGEN_RATE = 2.0;      // HP per second
+export const REAPER_REGEN_TIMEOUT = 3.0;   // seconds after last damage
 
 // Larva / Queen (Hatchery mechanics)
 export const LARVA_MAX = 3;            // natural regen cap per Hatchery
@@ -228,6 +246,42 @@ export const WORKER_MINE_RANGE = 48; // px (~1.5 tiles)
 // ── Repair constants ──
 export const REPAIR_RATE = 22.4;       // HP per second (SC2 SCV repair rate)
 export const REPAIR_COST_RATIO = 0.25; // minerals per HP restored (approximate)
+
+// Reaper KD8 Charge
+export const KD8_DAMAGE = 5;
+export const KD8_RADIUS = 1.5;      // tiles
+export const KD8_RANGE = 5;         // tiles
+export const KD8_COOLDOWN = 14;     // seconds
+export const KD8_DELAY = 1.0;       // seconds before detonation
+
+// Ghost EMP Round
+export const EMP_RANGE = 10;        // tiles (cast range)
+export const EMP_RADIUS = 1.5;      // tiles (effect area)
+export const EMP_ENERGY_DRAIN = 100; // energy drained from targets
+export const EMP_ENERGY_COST = 75;   // energy cost to cast
+
+// Viper: Blinding Cloud
+export const BLINDING_CLOUD_RANGE = 11;      // tiles (cast range)
+export const BLINDING_CLOUD_RADIUS = 2;      // tiles (effect area)
+export const BLINDING_CLOUD_DURATION = 6;    // seconds
+export const BLINDING_CLOUD_COST = 100;      // energy
+
+// Viper: Parasitic Bomb
+export const PARASITIC_BOMB_RANGE = 8;       // tiles (cast range)
+export const PARASITIC_BOMB_RADIUS = 3;      // tiles (damage area)
+export const PARASITIC_BOMB_DURATION = 7;    // seconds
+export const PARASITIC_BOMB_DPS = 17.14;     // ≈120 total over 7s
+export const PARASITIC_BOMB_COST = 125;      // energy
+
+// Viper Consume
+export const VIPER_CONSUME_RANGE = 7;       // tiles
+export const VIPER_CONSUME_HP_COST = 200;   // HP drained from allied building
+export const VIPER_CONSUME_ENERGY = 50;     // energy restored
+
+// Infestor Neural Parasite
+export const NEURAL_PARASITE_RANGE = 9;     // tiles (cast range)
+export const NEURAL_PARASITE_DURATION = 7;  // seconds
+export const NEURAL_PARASITE_COST = 100;    // energy cost
 
 // ── Game speed ──
 export const GAME_SPEEDS = [0.5, 1.0, 1.5, 2.0] as const;

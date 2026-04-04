@@ -27,6 +27,8 @@ export class ScenarioResultRenderer {
     timeElapsed: number;
     unitsLost: number;
     tips: string[];
+    objectiveType?: string;
+    totalPlayerUnits?: number;
   }): void {
     this.visible = true;
 
@@ -47,9 +49,21 @@ export class ScenarioResultRenderer {
         ? `<span style="color:#667788;font-size:12px;">BEST: ${prevBest.grade}</span>`
         : '';
 
+    const header = result.won ? 'VICTORY' : 'DEFEAT';
+    const headerColor = result.won ? '#44ff88' : '#ff4444';
+
+    // Only show tips on C grade or below
+    const showTips = grade === 'C' || grade === 'D' || grade === 'F';
+    const tipsHtml = showTips
+      ? `<div style="text-align:left;margin:16px 0;padding:12px;background:rgba(20,40,60,0.6);border-radius:4px;">
+          <div style="color:#88bbff;font-size:11px;margin-bottom:6px;">TIPS:</div>
+          ${result.tips.map(t => `<div style="color:#8899aa;font-size:11px;margin:4px 0;">\u2022 ${t}</div>`).join('')}
+        </div>`
+      : '';
+
     this.overlay.innerHTML = `
       <div style="text-align:center; max-width:400px;">
-        <div style="font-size:14px;color:#88aacc;letter-spacing:2px;margin-bottom:8px;">SCENARIO COMPLETE</div>
+        <div style="font-size:16px;color:${headerColor};letter-spacing:3px;margin-bottom:8px;font-weight:bold;">${header}</div>
         <div style="font-size:18px;color:#eef;margin-bottom:16px;">${result.scenarioTitle}</div>
         <div style="font-size:72px;color:${gradeColor};font-weight:bold;margin:16px 0;">${grade}</div>
         ${bestLabel ? `<div style="margin-bottom:8px;">${bestLabel}</div>` : ''}
@@ -57,12 +71,9 @@ export class ScenarioResultRenderer {
           ${result.won ? 'OBJECTIVE COMPLETE' : 'OBJECTIVE FAILED'}
         </div>
         <div style="font-size:12px;color:#8899aa;margin-bottom:16px;">
-          Score: ${result.score}/${result.maxScore} · Time: ${timeStr} · Units lost: ${result.unitsLost}
+          ${this.getScoreContext(result.objectiveType, result.score, result.unitsLost, result.totalPlayerUnits ?? 0, timeStr)}
         </div>
-        <div style="text-align:left;margin:16px 0;padding:12px;background:rgba(20,40,60,0.6);border-radius:4px;">
-          <div style="color:#88bbff;font-size:11px;margin-bottom:6px;">TIPS:</div>
-          ${result.tips.map(t => `<div style="color:#8899aa;font-size:11px;margin:4px 0;">• ${t}</div>`).join('')}
-        </div>
+        ${tipsHtml}
         <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
           <button id="scenario-retry" style="
             padding:10px 24px;background:#1a3a5a;color:#cce0ff;border:1px solid #3a6a9a;
@@ -71,21 +82,40 @@ export class ScenarioResultRenderer {
           <button id="scenario-menu" style="
             padding:10px 24px;background:#0a0a0a;color:#6688aa;border:1px solid #334;
             cursor:pointer;font-family:monospace;font-size:12px;
-          ">BACK TO MENU</button>
+          ">BACK TO SCENARIOS</button>
         </div>
       </div>
     `;
     this.overlay.style.display = 'flex';
 
     document.getElementById('scenario-retry')?.addEventListener('click', () => {
-      window.location.reload(); // Simplest retry
+      // Store scenario ID so it auto-starts after reload
+      sessionStorage.setItem('retry-scenario', result.scenarioId);
+      window.location.reload();
     });
     document.getElementById('scenario-menu')?.addEventListener('click', () => {
+      // Navigate back to scenario browser
+      sessionStorage.setItem('show-scenarios', '1');
       window.location.reload();
     });
   }
 
   get isVisible(): boolean { return this.visible; }
+
+  private getScoreContext(objType: string | undefined, score: number, unitsLost: number, totalUnits: number, timeStr: string): string {
+    const preserved = totalUnits - unitsLost;
+    switch (objType) {
+      case 'survive':
+        return `Time: ${timeStr} · Units preserved: ${preserved}/${totalUnits} · Score: ${score}%`;
+      case 'kill_without_losing':
+        return `Units preserved: ${preserved}/${totalUnits} · Time: ${timeStr} · Score: ${score}%`;
+      case 'kill_all':
+      case 'time_attack':
+        return `Time: ${timeStr} · Units lost: ${unitsLost} · Time bonus: ${score}%`;
+      default:
+        return `Score: ${score}/100 · Time: ${timeStr} · Units lost: ${unitsLost}`;
+    }
+  }
 
   private getGradeColor(grade: ScenarioGrade): string {
     switch (grade) {

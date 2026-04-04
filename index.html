@@ -48,6 +48,12 @@
     #start-screen .play-btn:hover { background: rgba(51, 153, 255, 0.25); border-color: rgba(51, 153, 255, 0.7); }
     #start-screen .footer { position: absolute; bottom: 16px; font-size: 11px; color: #445; }
     #start-screen .footer a { color: #557; }
+
+    /* Hide game HUD during scenario countdown */
+    .scenario-countdown #resource-hud,
+    .scenario-countdown #build-menu,
+    .scenario-countdown #info-panel,
+    .scenario-countdown #hotkey-panel { display: none !important; }
   </style>
 </head>
 <body>

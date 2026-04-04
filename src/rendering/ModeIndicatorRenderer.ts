@@ -1,6 +1,6 @@
 /**
  * HTML-based mode indicator overlay (top-left of screen).
- * Shows the current input mode: ATTACK MOVE, BUILD MODE, or hidden for normal.
+ * Shows the current input mode: ATTACK MOVE, BUILD MODE, ability names, or hidden for normal.
  */
 export class ModeIndicatorRenderer {
   private el: HTMLDivElement;
@@ -29,17 +29,21 @@ export class ModeIndicatorRenderer {
 
   showPaused(): void {
     this.el.style.display = 'block';
-    this.el.textContent = '⏸ PAUSED';
+    this.el.textContent = '\u23f8 PAUSED';
     this.el.style.color = '#ffffff';
     this.el.style.background = 'rgba(0, 0, 0, 0.7)';
   }
 
-  update(attackMoveMode: boolean, placementMode: boolean, isPatrolPending: boolean = false): void {
+  update(attackMoveMode: boolean, placementMode: boolean, isPatrolPending: boolean = false, abilityName: string = ''): void {
     let text = '';
     let color = '';
     let bg = '';
 
-    if (attackMoveMode) {
+    if (abilityName) {
+      text = abilityName;
+      color = '#ff88cc';
+      bg = 'rgba(100, 20, 60, 0.6)';
+    } else if (attackMoveMode) {
       text = 'ATTACK MOVE';
       color = '#ffcc44';
       bg = 'rgba(100, 80, 0, 0.6)';

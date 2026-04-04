@@ -1,8 +1,8 @@
 import { type World, hasComponents } from '../ecs/world';
-import { selected, faction, BUILDING } from '../ecs/components';
+import { selected, faction, BUILDING, unitType } from '../ecs/components';
 import { InputManager, type InputState } from './InputManager';
 import { CommandType, type GameCommand, GameCommandQueue } from './CommandQueue';
-import { Faction } from '../constants';
+import { Faction, UnitType } from '../constants';
 import type { Viewport } from 'pixi-viewport';
 
 export class InputProcessor {
@@ -10,6 +10,19 @@ export class InputProcessor {
   private patrolPending = false;
   private corrosiveBilePending = false;
   private fungalPending = false;
+  private snipePending = false;
+  private yamatoPending = false;
+  private abductPending = false;
+  private transfusePending = false;
+  private lockOnPending = false;
+  private causticSprayPending = false;
+  private blindingCloudPending = false;
+  private parasiticBombPending = false;
+  private empPending = false;
+  private kd8ChargePending = false;
+  private neuralParasitePending = false;
+  private lastRecalledGroup = -1;
+  private lastRecalledTime = 0;
 
   constructor(
     private input: InputManager,
@@ -38,6 +51,27 @@ export class InputProcessor {
     return this.fungalPending;
   }
 
+  get isSnipePending(): boolean { return this.snipePending; }
+  get isYamatoPending(): boolean { return this.yamatoPending; }
+  get isAbductPending(): boolean { return this.abductPending; }
+  get isTransfusePending(): boolean { return this.transfusePending; }
+  get isLockOnPending(): boolean { return this.lockOnPending; }
+  get isCausticSprayPending(): boolean { return this.causticSprayPending; }
+  get isBlindingCloudPending(): boolean { return this.blindingCloudPending; }
+  get isParasiticBombPending(): boolean { return this.parasiticBombPending; }
+  get isEmpPending(): boolean { return this.empPending; }
+  get isKD8ChargePending(): boolean { return this.kd8ChargePending; }
+  get isNeuralParasitePending(): boolean { return this.neuralParasitePending; }
+
+  /** True if any ability targeting mode is active */
+  get isAnyAbilityPending(): boolean {
+    return this.corrosiveBilePending || this.fungalPending ||
+      this.snipePending || this.yamatoPending || this.abductPending || this.transfusePending ||
+      this.lockOnPending || this.causticSprayPending ||
+      this.blindingCloudPending || this.parasiticBombPending || this.empPending ||
+      this.kd8ChargePending || this.neuralParasitePending;
+  }
+
   /** Allow external UI (TouchCommandBar) to set attack-move mode */
   setAttackMovePending(v: boolean): void {
     this.attackMovePending = v;
@@ -56,6 +90,37 @@ export class InputProcessor {
   /** Allow external UI (TouchCommandBar) to set fungal growth mode */
   setFungalPending(v: boolean): void {
     this.fungalPending = v;
+  }
+
+  setSnipePending(v: boolean): void { this.cancelAllPending(); this.snipePending = v; }
+  setYamatoPending(v: boolean): void { this.cancelAllPending(); this.yamatoPending = v; }
+  setAbductPending(v: boolean): void { this.cancelAllPending(); this.abductPending = v; }
+  setTransfusePending(v: boolean): void { this.cancelAllPending(); this.transfusePending = v; }
+  setLockOnPending(v: boolean): void { this.cancelAllPending(); this.lockOnPending = v; }
+  setCausticSprayPending(v: boolean): void { this.cancelAllPending(); this.causticSprayPending = v; }
+  setBlindingCloudPending(v: boolean): void { this.cancelAllPending(); this.blindingCloudPending = v; }
+  setParasiticBombPending(v: boolean): void { this.cancelAllPending(); this.parasiticBombPending = v; }
+  setEmpPending(v: boolean): void { this.cancelAllPending(); this.empPending = v; }
+  setKD8ChargePending(v: boolean): void { this.cancelAllPending(); this.kd8ChargePending = v; }
+  setNeuralParasitePending(v: boolean): void { this.cancelAllPending(); this.neuralParasitePending = v; }
+
+  /** Cancel all pending ability modes */
+  cancelAllPending(): void {
+    this.attackMovePending = false;
+    this.patrolPending = false;
+    this.corrosiveBilePending = false;
+    this.fungalPending = false;
+    this.snipePending = false;
+    this.yamatoPending = false;
+    this.abductPending = false;
+    this.transfusePending = false;
+    this.lockOnPending = false;
+    this.causticSprayPending = false;
+    this.blindingCloudPending = false;
+    this.parasiticBombPending = false;
+    this.empPending = false;
+    this.kd8ChargePending = false;
+    this.neuralParasitePending = false;
   }
 
   pushSimulation(cmd: GameCommand): void {
@@ -78,29 +143,45 @@ export class InputProcessor {
     return false;
   }
 
+  /** Check if any selected unit matches a specific UnitType */
+  private hasSelectedUnitOfType(ut: UnitType): boolean {
+    for (let eid = 1; eid < this.world.nextEid; eid++) {
+      if (selected[eid] === 1 && faction[eid] === this.playerFaction && unitType[eid] === ut) return true;
+    }
+    return false;
+  }
+
   private processKeys(state: InputState): void {
     const keys = state.keysJustPressed;
 
-    // Control groups: Ctrl+0–9 assign, Shift+0–9 add, 0–9 recall
+    // Control groups: Ctrl+0–9 assign, Alt+0–9 steal, Shift+0–9 add, 0–9 recall, double-tap centers camera
+    const now = performance.now();
     for (let i = 0; i <= 9; i++) {
       const key = `Digit${i}`;
       if (keys.has(key)) {
         if (state.ctrlHeld) {
           this.selectionQueue.push({ type: CommandType.ControlGroupAssign, data: i });
+        } else if (state.altHeld) {
+          this.selectionQueue.push({ type: CommandType.ControlGroupSteal, data: i });
         } else if (state.shiftHeld) {
           this.selectionQueue.push({ type: CommandType.ControlGroupAdd, data: i });
         } else {
-          this.selectionQueue.push({ type: CommandType.ControlGroupRecall, data: i });
+          // Double-tap detection: same group within 400ms → center camera
+          if (this.lastRecalledGroup === i && now - this.lastRecalledTime < 400) {
+            this.selectionQueue.push({ type: CommandType.ControlGroupRecallCenter, data: i });
+            this.lastRecalledGroup = -1; // reset to avoid triple-tap
+          } else {
+            this.selectionQueue.push({ type: CommandType.ControlGroupRecall, data: i });
+            this.lastRecalledGroup = i;
+            this.lastRecalledTime = now;
+          }
         }
       }
     }
 
-    // Escape: cancel attack-move / patrol / ability targeting modes
+    // Escape: cancel all pending targeting modes
     if (keys.has('Escape')) {
-      this.attackMovePending = false;
-      this.patrolPending = false;
-      this.corrosiveBilePending = false;
-      this.fungalPending = false;
+      this.cancelAllPending();
     }
 
     // Tab / CycleSubgroup — works in both building and unit contexts
@@ -154,45 +235,95 @@ export class InputProcessor {
         this.simulationQueue.push({ type: CommandType.HoldPosition, units: this.snapshotSelection() });
       }
       if (keys.has('KeyP')) {
-        this.patrolPending = true;
+        // Context-aware: Viper → Parasitic Bomb (targeted), otherwise → Patrol
+        if (this.hasSelectedUnitOfType(UnitType.Viper)) {
+          this.cancelAllPending();
+          this.parasiticBombPending = true;
+        } else {
+          this.patrolPending = true;
+        }
       }
       if (keys.has('KeyT')) {
         this.simulationQueue.push({ type: CommandType.Stim, units: this.snapshotSelection() });
       }
       if (keys.has('KeyE')) {
-        this.simulationQueue.push({ type: CommandType.SiegeToggle, units: this.snapshotSelection() });
+        // Context-aware: Ghost → EMP (ground-targeted AoE), otherwise → SiegeToggle
+        if (this.hasSelectedUnitOfType(UnitType.Ghost)) {
+          this.cancelAllPending();
+          this.empPending = true;
+        } else {
+          this.simulationQueue.push({ type: CommandType.SiegeToggle, units: this.snapshotSelection() });
+        }
       }
       if (keys.has('KeyC')) {
-        this.simulationQueue.push({ type: CommandType.Cloak, units: this.snapshotSelection() });
+        // Context-aware: Corruptor → Caustic Spray (targeted), otherwise → Cloak (toggle)
+        if (this.hasSelectedUnitOfType(UnitType.Corruptor)) {
+          this.cancelAllPending();
+          this.causticSprayPending = true;
+        } else {
+          this.simulationQueue.push({ type: CommandType.Cloak, units: this.snapshotSelection() });
+        }
       }
       if (keys.has('KeyV')) {
         this.simulationQueue.push({ type: CommandType.InjectLarva, units: this.snapshotSelection() });
       }
-      // Yamato Cannon (Battlecruiser) — fires at current attack target
+      // Yamato Cannon (Battlecruiser) — enter aim mode, click to fire
       if (keys.has('KeyY')) {
-        this.simulationQueue.push({ type: CommandType.Yamato, units: this.snapshotSelection() });
+        this.cancelAllPending();
+        this.yamatoPending = true;
       }
-      // Corrosive Bile (Ravager) — location ability, left-click to place
+      // R: context-aware — Roach → Burrow toggle, Baneling → Burrow toggle, Ravager → Corrosive Bile
       if (keys.has('KeyR')) {
-        this.corrosiveBilePending = true;
-        this.fungalPending = false;
+        if (this.hasSelectedUnitOfType(UnitType.Roach)) {
+          this.simulationQueue.push({ type: CommandType.RoachBurrow, units: this.snapshotSelection() });
+        } else if (this.hasSelectedUnitOfType(UnitType.Baneling)) {
+          this.simulationQueue.push({ type: CommandType.BanelingBurrow, units: this.snapshotSelection() });
+        } else {
+          this.cancelAllPending();
+          this.corrosiveBilePending = true;
+        }
       }
       // Fungal Growth (Infestor) — location ability, left-click to place
       if (keys.has('KeyF')) {
+        this.cancelAllPending();
         this.fungalPending = true;
-        this.corrosiveBilePending = false;
       }
-      // Abduct (Viper) — pulls current attack target to Viper
+      // Abduct (Viper) — enter aim mode, click enemy to pull
       if (keys.has('KeyG')) {
-        this.simulationQueue.push({ type: CommandType.Abduct, units: this.snapshotSelection() });
+        this.cancelAllPending();
+        this.abductPending = true;
       }
-      // Snipe (Ghost) — instant 170 damage to nearest enemy bio
+      // D: context-aware — Reaper → KD8 Charge (ground-targeted AoE), Ghost → Snipe (targeted)
       if (keys.has('KeyD')) {
-        this.simulationQueue.push({ type: CommandType.Snipe, units: this.snapshotSelection() });
+        if (this.hasSelectedUnitOfType(UnitType.Reaper)) {
+          this.cancelAllPending();
+          this.kd8ChargePending = true;
+        } else {
+          this.cancelAllPending();
+          this.snipePending = true;
+        }
       }
-      // Transfuse (Queen) — heal 75 HP to nearest damaged friendly
+      // Transfuse (Queen) — enter aim mode, click friendly to heal
       if (keys.has('KeyX')) {
-        this.simulationQueue.push({ type: CommandType.Transfuse, units: this.snapshotSelection() });
+        this.cancelAllPending();
+        this.transfusePending = true;
+      }
+      // Lock-On (Cyclone) — enter aim mode, click enemy to lock onto
+      if (keys.has('KeyQ')) {
+        this.cancelAllPending();
+        this.lockOnPending = true;
+      }
+      // Blinding Cloud (Viper) — ground-targeted AoE, left-click to place
+      if (keys.has('KeyB')) {
+        this.cancelAllPending();
+        this.blindingCloudPending = true;
+      }
+      // Neural Parasite (Infestor) — enter aim mode, click enemy to mind-control
+      if (keys.has('KeyN')) {
+        if (this.hasSelectedUnitOfType(UnitType.Infestor)) {
+          this.cancelAllPending();
+          this.neuralParasitePending = true;
+        }
       }
     }
   }
@@ -255,6 +386,105 @@ export class InputProcessor {
             units: this.snapshotSelection(),
           });
           this.fungalPending = false;
+        } else if (this.snipePending) {
+          // Snipe: click on enemy to snipe
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.Snipe,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.snipePending = false;
+        } else if (this.yamatoPending) {
+          // Yamato Cannon: click on enemy to fire
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.Yamato,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.yamatoPending = false;
+        } else if (this.abductPending) {
+          // Abduct: click on enemy to pull
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.Abduct,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.abductPending = false;
+        } else if (this.transfusePending) {
+          // Transfuse: click on friendly to heal
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.Transfuse,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.transfusePending = false;
+        } else if (this.lockOnPending) {
+          // Lock-On: click on enemy to lock onto
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.LockOn,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.lockOnPending = false;
+        } else if (this.causticSprayPending) {
+          // Caustic Spray: click on enemy building to channel
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.CausticSpray,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.causticSprayPending = false;
+        } else if (this.empPending) {
+          // EMP Round: ground-targeted AoE
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.EMP,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.empPending = false;
+        } else if (this.kd8ChargePending) {
+          // KD8 Charge: ground-targeted AoE
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.KD8Charge,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.kd8ChargePending = false;
+        } else if (this.blindingCloudPending) {
+          // Blinding Cloud: ground-targeted AoE
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.BlindingCloud,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.blindingCloudPending = false;
+        } else if (this.parasiticBombPending) {
+          // Parasitic Bomb: click on enemy air unit
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.ParasiticBomb,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.parasiticBombPending = false;
+        } else if (this.neuralParasitePending) {
+          // Neural Parasite: click on enemy to mind-control (stun)
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.NeuralParasite,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.neuralParasitePending = false;
         } else {
           // Single click — select
           const type: CommandType = evt.isDouble
@@ -277,10 +507,7 @@ export class InputProcessor {
           units: this.snapshotSelection(),
           shiftHeld: state.shiftHeld,
         });
-        this.attackMovePending = false;
-        this.patrolPending = false;
-        this.corrosiveBilePending = false;
-        this.fungalPending = false;
+        this.cancelAllPending();
       }
     }
 

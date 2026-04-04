@@ -8,8 +8,11 @@ import {
   unitType,
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
   bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount, veterancyLevel,
-  cloaked,
+  cloaked, burrowed,
   isAir, canTargetGround, canTargetAir,
+  thorMode,
+  blindingCloudEndTime,
+  neuralStunEndTime,
 } from '../ecs/components';
 import { findBestTarget } from '../ecs/queries';
 import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, ArmorClass, UpgradeType } from '../constants';
@@ -22,6 +25,7 @@ import { type PlayerResources } from '../types';
 import { emitProjectile } from '../rendering/ProjectileRenderer';
 import { triggerCameraShake } from '../rendering/CameraShake';
 import { spatialHash } from '../ecs/SpatialHash';
+import { simplifyPath } from '../utils/pathUtils';
 
 const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
   [UnitType.Marine]: 700,
@@ -105,8 +109,11 @@ function getWeaponBonus(resources: Record<number, PlayerResources>, attackerFact
   const upgrades = resources[attackerFaction]?.upgrades;
   if (!upgrades) return 0;
   if (attackerFaction === Faction.Terran) {
-    if (uType === UnitType.SiegeTank || uType === UnitType.Hellion) return upgrades[UpgradeType.VehicleWeapons];
-    return upgrades[UpgradeType.InfantryWeapons]; // Marine, Marauder, Medivac, SCV
+    if (uType === UnitType.SiegeTank || uType === UnitType.Hellion ||
+        uType === UnitType.WidowMine || uType === UnitType.Cyclone ||
+        uType === UnitType.Thor || uType === UnitType.Battlecruiser ||
+        uType === UnitType.Viking) return upgrades[UpgradeType.VehicleWeapons];
+    return upgrades[UpgradeType.InfantryWeapons]; // Marine, Marauder, Ghost, Reaper, SCV
   }
   // Zerg
   if (uType === UnitType.Zergling || uType === UnitType.Baneling) return upgrades[UpgradeType.ZergMelee];
@@ -142,6 +149,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       atkFlashTimer[eid] = Math.max(0, atkFlashTimer[eid] - dt);
     }
 
+    // Neural Parasite stun: stunned units can't attack
+    if (neuralStunEndTime[eid] > 0 && neuralStunEndTime[eid] > gameTime) continue;
+
     // Skip units that can't deal damage (Medivac)
     if (atkDamage[eid] === 0) continue;
 
@@ -149,8 +159,21 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     const sm = siegeMode[eid] as SiegeMode;
     if (sm === SiegeMode.Packing || sm === SiegeMode.Unpacking) continue;
 
+    // Lurker can only attack while burrowed
+    if (unitType[eid] === UnitType.Lurker && burrowed[eid] === 0) continue;
+
+    // Widow Mine attacks via sentinel missile ability (AbilitySystem), not normal combat
+    if (unitType[eid] === UnitType.WidowMine) continue;
+
     const target = targetEntity[eid];
-    const range = atkRange[eid];
+    let range = atkRange[eid];
+
+    // Blinding Cloud: ground units have range clamped to melee (0.5 tiles)
+    if (blindingCloudEndTime[eid] > 0 && gameTime < blindingCloudEndTime[eid] && isAir[eid] === 0) {
+      range = Math.min(range, 0.5 * TILE_SIZE);
+    } else if (blindingCloudEndTime[eid] > 0 && gameTime >= blindingCloudEndTime[eid]) {
+      blindingCloudEndTime[eid] = 0; // expired — clear
+    }
 
     // --- Target validation ---
     if (target >= 1) {
@@ -211,6 +234,11 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     const tgt = targetEntity[eid];
     if (tgt < 1) continue;
+
+    // Thor has longer range vs air: Javelin=11 tiles, Explosive=10 tiles (ground stays at base range)
+    if (unitType[eid] === UnitType.Thor && isAir[tgt] === 1) {
+      range = (thorMode[eid] === 0 ? 11 : 10) * TILE_SIZE;
+    }
 
     // --- Range check ---
     const dx = posX[tgt] - posX[eid];
@@ -276,9 +304,20 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // Compute actual damage with SC2 bonus-damage model and armor reduction
     // Queen has dual attack: 4x2=8 vs ground, 9 vs air
+    // Thor has dual attack: 30x2=60 vs ground, 6x4=24 vs air (Javelin Missiles)
     let baseDmg = atkDamage[eid];
     if (unitType[eid] === UnitType.Queen && isAir[tgt] === 0) {
       baseDmg = 8; // ground attack (4 damage x 2 hits)
+    }
+    // Thor anti-air: mode 0 = Javelin Missiles (6x4=24, single-target), mode 1 = Explosive Payload (6, splash 0.5 tiles)
+    let thorSplashActive = false;
+    if (unitType[eid] === UnitType.Thor && isAir[tgt] === 1) {
+      if (thorMode[eid] === 0) {
+        baseDmg = 24; // Javelin Missiles (6 damage x 4 hits)
+      } else {
+        baseDmg = 6;  // Explosive Payload (splash)
+        thorSplashActive = true;
+      }
     }
     const bonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[tgt]);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
@@ -330,51 +369,67 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       lastTerranHitY = posY[tgt];
     }
 
-    // Mutalisk glaive bounce — hits 2 additional targets at reduced damage
+    // Mutalisk glaive bounce — hits 2 additional targets at reduced damage (9→3→1)
     if (unitType[eid] === UnitType.Mutalisk) {
-      const bounceRange = 3 * TILE_SIZE; // 96px
+      const bounceRange = 1.5 * TILE_SIZE; // 1.5 tiles
+      const bounceRangeSq = bounceRange * bounceRange;
       let lastX = posX[tgt];
       let lastY = posY[tgt];
       let lastDmg = rawDmg;
-      const bounced = new Set([tgt]);
+      const bounced = new Set([eid, tgt]);
+
+      spatialHash.ensureBuilt(world);
+      const myFac = faction[eid];
 
       for (let bounce = 0; bounce < 2; bounce++) {
         const bounceDmg = Math.max(1, Math.round(lastDmg / 3));
         // Find nearest enemy NOT already bounced to
         let nearestEid = 0;
         let nearestDist = Infinity;
-        const myFac = faction[eid];
-        spatialHash.ensureBuilt(world);
         const bounceCandidates = spatialHash.queryRadius(lastX, lastY, bounceRange);
         for (const other of bounceCandidates) {
           if (bounced.has(other)) continue;
           if (!hasComponents(world, other, POSITION | HEALTH)) continue;
           if (faction[other] === myFac || faction[other] === 0) continue;
           if (hpCurrent[other] <= 0) continue;
-          const dx = posX[other] - lastX;
-          const dy = posY[other] - lastY;
-          const distSq = dx * dx + dy * dy;
-          if (distSq < bounceRange * bounceRange && distSq < nearestDist) {
-            nearestDist = distSq;
+          const bdx = posX[other] - lastX;
+          const bdy = posY[other] - lastY;
+          const bDistSq = bdx * bdx + bdy * bdy;
+          if (bDistSq < bounceRangeSq && bDistSq < nearestDist) {
+            nearestDist = bDistSq;
             nearestEid = other;
           }
         }
         if (nearestEid === 0) break;
+
+        // Emit bounce projectile from previous bounce position
+        emitProjectile({
+          fromX: lastX, fromY: lastY,
+          toX: posX[nearestEid], toY: posY[nearestEid],
+          unitType: UnitType.Mutalisk,
+          speed: 600,
+          time: gameTime,
+        });
 
         hpCurrent[nearestEid] -= bounceDmg;
         bounced.add(nearestEid);
         lastX = posX[nearestEid];
         lastY = posY[nearestEid];
         lastDmg = bounceDmg;
+        lastCombatTime[nearestEid] = gameTime;
 
-        // Emit bounce projectile
-        emitProjectile({
-          fromX: posX[tgt], fromY: posY[tgt],
-          toX: posX[nearestEid], toY: posY[nearestEid],
-          unitType: UnitType.Mutalisk,
-          speed: 600,
-          time: gameTime,
-        });
+        // Floating damage indicator for bounce hit
+        if (damageEvents.length < MAX_DAMAGE_EVENTS) {
+          const bounceVicFac = faction[nearestEid] as Faction;
+          const bounceColor = bounceVicFac === Faction.Terran ? 0xff4444 : 0xaaddff;
+          damageEvents.push({
+            x: posX[nearestEid],
+            y: posY[nearestEid],
+            amount: bounceDmg,
+            time: gameTime,
+            color: bounceColor,
+          });
+        }
 
         // Track Terran under-attack for bounce hits too
         if (faction[nearestEid] === Faction.Terran) {
@@ -391,18 +446,19 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       }
     }
 
-    // Retaliation: victim auto-targets attacker if idle and can fight
+    // Retaliation: victim auto-targets attacker if idle, can fight, and can target their layer
     if (targetEntity[tgt] < 1 && atkDamage[tgt] > 0 &&
         commandMode[tgt] !== CommandMode.Move && commandMode[tgt] !== CommandMode.Gather) {
-      targetEntity[tgt] = eid;
+      const canTarget = isAir[eid] === 1 ? canTargetAir[tgt] === 1 : canTargetGround[tgt] === 1;
+      if (canTarget) targetEntity[tgt] = eid;
     }
 
     // Track combat time for Roach regen
     lastCombatTime[eid] = gameTime;
     lastCombatTime[tgt] = gameTime;
 
-    // Marauder: Concussive Shells — slow the target
-    if (unitType[eid] === UnitType.Marauder) {
+    // Marauder: Concussive Shells — slow the target (Ultralisk immune: Frenzied passive)
+    if (unitType[eid] === UnitType.Marauder && unitType[tgt] !== UnitType.Ultralisk) {
       slowEndTime[tgt] = gameTime + SLOW_DURATION;
       slowFactor[tgt] = SLOW_FACTOR;
     }
@@ -423,6 +479,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         if (!hasComponents(world, other, POSITION | HEALTH)) continue;
         if (faction[other] === myFac) continue;
         if (hpCurrent[other] <= 0) continue;
+        // Splash respects air/ground targeting
+        if (isAir[other] === 1 && canTargetAir[eid] === 0) continue;
+        if (isAir[other] === 0 && canTargetGround[eid] === 0) continue;
 
         const sdx = posX[other] - tx;
         const sdy = posY[other] - ty;
@@ -458,6 +517,53 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       }
     }
 
+    // Thor Explosive Payload splash (0.5 tile radius, air-only)
+    if (thorSplashActive) {
+      const thorSplashRange = 0.5 * TILE_SIZE;
+      const thorSplashRangeSq = thorSplashRange * thorSplashRange;
+      const myFac = faction[eid];
+      const tx = posX[tgt];
+      const ty = posY[tgt];
+
+      for (let other = 1; other < world.nextEid; other++) {
+        if (other === tgt || other === eid) continue;
+        if (!hasComponents(world, other, POSITION | HEALTH)) continue;
+        if (faction[other] === myFac) continue;
+        if (hpCurrent[other] <= 0) continue;
+        // Explosive Payload only splashes air targets
+        if (isAir[other] !== 1) continue;
+
+        const sdx = posX[other] - tx;
+        const sdy = posY[other] - ty;
+        const dSq = sdx * sdx + sdy * sdy;
+        if (dSq <= thorSplashRangeSq) {
+          const sBonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[other]);
+          const sArmorBonus = getArmorBonus(resources, faction[other]);
+          const sDmg = Math.max(0.5, (baseDmg + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
+          hpCurrent[other] -= sDmg;
+          lastCombatTime[other] = gameTime;
+
+          if (damageEvents.length < MAX_DAMAGE_EVENTS) {
+            const splashVictimFac = faction[other] as Faction;
+            const splashColor = splashVictimFac === Faction.Terran ? 0xff4444 : 0xaaddff;
+            damageEvents.push({
+              x: posX[other],
+              y: posY[other],
+              amount: Math.round(sDmg),
+              time: gameTime,
+              color: splashColor,
+            });
+          }
+
+          if (hpCurrent[other] <= 0) {
+            killCount[eid]++;
+            updateVeterancy(eid);
+            pendingDamage[other] = 0;
+          }
+        }
+      }
+    }
+
     // Baneling: suicide unit — dies after attacking
     if (unitType[eid] === UnitType.Baneling) {
       hpCurrent[eid] = 0;
@@ -467,8 +573,13 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
 function chaseTarget(eid: number, tgt: number, map: MapData, gameTime: number): void {
   // Air units fly in a straight line — no A* needed
+  // Offset based on eid to prevent stacking on the same pixel
   if (isAir[eid]) {
-    setPath(eid, [[posX[tgt], posY[tgt]]]);
+    const angle = ((eid * 2654435769) & 0xffff) / 0xffff * Math.PI * 2; // hash-based spread
+    const spread = 8 + (eid % 5) * 4; // 8-24px offset
+    const destX = posX[tgt] + Math.cos(angle) * spread;
+    const destY = posY[tgt] + Math.sin(angle) * spread;
+    setPath(eid, [[destX, destY]]);
     chaseTargetX[eid] = posX[tgt];
     chaseTargetY[eid] = posY[tgt];
     return;
@@ -495,10 +606,11 @@ function chaseTarget(eid: number, tgt: number, map: MapData, gameTime: number): 
   const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
 
   if (tilePath.length > 0) {
-    const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+    const worldPath: Array<[number, number]> = simplifyPath(tilePath.map(([c, r]) => {
       const wp = tileToWorld(c, r);
       return [wp.x, wp.y] as [number, number];
-    });
+    }));
     setPath(eid, worldPath);
   }
 }
+

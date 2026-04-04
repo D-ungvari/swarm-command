@@ -13,18 +13,41 @@ const CREEP_SPREAD_INTERVAL = 5;
 const CREEP_BUILDINGS = new Set<BuildingType>([
   BuildingType.Hatchery,
   BuildingType.SpawningPool,
+  BuildingType.EvolutionChamber,
+  BuildingType.RoachWarren,
+  BuildingType.HydraliskDen,
+  BuildingType.Spire,
+  BuildingType.InfestationPit,
+  BuildingType.SpineCrawler,
+  BuildingType.SporeCrawler,
 ]);
 
 let timeSinceSpread = 0;
 
+// Lazy-allocated visited buffer, reused across BFS calls to avoid per-spread allocation
+let visitedBuf: Uint8Array | null = null;
+let visitedBufSize = 0;
+
+// Dirty flag — only re-spread when a building completes or is destroyed
+let creepDirty = true;
+
+/** Mark creep for re-spread (call when a Zerg building completes or is destroyed). */
+export function markCreepDirty(): void {
+  creepDirty = true;
+}
+
 /**
  * Spreads creep from completed Zerg buildings every CREEP_SPREAD_INTERVAL seconds.
+ * Only re-spreads when creepDirty is set (building completed or destroyed).
  * Call this each game tick from Game.ts.
  */
 export function creepSystem(world: World, map: MapData, dt: number): void {
   timeSinceSpread += dt;
   if (timeSinceSpread < CREEP_SPREAD_INTERVAL) return;
   timeSinceSpread = 0;
+
+  if (!creepDirty) return;
+  creepDirty = false;
 
   spreadCreep(world, map);
 }
@@ -47,10 +70,19 @@ function spreadCreep(world: World, map: MapData): void {
 function bfsSpreadCreep(map: MapData, originCol: number, originRow: number): void {
   const { creepMap, cols, rows } = map;
   const maxRadiusSq = CREEP_RADIUS * CREEP_RADIUS;
+  const totalTiles = cols * rows;
+
+  // Lazy-allocate or resize the shared visited buffer
+  if (!visitedBuf || visitedBufSize < totalTiles) {
+    visitedBuf = new Uint8Array(totalTiles);
+    visitedBufSize = totalTiles;
+  }
+  // Clear for this BFS pass
+  visitedBuf.fill(0);
 
   // BFS queue using flat tile indices
   const queue: number[] = [];
-  const visited = new Uint8Array(cols * rows);
+  const visited = visitedBuf;
 
   const startIdx = originRow * cols + originCol;
   queue.push(startIdx);
@@ -92,4 +124,7 @@ function bfsSpreadCreep(map: MapData, originCol: number, originRow: number): voi
 /** Reset the creep timer (call when starting a new game). */
 export function resetCreepSystem(): void {
   timeSinceSpread = 0;
+  creepDirty = true;
+  visitedBuf = null;
+  visitedBufSize = 0;
 }

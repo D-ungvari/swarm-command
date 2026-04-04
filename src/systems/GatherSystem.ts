@@ -288,7 +288,7 @@ function tickRepairing(
   movePathIndex[eid] = -1;
 
   const hpToRestore = Math.min(
-    REPAIR_RATE * (dt / 1000),
+    REPAIR_RATE * dt,
     hpMax[target] - hpCurrent[target],
   );
 

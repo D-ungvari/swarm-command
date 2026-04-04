@@ -8,11 +8,12 @@ import {
   prodUnitType, prodProgress, prodTimeTotal, prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   larvaCount, larvaRegenTimer,
   workerState, workerTargetEid, workerBaseX, workerBaseY,
+  resourceRemaining,
 } from '../ecs/components';
 import { findNearestCommandCenter, findNearestMineral } from '../ecs/queries';
 import { isTileVisible } from './FogSystem';
 import {
-  Faction, UnitType, CommandMode, MAX_ENTITIES, TILE_SIZE,
+  Faction, UnitType, CommandMode, MAX_ENTITIES, TILE_SIZE, TileType,
   AI_SPAWN_BASE_COL, AI_SPAWN_BASE_ROW, BuildingType, BuildState,
   MAP_COLS, MAP_ROWS, UpgradeType,
   Difficulty, DIFFICULTY_CONFIGS,
@@ -183,15 +184,37 @@ function claimNewUnits(world: World): void {
 // Macro management helpers
 // ─────────────────────────────────────────
 function assignIdleWorkers(world: World, map: MapData): void {
+  // Pre-scan: count workers currently targeting each Refinery
+  const gasWorkerCounts = new Map<number, number>();
+  for (let w = 1; w < world.nextEid; w++) {
+    if (!hasComponents(world, w, WORKER | POSITION)) continue;
+    if (faction[w] !== currentAIFaction) continue;
+    if (hpCurrent[w] <= 0) continue;
+    if (workerState[w] === WorkerState.Idle) continue;
+    const tgt = workerTargetEid[w];
+    if (tgt > 0 && hasComponents(world, tgt, BUILDING) && buildingType[tgt] === BuildingType.Refinery) {
+      gasWorkerCounts.set(tgt, (gasWorkerCounts.get(tgt) || 0) + 1);
+    }
+  }
+
+  // Find completed Refineries that need workers (fewer than 3)
+  const unsaturatedRefineries: number[] = [];
+  for (let b = 1; b < world.nextEid; b++) {
+    if (!hasComponents(world, b, BUILDING | POSITION)) continue;
+    if (faction[b] !== currentAIFaction) continue;
+    if (buildingType[b] !== BuildingType.Refinery) continue;
+    if (buildState[b] !== BuildState.Complete) continue;
+    if (hpCurrent[b] <= 0) continue;
+    if (resourceRemaining[b] <= 0) continue;
+    const count = gasWorkerCounts.get(b) || 0;
+    if (count < 3) unsaturatedRefineries.push(b);
+  }
+
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, WORKER | POSITION)) continue;
     if (faction[eid] !== currentAIFaction) continue;
     if (hpCurrent[eid] <= 0) continue;
     if (workerState[eid] !== WorkerState.Idle) continue;
-
-    // Find nearest mineral
-    const mineralEid = findNearestMineral(world, posX[eid], posY[eid]);
-    if (mineralEid === 0) continue;
 
     // Find nearest base for return trips
     let baseEid = 0;
@@ -210,7 +233,31 @@ function assignIdleWorkers(world: World, map: MapData): void {
     }
     if (baseEid === 0) continue;
 
-    // Assign worker to mine
+    // Priority: assign to gas if a Refinery needs workers
+    let assignedToGas = false;
+    for (let ri = 0; ri < unsaturatedRefineries.length; ri++) {
+      const refEid = unsaturatedRefineries[ri];
+      const count = gasWorkerCounts.get(refEid) || 0;
+      if (count < 3) {
+        workerState[eid] = WorkerState.MovingToResource;
+        workerTargetEid[eid] = refEid;
+        workerBaseX[eid] = posX[baseEid];
+        workerBaseY[eid] = posY[baseEid];
+        commandMode[eid] = CommandMode.Move;
+        pathTo(eid, posX[refEid], posY[refEid], map);
+        gasWorkerCounts.set(refEid, count + 1);
+        assignedToGas = true;
+        // Remove from list if now saturated
+        if (count + 1 >= 3) unsaturatedRefineries.splice(ri, 1);
+        break;
+      }
+    }
+    if (assignedToGas) continue;
+
+    // Otherwise assign to nearest mineral
+    const mineralEid = findNearestMineral(world, posX[eid], posY[eid]);
+    if (mineralEid === 0) continue;
+
     workerState[eid] = WorkerState.MovingToResource;
     workerTargetEid[eid] = mineralEid;
     workerBaseX[eid] = posX[baseEid];
@@ -262,7 +309,7 @@ function aiBuildBuilding(
   bType: number,
   col: number,
   row: number,
-  _map: MapData,
+  map: MapData,
   resources: Record<number, PlayerResources>,
   spawnBuildingFn: SpawnBuildingFn,
 ): boolean {
@@ -272,9 +319,32 @@ function aiBuildBuilding(
   if (!bDef) return false;
   if (res.minerals < bDef.costMinerals || res.gas < bDef.costGas) return false;
 
+  // Refinery: snap to nearest gas tile instead of using fixed offset
+  let placeCol = col;
+  let placeRow = row;
+  if (bType === BuildingType.Refinery) {
+    let bestDist = Infinity;
+    for (let dr = -10; dr <= 10; dr++) {
+      for (let dc = -10; dc <= 10; dc++) {
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || c >= map.cols || r < 0 || r >= map.rows) continue;
+        if (map.tiles[r * map.cols + c] === TileType.Gas) {
+          const dist = dc * dc + dr * dr;
+          if (dist < bestDist) {
+            bestDist = dist;
+            placeCol = c;
+            placeRow = r;
+          }
+        }
+      }
+    }
+    if (bestDist === Infinity) return false; // no gas tile found
+  }
+
   res.minerals -= bDef.costMinerals;
   res.gas -= bDef.costGas;
-  spawnBuildingFn(bType, currentAIFaction, col, row);
+  spawnBuildingFn(bType, currentAIFaction, placeCol, placeRow);
   return true;
 }
 
@@ -319,7 +389,11 @@ function runMacroManagement(
   }
 
   // 4. Build tech buildings on schedule
-  checkAIBuildingSchedule(world, map, resources, spawnBuildingFn, gameTime);
+  if (currentAIFaction === Faction.Terran) {
+    checkTerranBuildingSchedule(world, map, resources, spawnBuildingFn, gameTime);
+  } else {
+    checkAIBuildingSchedule(world, map, resources, spawnBuildingFn, gameTime);
+  }
 }
 
 // ─────────────────────────────────────────
@@ -538,6 +612,7 @@ let defenseAreaClearSince = 0;
 // B.4 — Expanded AI Base (Living Base)
 // ─────────────────────────────────────────
 const AI_BUILDING_SCHEDULE: Array<{ minWave: number; type: number; colOffset: number; rowOffset: number }> = [
+  { minWave: 0, type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 },
   { minWave: 1, type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 },
   { minWave: 2, type: BuildingType.EvolutionChamber, colOffset: 0, rowOffset: 5 },
   { minWave: 3, type: BuildingType.SpawningPool, colOffset: -5, rowOffset: 0 },
@@ -546,6 +621,19 @@ const AI_BUILDING_SCHEDULE: Array<{ minWave: number; type: number; colOffset: nu
 ];
 let aiBuildingsPlaced: Set<number> = new Set();
 let lastBuildingWaveCheck = -1; // track wave count at last check
+
+// ─────────────────────────────────────────
+// B.4b — Terran AI Building Schedule (time-gated)
+// ─────────────────────────────────────────
+const TERRAN_BUILDING_SCHEDULE: Array<{ minTime: number; type: number; colOffset: number; rowOffset: number }> = [
+  { minTime: 60,  type: BuildingType.Refinery,        colOffset: 4, rowOffset: -3 },
+  { minTime: 90,  type: BuildingType.Barracks,         colOffset: -5, rowOffset: 0 },
+  { minTime: 120, type: BuildingType.Factory,          colOffset: 5, rowOffset: 3 },
+  { minTime: 180, type: BuildingType.Starport,         colOffset: -5, rowOffset: 3 },
+  { minTime: 240, type: BuildingType.EngineeringBay,   colOffset: 0, rowOffset: -5 },
+  { minTime: 300, type: BuildingType.Barracks,         colOffset: 5, rowOffset: -3 },
+];
+let terranBuildingsPlaced: Set<number> = new Set();
 
 // ─────────────────────────────────────────
 // B.6 — Persistent Harassment Squads
@@ -594,6 +682,7 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   lastDefenseTime = 0;
   defenseAreaClearSince = 0;
   aiBuildingsPlaced = new Set();
+  terranBuildingsPlaced = new Set();
   lastBuildingWaveCheck = -1;
   harassSquad1 = new Set();
   harassSquad2 = new Set();
@@ -859,6 +948,33 @@ function checkAIBuildingSchedule(
       // Deduct resources for the building (Zerg buildings self-build)
       aiBuildBuilding(world, entry.type, col, row, map, resources, spawnBuildingFn);
       aiBuildingsPlaced.add(i);
+    }
+  }
+}
+
+// ─────────────────────────────────────────
+// B.4b — Auto-build Terran buildings on time schedule
+// ─────────────────────────────────────────
+function checkTerranBuildingSchedule(
+  world: World,
+  map: MapData,
+  resources: Record<number, PlayerResources>,
+  spawnBuildingFn: SpawnBuildingFn,
+  gameTime: number,
+): void {
+  const cc = findTerranCC(world);
+  if (cc === 0) return;
+  const ccTile = worldToTile(posX[cc], posY[cc]);
+
+  for (let i = 0; i < TERRAN_BUILDING_SCHEDULE.length; i++) {
+    if (terranBuildingsPlaced.has(i)) continue;
+    const entry = TERRAN_BUILDING_SCHEDULE[i];
+    if (gameTime >= entry.minTime) {
+      const col = ccTile.col + entry.colOffset;
+      const row = ccTile.row + entry.rowOffset;
+      if (aiBuildBuilding(world, entry.type, col, row, map, resources, spawnBuildingFn)) {
+        terranBuildingsPlaced.add(i);
+      }
     }
   }
 }

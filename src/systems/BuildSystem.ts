@@ -14,6 +14,7 @@ import { BUILDING_DEFS } from '../data/buildings';
 import { BuildState, CommandMode, WorkerState, WORKER_MINE_RANGE, Faction, TILE_SIZE } from '../constants';
 import type { PlayerResources } from '../types';
 import { markCreepDirty } from './CreepSystem';
+import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
 
 /**
  * Handles building construction progress.
@@ -24,6 +25,7 @@ export function buildSystem(
   dt: number,
   resources: Record<number, PlayerResources>,
   gameTime: number = 0,
+  map?: MapData,
 ): void {
   const bits = BUILDING | POSITION;
 
@@ -101,6 +103,16 @@ export function buildSystem(
         commandMode[builder] = CommandMode.Idle;
         workerState[builder] = WorkerState.Idle;
         workerTargetEid[builder] = -1;
+        // Move SCV out of the building footprint to nearest walkable tile
+        if (map) {
+          const bTile = worldToTile(posX[eid], posY[eid]);
+          const walkTile = findNearestWalkableTile(map, bTile.col, bTile.row);
+          if (walkTile) {
+            const wp = tileToWorld(walkTile.col, walkTile.row);
+            posX[builder] = wp.x;
+            posY[builder] = wp.y;
+          }
+        }
       }
       builderEid[eid] = -1;
     }

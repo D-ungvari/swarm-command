@@ -2,7 +2,7 @@ import { type World, hasComponents, entityExists } from './world';
 import {
   POSITION, SELECTABLE, RENDERABLE, HEALTH, ATTACK, RESOURCE, BUILDING, UNIT_TYPE,
   posX, posY, renderWidth, renderHeight, faction, hpCurrent, atkRange,
-  resourceRemaining, resourceType,
+  resourceRemaining, resourceType, workerCountOnResource,
   buildingType, buildState,
   atkDamage, targetEntity, pendingDamage,
   cloaked,
@@ -168,6 +168,42 @@ export function findNearestMineral(world: World, wx: number, wy: number): number
   }
 
   return closestEid;
+}
+
+/**
+ * Find all mineral patches near a position, sorted by saturation (least workers first).
+ * Used for distributing workers evenly across nearby patches.
+ */
+export function findNearbyMinerals(world: World, wx: number, wy: number, radius: number): number[] {
+  const bits = POSITION | RESOURCE;
+  const radiusSq = radius * radius;
+  const results: Array<{ eid: number; workers: number; distSq: number }> = [];
+
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (resourceRemaining[eid] <= 0) continue;
+    if (resourceType[eid] !== ResourceType.Mineral) continue;
+
+    const dx = posX[eid] - wx;
+    const dy = posY[eid] - wy;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > radiusSq) continue;
+
+    results.push({ eid, workers: workerCountOnResource[eid], distSq });
+  }
+
+  // Sort by worker count first (least saturated), then by distance as tiebreaker
+  results.sort((a, b) => a.workers - b.workers || a.distSq - b.distSq);
+  return results.map(r => r.eid);
+}
+
+/**
+ * Find the least-saturated mineral patch near a position.
+ * Prefers patches with fewer workers; uses distance as tiebreaker.
+ */
+export function findLeastSaturatedMineral(world: World, wx: number, wy: number, radius: number): number {
+  const minerals = findNearbyMinerals(world, wx, wy, radius);
+  return minerals.length > 0 ? minerals[0] : 0;
 }
 
 /**
@@ -341,8 +377,8 @@ export function findBestTarget(world: World, eid: number, range: number): number
     if (isAir[other] === 1 && !canTargetAir[eid]) continue;
     if (isAir[other] === 0 && !canTargetGround[eid]) continue;
 
-    // Overkill prevention: skip over-committed targets
-    if (pendingDamage[other] >= hpCurrent[other]) continue;
+    // Overkill prevention: skip heavily over-committed targets (allow 50% overshoot)
+    if (pendingDamage[other] >= hpCurrent[other] * 1.5) continue;
 
     const dx = posX[other] - posX[eid];
     const dy = posY[other] - posY[eid];

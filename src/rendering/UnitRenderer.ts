@@ -1135,7 +1135,7 @@ export class UnitRenderer {
         }
 
         // Rally point indicator
-        if (isSelected && rallyX[eid] !== -1) {
+        if (isSelected && rallyX[eid] > 0 && rallyY[eid] > 0) {
           const bx = posX[eid];
           const by = posY[eid];
           const rx = rallyX[eid];

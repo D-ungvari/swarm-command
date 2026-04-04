@@ -67,7 +67,7 @@ import { AlertRenderer } from './rendering/AlertRenderer';
 import { DebugOverlay } from './rendering/DebugOverlay';
 import { movementSystem } from './systems/MovementSystem';
 import { spatialHash } from './ecs/SpatialHash';
-import { selectionSystem, getControlGroupInfo, getLastActiveGroup, controlGroupCenterX, controlGroupCenterY, controlGroupCenterFrame } from './systems/SelectionSystem';
+import { selectionSystem, getControlGroupInfo, getLastActiveGroup, removeTypeFromControlGroup, controlGroupCenterX, controlGroupCenterY, controlGroupCenterFrame } from './systems/SelectionSystem';
 import { commandSystem, issuePathCommand } from './systems/CommandSystem';
 import { CommandType, GameCommandQueue } from './input/CommandQueue';
 import { InputProcessor } from './input/InputProcessor';
@@ -356,6 +356,28 @@ export class Game {
     this.buildMenuRenderer.setFaction(this.playerFaction);
     this.infoPanelRenderer = new InfoPanelRenderer(container);
     this.controlGroupRenderer = new ControlGroupRenderer(container);
+    this.controlGroupRenderer.setRecallCallback((group) => {
+      this.selectionQueue.push({ type: CommandType.ControlGroupRecall, data: group });
+    });
+    this.controlGroupRenderer.setRemoveTypeCallback((group, ut) => {
+      removeTypeFromControlGroup(group, ut);
+    });
+    this.controlGroupRenderer.setDoubleClickTypeCallback((group, ut) => {
+      // Recall the group, then filter selection to just this unit type
+      this.selectionQueue.push({ type: CommandType.ControlGroupRecall, data: group });
+      // After recall, filter by type — push a ctrl+click-style filter
+      // We use Select with data=1 trick, but that needs a screen coord of an entity of that type.
+      // Simpler: recall the group, then deselect everything that isn't this type.
+      // We'll do this inline after the recall processes. Use a microtask.
+      queueMicrotask(() => {
+        // After the recall is processed, deselect units that don't match the type
+        for (let eid = 1; eid < this.world.nextEid; eid++) {
+          if (selected[eid] === 1 && unitType[eid] !== ut) {
+            selected[eid] = 0;
+          }
+        }
+      });
+    });
     this.modeIndicatorRenderer = new ModeIndicatorRenderer(container);
     this.hotkeyPanelRenderer = new HotkeyPanelRenderer(container);
 
@@ -652,7 +674,7 @@ export class Game {
       this.stats.recordAction();
     }
     commandSystem(this.world, this.simulationQueue.flushWithRecord(this.replayMode ? null : this.recorder, this.tickCount, this.gameTime), this.viewport, this.map, this.gameTime, this.resources, this.playerFaction);
-    buildSystem(this.world, dt, this.resources, this.gameTime);
+    buildSystem(this.world, dt, this.resources, this.gameTime, this.map);
     productionSystem(this.world, dt, this.resources, this.map,
       (type, fac, x, y) => {
         const eid = this.spawnUnitAt(type, fac, x, y);
@@ -661,6 +683,9 @@ export class Game {
       }, this.gameTime);
     upgradeSystem(this.world, dt, this.resources);
     movementSystem(this.world, dt, this.map, this.gameTime);
+
+    // Fog must update BEFORE combat so Terran auto-acquire sees current visibility
+    if (this.fogEnabled) fogSystem(this.world, this.map);
 
     // Snapshot resources before gather to calculate income delta
     const res = this.resources[this.playerFaction];
@@ -691,7 +716,6 @@ export class Game {
         (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources,
         (type, fac, col, row) => this.spawnBuilding(type as BuildingType, fac as Faction, col, row));
     }
-    if (this.fogEnabled) fogSystem(this.world, this.map);
     creepSystem(this.world, this.map, dt);
 
     // Scenario wave scripting — issue attack-move commands at scheduled times
@@ -818,7 +842,7 @@ export class Game {
     this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated, this.mineralIncomeRate, this.gasIncomeRate);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
-    this.controlGroupRenderer.update(getControlGroupInfo(), getLastActiveGroup());
+    this.controlGroupRenderer.update(getControlGroupInfo(this.world), getLastActiveGroup());
     // Touch command bar update
     if (this.touchCommandBar) {
       const selectedTypes = new Set<number>();
@@ -1210,10 +1234,36 @@ export class Game {
         if (!def) return;
 
         const worldPos = this.viewport.toWorld(input.mouse.x, input.mouse.y);
-        const tile = worldToTile(worldPos.x, worldPos.y);
+        let tile = worldToTile(worldPos.x, worldPos.y);
 
         // Placement validation: Refinery needs gas geyser, others need normal buildable
         const isRefinery = this.placementBuildingType === BuildingType.Refinery;
+
+        // Snap-to-geyser: find nearest gas tile within 3 tiles of cursor
+        if (isRefinery) {
+          let bestDist = Infinity;
+          let bestCol = tile.col;
+          let bestRow = tile.row;
+          for (let dr = -3; dr <= 3; dr++) {
+            for (let dc = -3; dc <= 3; dc++) {
+              const c = tile.col + dc;
+              const r = tile.row + dr;
+              if (c < 0 || c >= this.map.cols || r < 0 || r >= this.map.rows) continue;
+              if (this.map.tiles[r * this.map.cols + c] === TileType.Gas) {
+                const dist = dc * dc + dr * dr;
+                if (dist < bestDist) {
+                  bestDist = dist;
+                  bestCol = c;
+                  bestRow = r;
+                }
+              }
+            }
+          }
+          if (bestDist < Infinity) {
+            tile = { col: bestCol, row: bestRow };
+          }
+        }
+
         const valid = isRefinery
           ? isGeyserTile(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)
           : isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);

@@ -3,7 +3,7 @@ import {
   POSITION, SELECTABLE,
   posX, posY, renderWidth, renderHeight,
   selected, faction, RENDERABLE, UNIT_TYPE, BUILDING,
-  unitType,
+  unitType, hpCurrent,
 } from '../ecs/components';
 import { CommandType, type GameCommand } from '../input/CommandQueue';
 import { Faction } from '../constants';
@@ -24,9 +24,28 @@ let subgroupIndex = 0;
 // Last recalled control group (for active highlight in UI)
 let lastActiveGroup = -1;
 
-/** Get entity counts for all 10 control groups (0-9). */
-export function getControlGroupInfo(): Array<{ count: number }> {
-  return controlGroups.map(group => ({ count: group.size }));
+export interface ControlGroupSlot {
+  count: number;
+  types: Record<number, number>; // unitType → alive count
+  eids: number[];                // alive entity IDs
+}
+
+/** Get detailed info for all 10 control groups (0-9), filtering dead entities. */
+export function getControlGroupInfo(world?: World): Array<ControlGroupSlot> {
+  return controlGroups.map(group => {
+    const types: Record<number, number> = {};
+    const eids: number[] = [];
+    for (const eid of group) {
+      if (world && (!entityExists(world, eid) || hpCurrent[eid] <= 0)) {
+        group.delete(eid); // lazy cleanup
+        continue;
+      }
+      eids.push(eid);
+      const ut = unitType[eid] || 0;
+      types[ut] = (types[ut] || 0) + 1;
+    }
+    return { count: eids.length, types, eids };
+  });
 }
 
 /** Get the last recalled control group number, or -1 if none. */
@@ -34,6 +53,33 @@ export function getLastActiveGroup(): number { return lastActiveGroup; }
 
 /** Get the current subgroup cycling index (for Tab breadcrumb display). */
 export function getActiveSubgroupIndex(): number { return subgroupIndex; }
+
+/** Get the active subgroup's unit type, or -1 if no subgroup focus. */
+export function getActiveSubgroupType(world: World, playerFaction: Faction): number {
+  if (subgroupIndex < 0) return -1;
+  const types = new Set<number>();
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (selected[eid] !== 1) continue;
+    if (!hasComponents(world, eid, SELECTABLE | UNIT_TYPE)) continue;
+    if (faction[eid] !== playerFaction) continue;
+    types.add(unitType[eid]);
+  }
+  const sorted = Array.from(types).sort((a, b) => a - b);
+  if (sorted.length <= 1) return -1;
+  const idx = subgroupIndex % sorted.length;
+  return sorted[idx];
+}
+
+/** Remove all entities of a specific unitType from a control group. */
+export function removeTypeFromControlGroup(groupIndex: number, ut: number): void {
+  const group = controlGroups[groupIndex];
+  if (!group) return;
+  for (const eid of group) {
+    if (unitType[eid] === ut) {
+      group.delete(eid);
+    }
+  }
+}
 
 /**
  * Handles click and drag-box unit selection.
@@ -139,6 +185,7 @@ export function selectionSystem(
         break;
 
       case CommandType.Select: {
+        lastActiveGroup = -1;
         // Ctrl+click: filter current selection to clicked unit's type
         if (cmd.data === 1) {
           const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
@@ -182,6 +229,7 @@ export function selectionSystem(
       }
 
       case CommandType.DoubleClickSelect: {
+        lastActiveGroup = -1;
         // Double-click: select all on-screen units of same type
         if (!cmd.shiftHeld) clearSelection(world);
         const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
@@ -206,6 +254,7 @@ export function selectionSystem(
       }
 
       case CommandType.BoxSelect: {
+        lastActiveGroup = -1;
         // Drag box — sx/sy = start screen, sx2/sy2 = end screen
         const startWorld = viewport.toWorld(cmd.sx!, cmd.sy!);
         const endWorld = viewport.toWorld(cmd.sx2!, cmd.sy2!);
@@ -275,16 +324,9 @@ function cycleSubgroup(world: World, playerFaction: Faction, direction: 1 | -1 =
   if (types.length <= 1) return; // Nothing to cycle through
 
   subgroupIndex = ((subgroupIndex + direction) % types.length + types.length) % types.length;
-  const activeType = types[subgroupIndex];
 
-  // Deselect all, then select only the active subgroup
-  for (let eid = 1; eid < world.nextEid; eid++) {
-    selected[eid] = 0;
-  }
-  const activeEids = typeToEids.get(activeType)!;
-  for (const eid of activeEids) {
-    selected[eid] = 1;
-  }
+  // Keep all units selected — Tab only changes which subgroup is "active" for commands/abilities.
+  // The InfoPanel uses getActiveSubgroupIndex() to show the right abilities.
 }
 
 function findUnitAt(world: World, wx: number, wy: number, extraTolerance = 0): number {

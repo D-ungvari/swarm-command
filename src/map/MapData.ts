@@ -94,28 +94,28 @@ function generatePlains(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
   // ── Player 1 main base (top-left, elevated) ──
   markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 20);
   placeMinerals(tiles, walkable, 10, 10);
-  setTile(tiles, walkable, 8, 18, TileType.Gas);
-  setTile(tiles, walkable, 14, 6, TileType.Gas);
+  placeGas(tiles, walkable, 8, 18);
+  placeGas(tiles, walkable, 14, 6);
 
   // ── Player 2 main base (bottom-right, elevated, 180° rotated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8);
 
   // ── Natural expansions (20 tiles from main, behind narrow ramp) ──
   placeMinerals(tiles, walkable, 10, 38);
-  setTile(tiles, walkable, 8, 46, TileType.Gas);    // Natural gas 1
-  setTile(tiles, walkable, 14, 46, TileType.Gas);   // Natural gas 2
+  placeGas(tiles, walkable, 8, 46);    // Natural gas 1
+  placeGas(tiles, walkable, 14, 46);   // Natural gas 2
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 42);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 48, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 48, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 48);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 48);
 
   // ── Third bases (exposed, in opposite quadrants for risk/reward) ──
   placeMinerals(tiles, walkable, 38, 80);
-  setTile(tiles, walkable, 36, 88, TileType.Gas);
+  placeGas(tiles, walkable, 36, 88);
   placeMinerals(tiles, walkable, MAP_ROWS - 42, MAP_COLS - 84);
-  setTile(tiles, walkable, MAP_ROWS - 38, MAP_COLS - 90, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 38, MAP_COLS - 90);
 
   // ── Natural ramp choke (P1) — 4-tile wide ramp in cliff wall ──
   for (let r = 22; r < 36; r++) {
@@ -188,28 +188,28 @@ function generateCanyon(tiles: Uint8Array, walkable: Uint8Array, destructibleHP:
   // ── P1 main base (elevated) ──
   markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 20);
   placeMinerals(tiles, walkable, 10, 10);
-  setTile(tiles, walkable, 8, 18, TileType.Gas);
-  setTile(tiles, walkable, 14, 6, TileType.Gas);
+  placeGas(tiles, walkable, 8, 18);
+  placeGas(tiles, walkable, 14, 6);
 
   // ── P2 main base (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8);
 
   // ── Naturals (same side as main, near canyon wall, 2 gas each) ──
   placeMinerals(tiles, walkable, 10, 40);
-  setTile(tiles, walkable, 8, 48, TileType.Gas);
-  setTile(tiles, walkable, 14, 48, TileType.Gas);
+  placeGas(tiles, walkable, 8, 48);
+  placeGas(tiles, walkable, 14, 48);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 44);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 50, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 50, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 50);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 50);
 
   // ── Third bases (across canyon, exposed — must control a pass to hold) ──
   placeMinerals(tiles, walkable, 20, 80);
-  setTile(tiles, walkable, 18, 88, TileType.Gas);
+  placeGas(tiles, walkable, 18, 88);
   placeMinerals(tiles, walkable, MAP_ROWS - 24, MAP_COLS - 84);
-  setTile(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 90, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 90);
 
   // ── Central canyon wall — 12 tiles wide, 3 symmetric passes ──
   // Passes at rows 24-30, 61-67 (center), 98-104 — symmetric about row 64
@@ -269,28 +269,28 @@ function generateIslands(tiles: Uint8Array, walkable: Uint8Array, destructibleHP
   // ── P1 main base (elevated) ──
   markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 20);
   placeMinerals(tiles, walkable, 10, 10);
-  setTile(tiles, walkable, 8, 18, TileType.Gas);
-  setTile(tiles, walkable, 14, 6, TileType.Gas);
+  placeGas(tiles, walkable, 8, 18);
+  placeGas(tiles, walkable, 14, 6);
 
   // ── P2 main base (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 21, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8);
 
   // ── Naturals (2 gas each) ──
   placeMinerals(tiles, walkable, 10, 40);
-  setTile(tiles, walkable, 8, 48, TileType.Gas);
-  setTile(tiles, walkable, 14, 48, TileType.Gas);
+  placeGas(tiles, walkable, 8, 48);
+  placeGas(tiles, walkable, 14, 48);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 44);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 50, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 50, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 50);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 50);
 
   // ── Third bases (on opposite island, requires bridge control) ──
   placeMinerals(tiles, walkable, 40, 85);
-  setTile(tiles, walkable, 38, 93, TileType.Gas);
+  placeGas(tiles, walkable, 38, 93);
   placeMinerals(tiles, walkable, MAP_ROWS - 44, MAP_COLS - 89);
-  setTile(tiles, walkable, MAP_ROWS - 40, MAP_COLS - 95, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 40, MAP_COLS - 95);
 
   // ── Water band across center rows 56-72 ──
   for (let r = 56; r <= 72; r++) {
@@ -377,28 +377,28 @@ function generateCrossfire(tiles: Uint8Array, walkable: Uint8Array, destructible
   // ── P1 main base (elevated) ──
   markBaseElevation(tiles, walkable, elevation, 2, 2, 28, 28);
   placeMinerals(tiles, walkable, 10, 10);
-  setTile(tiles, walkable, 8, 18, TileType.Gas);
-  setTile(tiles, walkable, 14, 6, TileType.Gas);
+  placeGas(tiles, walkable, 8, 18);
+  placeGas(tiles, walkable, 14, 6);
 
   // ── P2 main base (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 29, MAP_COLS - 29, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8);
 
   // ── Naturals (along main diagonal corridor, near base exit) ──
   placeMinerals(tiles, walkable, 20, 22);
-  setTile(tiles, walkable, 18, 20, TileType.Gas);
-  setTile(tiles, walkable, 24, 20, TileType.Gas);
+  placeGas(tiles, walkable, 18, 20);
+  placeGas(tiles, walkable, 24, 20);
   placeMinerals(tiles, walkable, MAP_ROWS - 24, MAP_COLS - 26);
-  setTile(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 22, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 26, MAP_COLS - 22, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 22);
+  placeGas(tiles, walkable, MAP_ROWS - 26, MAP_COLS - 22);
 
   // ── Contested center expansions (high risk, high reward) ──
   placeMinerals(tiles, walkable, 60, 56);
-  setTile(tiles, walkable, 58, 54, TileType.Gas);
+  placeGas(tiles, walkable, 58, 54);
   placeMinerals(tiles, walkable, 64, 68);
-  setTile(tiles, walkable, 66, 76, TileType.Gas);
+  placeGas(tiles, walkable, 66, 76);
 
   // ── Corridor intersection watchtower (center) ──
   placeWatchtower(tiles, walkable, elevation, 64, 64);
@@ -429,28 +429,28 @@ function generateFortress(tiles: Uint8Array, walkable: Uint8Array, destructibleH
   // ── P1 main (rich minerals + 2 gas, elevated) ──
   markBaseElevation(tiles, walkable, elevation, 2, 2, 22, 22);
   placeRichMinerals(tiles, walkable, 8, 8);
-  setTile(tiles, walkable, 6, 20, TileType.Gas);
-  setTile(tiles, walkable, 18, 6, TileType.Gas);
+  placeGas(tiles, walkable, 6, 20);
+  placeGas(tiles, walkable, 18, 6);
 
   // ── P2 main (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 3, MAP_COLS - 3);
   placeRichMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
-  setTile(tiles, walkable, MAP_ROWS - 8, MAP_COLS - 22, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 8, MAP_COLS - 22);
+  placeGas(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 8);
 
   // ── Naturals (inside fortress walls, with gas) ──
   placeMinerals(tiles, walkable, 12, 38);
-  setTile(tiles, walkable, 10, 46, TileType.Gas);
-  setTile(tiles, walkable, 16, 46, TileType.Gas);
+  placeGas(tiles, walkable, 10, 46);
+  placeGas(tiles, walkable, 16, 46);
   placeMinerals(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 42);
-  setTile(tiles, walkable, MAP_ROWS - 12, MAP_COLS - 48, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 18, MAP_COLS - 48, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 12, MAP_COLS - 48);
+  placeGas(tiles, walkable, MAP_ROWS - 18, MAP_COLS - 48);
 
   // ── Third bases (outside fortress, exposed) ──
   placeMinerals(tiles, walkable, 42, 78);
-  setTile(tiles, walkable, 40, 86, TileType.Gas);
+  placeGas(tiles, walkable, 40, 86);
   placeMinerals(tiles, walkable, MAP_ROWS - 46, MAP_COLS - 82);
-  setTile(tiles, walkable, MAP_ROWS - 42, MAP_COLS - 88, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 42, MAP_COLS - 88);
 
   // ── Fortress walls with 5-tile ramp gaps ──
   buildFortressWall(tiles, walkable, 24, 24, 20);
@@ -472,7 +472,7 @@ function generateFortress(tiles: Uint8Array, walkable: Uint8Array, destructibleH
 
   // Center fortress contested resources
   placeSmallMinerals(tiles, walkable, 62, 60);
-  setTile(tiles, walkable, 66, 64, TileType.Gas);
+  placeGas(tiles, walkable, 66, 64);
 
   // ── Back-door rocks in fortress wall (opens second entrance when destroyed) ──
   placeBackdoorRocks(tiles, walkable, destructibleHP, 14, 42);
@@ -585,27 +585,27 @@ function generateArchipelago(tiles: Uint8Array, walkable: Uint8Array, destructib
   // ── P1 main (elevated) ──
   markBaseElevation(tiles, walkable, elevation, 4, 4, 24, 24);
   placeMinerals(tiles, walkable, 14, 14);
-  setTile(tiles, walkable, 12, 22, TileType.Gas);
-  setTile(tiles, walkable, 22, 12, TileType.Gas);
+  placeGas(tiles, walkable, 12, 22);
+  placeGas(tiles, walkable, 22, 12);
 
   // ── P2 main (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 25, MAP_COLS - 25, MAP_ROWS - 5, MAP_COLS - 5);
   placeMinerals(tiles, walkable, MAP_ROWS - 18, MAP_COLS - 18);
-  setTile(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 24, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 24, MAP_COLS - 14, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 24);
+  placeGas(tiles, walkable, MAP_ROWS - 24, MAP_COLS - 14);
 
   // ── Expansion islands (natural-equivalent, 2 gas each) ──
   placeMinerals(tiles, walkable, 26, 94);
-  setTile(tiles, walkable, 24, 102, TileType.Gas);
-  setTile(tiles, walkable, 32, 102, TileType.Gas);
+  placeGas(tiles, walkable, 24, 102);
+  placeGas(tiles, walkable, 32, 102);
   placeMinerals(tiles, walkable, MAP_ROWS - 30, MAP_COLS - 98);
-  setTile(tiles, walkable, MAP_ROWS - 26, MAP_COLS - 104, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 34, MAP_COLS - 104, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 26, MAP_COLS - 104);
+  placeGas(tiles, walkable, MAP_ROWS - 34, MAP_COLS - 104);
 
   // ── Center island (contested third) ──
   placeMinerals(tiles, walkable, 60, 60);
-  setTile(tiles, walkable, 58, 68, TileType.Gas);
-  setTile(tiles, walkable, 68, 58, TileType.Gas);
+  placeGas(tiles, walkable, 58, 68);
+  placeGas(tiles, walkable, 68, 58);
 
   // ── Watchtower on center island ──
   placeWatchtower(tiles, walkable, elevation, 68, 68);
@@ -773,27 +773,27 @@ function generateDeadlock(tiles: Uint8Array, walkable: Uint8Array, destructibleH
   // ── P1 main resources (elevated, 2 gas) ──
   markBaseElevation(tiles, walkable, elevation, 3, 3, 22, 22);
   placeMinerals(tiles, walkable, 8, 8);
-  setTile(tiles, walkable, 6, 16, TileType.Gas);
-  setTile(tiles, walkable, 14, 6, TileType.Gas);
+  placeGas(tiles, walkable, 6, 16);
+  placeGas(tiles, walkable, 14, 6);
 
   // ── P2 main resources (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 4, MAP_COLS - 4);
   placeMinerals(tiles, walkable, MAP_ROWS - 12, MAP_COLS - 12);
-  setTile(tiles, walkable, MAP_ROWS - 8, MAP_COLS - 18, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 8, MAP_COLS - 18);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8);
 
   // ── Natural expansion (inside base area, 2 gas each) ──
   placeMinerals(tiles, walkable, 26, 18);
-  setTile(tiles, walkable, 24, 26, TileType.Gas);
-  setTile(tiles, walkable, 30, 26, TileType.Gas);
+  placeGas(tiles, walkable, 24, 26);
+  placeGas(tiles, walkable, 30, 26);
   placeMinerals(tiles, walkable, MAP_ROWS - 30, MAP_COLS - 22);
-  setTile(tiles, walkable, MAP_ROWS - 26, MAP_COLS - 28, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 32, MAP_COLS - 28, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 26, MAP_COLS - 28);
+  placeGas(tiles, walkable, MAP_ROWS - 32, MAP_COLS - 28);
 
   // ── Contested center expansion ──
   placeMinerals(tiles, walkable, 60, 60);
-  setTile(tiles, walkable, 58, 68, TileType.Gas);
-  setTile(tiles, walkable, 68, 58, TileType.Gas);
+  placeGas(tiles, walkable, 58, 68);
+  placeGas(tiles, walkable, 68, 58);
 
   // ── Watchtower at center ──
   placeWatchtower(tiles, walkable, elevation, 64, 64);
@@ -827,22 +827,22 @@ function generateDesertStorm(tiles: Uint8Array, walkable: Uint8Array, destructib
   // ── P1 main base (elevated, 2 gas) ──
   markBaseElevation(tiles, walkable, elevation, 2, 2, 20, 28);
   placeMinerals(tiles, walkable, 10, 10);
-  setTile(tiles, walkable, 8, 18, TileType.Gas);
-  setTile(tiles, walkable, 14, 6, TileType.Gas);
+  placeGas(tiles, walkable, 8, 18);
+  placeGas(tiles, walkable, 14, 6);
 
   // ── P2 main base (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 21, MAP_COLS - 29, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8);
 
   // ── Naturals (inside cliff wall, 2 gas each) ──
   placeMinerals(tiles, walkable, 10, 38);
-  setTile(tiles, walkable, 8, 46, TileType.Gas);
-  setTile(tiles, walkable, 14, 46, TileType.Gas);
+  placeGas(tiles, walkable, 8, 46);
+  placeGas(tiles, walkable, 14, 46);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 42);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 48, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 48, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 48);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 48);
 
   // ── Corner cliff protection (P1) — L-shaped wall with 5-tile ramp ──
   for (let r = 2; r < 32; r++) {
@@ -874,15 +874,15 @@ function generateDesertStorm(tiles: Uint8Array, walkable: Uint8Array, destructib
 
   // ── Third bases (exposed, in center area) ──
   placeMinerals(tiles, walkable, 50, 58);
-  setTile(tiles, walkable, 48, 66, TileType.Gas);
+  placeGas(tiles, walkable, 48, 66);
   placeMinerals(tiles, walkable, MAP_ROWS - 54, MAP_COLS - 62);
-  setTile(tiles, walkable, MAP_ROWS - 50, MAP_COLS - 68, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 50, MAP_COLS - 68);
 
   // ── Fourth bases (gold minerals at high-risk positions) ──
   placeSmallMinerals(tiles, walkable, 64, 90);
-  setTile(tiles, walkable, 66, 94, TileType.Gas);
+  placeGas(tiles, walkable, 66, 94);
   placeSmallMinerals(tiles, walkable, MAP_ROWS - 68, MAP_COLS - 94);
-  setTile(tiles, walkable, MAP_ROWS - 68, MAP_COLS - 96, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 68, MAP_COLS - 96);
 
   // ── Xel'Naga watchtower 1 at center ──
   placeWatchtower(tiles, walkable, elevation, 64, 64);
@@ -1025,34 +1025,34 @@ function generateFrozenTundra(tiles: Uint8Array, walkable: Uint8Array, destructi
   // ── P1 main resources (elevated, 2 gas) ──
   markBaseElevation(tiles, walkable, elevation, 2, 2, 22, 22);
   placeMinerals(tiles, walkable, 10, 10);
-  setTile(tiles, walkable, 8, 18, TileType.Gas);
-  setTile(tiles, walkable, 14, 6, TileType.Gas);
+  placeGas(tiles, walkable, 8, 18);
+  placeGas(tiles, walkable, 14, 6);
 
   // ── P2 main resources (elevated) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 23, MAP_COLS - 23, MAP_ROWS - 3, MAP_COLS - 3);
   placeMinerals(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 14);
-  setTile(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 10, MAP_COLS - 20);
+  placeGas(tiles, walkable, MAP_ROWS - 16, MAP_COLS - 8);
 
   // ── Naturals (just inside base area, 2 gas each) ──
   placeMinerals(tiles, walkable, 14, 36);
-  setTile(tiles, walkable, 12, 44, TileType.Gas);
-  setTile(tiles, walkable, 18, 44, TileType.Gas);
+  placeGas(tiles, walkable, 12, 44);
+  placeGas(tiles, walkable, 18, 44);
   placeMinerals(tiles, walkable, MAP_ROWS - 18, MAP_COLS - 40);
-  setTile(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 46, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 46, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 14, MAP_COLS - 46);
+  placeGas(tiles, walkable, MAP_ROWS - 20, MAP_COLS - 46);
 
   // ── Third expansion in closest maze room ──
   placeSmallMinerals(tiles, walkable, room0r + 2, room0c + 2);
-  setTile(tiles, walkable, room0r + 6, room0c + roomSize - 3, TileType.Gas);
+  placeGas(tiles, walkable, room0r + 6, room0c + roomSize - 3);
   placeSmallMinerals(tiles, walkable, room8r + roomSize - 6, room8c + roomSize - 6);
-  setTile(tiles, walkable, room8r + roomSize - 10, room8c + 2, TileType.Gas);
+  placeGas(tiles, walkable, room8r + roomSize - 10, room8c + 2);
 
   // ── Contested center room resources ──
   const [ctrR, ctrC] = roomPositions[4]; // Center room (index 4 in 3×3)
   placeMinerals(tiles, walkable, ctrR + 3, ctrC + 3);
-  setTile(tiles, walkable, ctrR + 1, ctrC + roomSize - 3, TileType.Gas);
-  setTile(tiles, walkable, ctrR + roomSize - 3, ctrC + 1, TileType.Gas);
+  placeGas(tiles, walkable, ctrR + 1, ctrC + roomSize - 3);
+  placeGas(tiles, walkable, ctrR + roomSize - 3, ctrC + 1);
 
   // ── Watchtower at center room ──
   placeWatchtower(tiles, walkable, elevation, ctrR + Math.floor(roomSize / 2), ctrC + Math.floor(roomSize / 2));
@@ -1166,28 +1166,28 @@ function generateVolcano(tiles: Uint8Array, walkable: Uint8Array, destructibleHP
   // ── P1 main resources (elevated, 2 gas) ──
   markBaseElevation(tiles, walkable, elevation, 88, 22, 106, 42);
   placeMinerals(tiles, walkable, 96, 28);
-  setTile(tiles, walkable, 94, 36, TileType.Gas);
-  setTile(tiles, walkable, 100, 26, TileType.Gas);
+  placeGas(tiles, walkable, 94, 36);
+  placeGas(tiles, walkable, 100, 26);
 
   // ── P2 main resources (elevated, 180° mirror) ──
   markBaseElevation(tiles, walkable, elevation, MAP_ROWS - 107, MAP_COLS - 43, MAP_ROWS - 89, MAP_COLS - 23);
   placeMinerals(tiles, walkable, MAP_ROWS - 100, MAP_COLS - 32);
-  setTile(tiles, walkable, MAP_ROWS - 96, MAP_COLS - 38, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 102, MAP_COLS - 28, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 96, MAP_COLS - 38);
+  placeGas(tiles, walkable, MAP_ROWS - 102, MAP_COLS - 28);
 
   // ── Naturals (just outside base wall ramp, 2 gas each) ──
   placeMinerals(tiles, walkable, 108, 38);
-  setTile(tiles, walkable, 110, 46, TileType.Gas);
-  setTile(tiles, walkable, 112, 36, TileType.Gas);
+  placeGas(tiles, walkable, 110, 46);
+  placeGas(tiles, walkable, 112, 36);
   placeMinerals(tiles, walkable, MAP_ROWS - 112, MAP_COLS - 42);
-  setTile(tiles, walkable, MAP_ROWS - 112, MAP_COLS - 48, TileType.Gas);
-  setTile(tiles, walkable, MAP_ROWS - 114, MAP_COLS - 38, TileType.Gas);
+  placeGas(tiles, walkable, MAP_ROWS - 112, MAP_COLS - 48);
+  placeGas(tiles, walkable, MAP_ROWS - 114, MAP_COLS - 38);
 
   // ── Third bases at 3 o'clock and 9 o'clock (contested, exposed) ──
   placeMinerals(tiles, walkable, cy - 4, cx + 38);
-  setTile(tiles, walkable, cy - 2, cx + 46, TileType.Gas);
+  placeGas(tiles, walkable, cy - 2, cx + 46);
   placeMinerals(tiles, walkable, cy, cx - 42);
-  setTile(tiles, walkable, cy + 2, cx - 48, TileType.Gas);
+  placeGas(tiles, walkable, cy + 2, cx - 48);
 
   // ── Cliff barriers creating two distinct attack paths (clockwise / counter-clockwise) ──
   // Top barrier (blocks direct north path)
@@ -1286,6 +1286,14 @@ function setTile(tiles: Uint8Array, walkable: Uint8Array, row: number, col: numb
   const idx = row * MAP_COLS + col;
   tiles[idx] = type;
   walkable[idx] = (type === TileType.Ground || type === TileType.Ramp) ? 1 : 0;
+}
+
+/** Place a 2×2 gas geyser patch (matches Refinery 2×2 footprint) */
+function placeGas(tiles: Uint8Array, walkable: Uint8Array, row: number, col: number): void {
+  setTile(tiles, walkable, row, col, TileType.Gas);
+  setTile(tiles, walkable, row, col + 1, TileType.Gas);
+  setTile(tiles, walkable, row + 1, col, TileType.Gas);
+  setTile(tiles, walkable, row + 1, col + 1, TileType.Gas);
 }
 
 function placeMinerals(tiles: Uint8Array, walkable: Uint8Array, startRow: number, startCol: number): void {
@@ -1434,15 +1442,15 @@ function placeOverlookCliff(tiles: Uint8Array, walkable: Uint8Array, row: number
  */
 function placePocketExpansion(tiles: Uint8Array, walkable: Uint8Array, row: number, col: number, shieldSide: 'top' | 'bottom' | 'left' | 'right'): void {
   placeSmallMinerals(tiles, walkable, row, col);
-  setTile(tiles, walkable, row + 2, col + 2, TileType.Gas);
+  placeGas(tiles, walkable, row + 2, col + 2);
 
   // Protective cliff on the shield side
   if (shieldSide === 'top') {
     for (let c = col - 1; c < col + 6; c++) placeIfGround(tiles, walkable, row - 2, c);
     for (let c = col - 1; c < col + 6; c++) placeIfGround(tiles, walkable, row - 1, c);
   } else if (shieldSide === 'bottom') {
-    for (let c = col - 1; c < col + 6; c++) placeIfGround(tiles, walkable, row + 2, c);
     for (let c = col - 1; c < col + 6; c++) placeIfGround(tiles, walkable, row + 3, c);
+    for (let c = col - 1; c < col + 6; c++) placeIfGround(tiles, walkable, row + 4, c);
   } else if (shieldSide === 'left') {
     for (let r = row - 1; r < row + 3; r++) placeIfGround(tiles, walkable, r, col - 2);
     for (let r = row - 1; r < row + 3; r++) placeIfGround(tiles, walkable, r, col - 1);
@@ -1590,11 +1598,15 @@ export function isGeyserTile(map: MapData, col: number, row: number, tileW: numb
   for (let r = startRow; r < startRow + tileH; r++) {
     for (let c = startCol; c < startCol + tileW; c++) {
       if (c < 0 || c >= map.cols || r < 0 || r >= map.rows) return false;
-      const t = map.tiles[r * map.cols + c] as TileType;
+      const idx = r * map.cols + c;
+      const t = map.tiles[idx] as TileType;
       if (t === TileType.Gas) {
         hasGas = true;
       } else if (t !== TileType.Ground && t !== TileType.Ramp) {
         // Non-gas non-ground tile in footprint — invalid placement
+        return false;
+      } else if (map.walkable[idx] !== 1) {
+        // Non-gas tile blocked by another building — invalid
         return false;
       }
     }

@@ -198,18 +198,18 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // --- Auto-acquire target ---
     if (targetEntity[eid] < 1) {
       // Move mode: don't auto-acquire — just go to destination (SC2 right-click behavior)
-      if (commandMode[eid] === CommandMode.Move || commandMode[eid] === CommandMode.Gather) {
+      if (commandMode[eid] === CommandMode.Move || commandMode[eid] === CommandMode.Gather || commandMode[eid] === CommandMode.Build) {
         continue;
       }
 
       // Target commitment: don't retarget too frequently (0.3s cooldown)
       if (gameTime < nextAutoAcquireTime[eid]) continue;
 
-      // SC2 aggro: weapon range + small buffer (~1.5 tiles)
+      // SC2 aggro: weapon range + buffer so units engage approaching enemies
       // HoldPosition: slightly wider than weapon range (range + 1 tile)
       const aggroRange = commandMode[eid] === CommandMode.HoldPosition
         ? range + 1 * TILE_SIZE
-        : range + 1.5 * TILE_SIZE;
+        : range + 2 * TILE_SIZE;
       const enemy = findBestTarget(world, eid, aggroRange);
       if (enemy > 0) {
         // Terran units can't auto-acquire targets hidden in deep fog
@@ -223,7 +223,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         }
         targetEntity[eid] = enemy;
         pendingDamage[enemy] += atkDamage[eid];
-        nextAutoAcquireTime[eid] = gameTime + 0.3; // 0.3s before next auto-acquire
+        nextAutoAcquireTime[eid] = gameTime + 0.15; // 0.15s before next auto-acquire
         movePathIndex[eid] = -1;
       } else if (commandMode[eid] === CommandMode.Idle || commandMode[eid] === CommandMode.AttackTarget) {
         continue; // No target, nothing to do

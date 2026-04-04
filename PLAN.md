@@ -72,16 +72,22 @@ Practice StarCraft 2 mechanics in your browser. True unit stats, real keybinding
 
 ## Roadmap (What's Next)
 
-### High Priority
-- **Fix practice scenario black screen** — runtime error investigation needed
-- **Fix Zerg skirmish faction** — player gets Terran units when selecting Zerg
-- **Terrain visuals upgrade** — smoother textures, elevation rendering, tile transitions
-- **Fair-play AI** — replace wave spawning with resource-mining AI that plays by same rules as player
+### High Priority — SC2 Mechanics Parity
+- ~~Fix practice scenario black screen~~ — fixed
+- ~~Fair-play AI~~ — AI now mines resources, builds buildings, produces units through production queues, respects supply. All tactical/micro AI preserved.
+- **Bunker + unit loading** — Terran Bunker building, load/unload Marines (core defensive mechanic)
+- **Protoss faction** — shields, pylon power, warp-in, Gateway/Nexus/Pylon, ~10 units (Zealot, Stalker, Sentry, Immortal, Colossus, Phoenix, Void Ray, High Templar, Dark Templar, Observer)
 
-### Medium Priority
-- Remaining unit animations (Thor, Viking transform, Ultralisk charge)
+### Medium Priority — SC2 Mechanics Completion
+- **MULE / Orbital Command** — CC upgrades to Orbital, call down MULE for accelerated mining
+- **Addon attach/detach UI** — Tech Lab / Reactor buildable from Barracks/Factory/Starport, swappable
+- **Queen Creep Tumor** — manual creep spread ability, tumors spread autonomously
+- **Multi-SCV speed build** — multiple SCVs repairing a building under construction to speed it up
+- **Viper Abduct polish** — pull/teleport animation and targeting
+- **Shift-queue abilities** — queue multiple commands with shift
+
+### Medium Priority — Polish
 - Sound design (Web Speech API voice lines, positional audio)
-- Protoss faction (shields, pylon power, warp-in)
 - Multiplayer foundation (WebRTC, lockstep)
 
 ### Low Priority / Future
@@ -89,6 +95,22 @@ Practice StarCraft 2 mechanics in your browser. True unit stats, real keybinding
 - Replay spectator mode
 - ELO/MMR system
 - Community map sharing
+
+### Completed (This Sprint)
+- ~~Fix Zerg skirmish faction~~ — activePlayerFaction system
+- ~~Terrain visuals upgrade~~ — elevation system, tile transitions, fog vision
+- ~~Remaining unit animations~~ — all 24 units have detailed rendering
+- ~~SC2 stat accuracy~~ — Siege Tank, Zergling, Corrosive Bile corrected
+- ~~Zerg creep requirement~~ — buildings require creep (except Hatchery)
+- ~~SCV Repair~~ — right-click damaged building/mech
+- ~~Ghost Snipe~~ — 170 damage, 75 energy
+- ~~Queen Transfuse~~ — 75 HP heal, 50 energy
+- ~~Overkill prevention~~ — pendingDamage tracking in combat
+- ~~Supply Depot lowering~~ — L key toggle, updates walkability
+- ~~Production UI overhaul~~ — 14-key command card, SC2-style buttons
+- ~~Building system alignment~~ — B from workers, SCV orbit, Zerg auto-build
+- ~~Fair-play AI~~ — real economy (workers mine, production queues, supply limits), macro management, difficulty scaling via APM + worker caps
+- ~~Unit iteration pass~~ — 15 new abilities, 3 defensive buildings, 14 bug fixes, per-unit supply costs, SC2 stat corrections (~70% → ~93% completeness)
 
 ## Architecture
 

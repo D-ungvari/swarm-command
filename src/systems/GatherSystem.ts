@@ -9,9 +9,9 @@ import {
   buildingType, buildState,
   workerCountOnResource,
 } from '../ecs/components';
-import { findNearestMineral } from '../ecs/queries';
+import { findNearestMineral, findLeastSaturatedMineral } from '../ecs/queries';
 import {
-  WorkerState, ResourceType, BuildingType, BuildState,
+  WorkerState, ResourceType, BuildingType, BuildState, TILE_SIZE,
   WORKER_CARRY_MINERALS, WORKER_CARRY_GAS, MINE_DURATION, WORKER_MINE_RANGE,
   REPAIR_RATE, REPAIR_COST_RATIO,
 } from '../constants';
@@ -126,8 +126,16 @@ function tickMovingToResource(world: World, eid: number, map: MapData): void {
     workerCountOnResource[target]++;
     soundManager.playGather();
   } else if (movePathIndex[eid] < 0) {
-    // Not moving and not in range — path to resource
-    pathToResource(eid, target, map);
+    // Not moving and not in range — try to path to resource
+    const pathed = pathToResource(eid, target, map);
+    if (!pathed) {
+      // Can't reach this patch (blocked by other workers/terrain) — try a different one
+      const alt = findLeastSaturatedMineral(world, posX[eid], posY[eid], 12 * TILE_SIZE);
+      if (alt > 0 && alt !== target) {
+        workerTargetEid[eid] = alt;
+        pathToResource(eid, alt, map);
+      }
+    }
   }
 }
 
@@ -212,19 +220,30 @@ function tickReturningToBase(
     }
     workerCarrying[eid] = 0;
 
-    // Go back for more if target still exists
+    // Go back for more — pick the least-saturated nearby mineral patch
     if (target >= 1 && entityExists(world, target) && resourceRemaining[target] > 0) {
-      // For Refinery, also check it's still complete
+      // For Refinery (gas), stick with the same one
       if (hasComponents(world, target, BUILDING) && !isGasTarget(world, target)) {
         workerState[eid] = WorkerState.Idle;
         workerTargetEid[eid] = -1;
         return;
       }
-      workerState[eid] = WorkerState.MovingToResource;
-      pathToResource(eid, target, map);
+      if (resourceType[target] === ResourceType.Gas) {
+        // Gas: always return to same refinery
+        workerState[eid] = WorkerState.MovingToResource;
+        pathToResource(eid, target, map);
+      } else {
+        // Mineral: pick least-saturated nearby patch for balanced gathering
+        const better = findLeastSaturatedMineral(world, posX[eid], posY[eid], 12 * TILE_SIZE);
+        const nextTarget = better > 0 ? better : target;
+        workerTargetEid[eid] = nextTarget;
+        workerState[eid] = WorkerState.MovingToResource;
+        pathToResource(eid, nextTarget, map);
+      }
     } else {
-      // Find a new mineral patch
-      const alt = findNearestMineral(world, posX[eid], posY[eid]);
+      // Original target gone — find any nearby mineral
+      const alt = findLeastSaturatedMineral(world, posX[eid], posY[eid], 12 * TILE_SIZE)
+        || findNearestMineral(world, posX[eid], posY[eid]);
       if (alt > 0) {
         workerTargetEid[eid] = alt;
         workerState[eid] = WorkerState.MovingToResource;
@@ -322,11 +341,11 @@ function pathToEntity(eid: number, target: number, map: MapData): void {
   }
 }
 
-function pathToResource(eid: number, target: number, map: MapData): void {
+function pathToResource(eid: number, target: number, map: MapData): boolean {
   const targetTile = worldToTile(posX[target], posY[target]);
   // Resource tiles are unwalkable — find nearest walkable tile
   const walkable = findNearestWalkableTile(map, targetTile.col, targetTile.row);
-  if (!walkable) return;
+  if (!walkable) return false;
 
   const startTile = worldToTile(posX[eid], posY[eid]);
   const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
@@ -337,7 +356,9 @@ function pathToResource(eid: number, target: number, map: MapData): void {
       return [wp.x, wp.y] as [number, number];
     });
     setPath(eid, worldPath);
+    return true;
   }
+  return false;
 }
 
 function pathToBase(eid: number, map: MapData): void {

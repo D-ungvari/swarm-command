@@ -29,7 +29,7 @@ import {
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
-import { findEnemyAt, findResourceAt, findBuildingAt, findFriendlyAt, findFriendlyBuildingAt, hasCompletedBuilding } from '../ecs/queries';
+import { findEnemyAt, findResourceAt, findBuildingAt, findFriendlyAt, findFriendlyBuildingAt, hasCompletedBuilding, findNearbyMinerals } from '../ecs/queries';
 import { CommandType, type GameCommand } from '../input/CommandQueue';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile, markBuildingTiles, clearBuildingTiles } from '../map/MapData';
@@ -814,12 +814,19 @@ export function commandSystem(
             const ut = unitType[eid] as UnitType;
             (ut === UnitType.SCV || ut === UnitType.Drone ? workers : nonWorkers).push(eid);
           }
-          for (const eid of workers) {
-            workerTargetEid[eid] = resource;
+          // Distribute workers evenly across nearby mineral patches (SC2 smart-gather)
+          const nearbyMinerals = findNearbyMinerals(world, wx, wy, 12 * TILE_SIZE);
+          const patches = nearbyMinerals.length > 0 ? nearbyMinerals : [resource];
+
+          for (let wi = 0; wi < workers.length; wi++) {
+            const eid = workers[wi];
+            // Round-robin assignment: each worker gets the next least-saturated patch
+            const patch = patches[wi % patches.length];
+            workerTargetEid[eid] = patch;
             workerState[eid] = WorkerState.MovingToResource;
             commandMode[eid] = CommandMode.Gather;
             targetEntity[eid] = -1;
-            const resTile = worldToTile(posX[resource], posY[resource]);
+            const resTile = worldToTile(posX[patch], posY[patch]);
             const walkable = findNearestWalkableTile(map, resTile.col, resTile.row);
             if (walkable) {
               const startTile = worldToTile(posX[eid], posY[eid]);

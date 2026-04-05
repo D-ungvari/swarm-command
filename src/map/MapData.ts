@@ -1582,11 +1582,24 @@ export function findNearestWalkableTile(map: MapData, col: number, row: number):
   if (col >= 0 && col < map.cols && row >= 0 && row < map.rows && map.walkable[row * map.cols + col] === 1) {
     return { col, row };
   }
-  // BFS in expanding rings
+  // BFS in expanding rings — check orthogonal (closer) before diagonal at each radius
   for (let radius = 1; radius <= 5; radius++) {
+    // Orthogonal neighbors first (distance = radius tiles)
+    const ortho: [number, number][] = [
+      [0, -radius], [0, radius], [-radius, 0], [radius, 0],
+    ];
+    for (const [dc, dr] of ortho) {
+      const r = row + dr;
+      const c = col + dc;
+      if (c >= 0 && c < map.cols && r >= 0 && r < map.rows && map.walkable[r * map.cols + c] === 1) {
+        return { col: c, row: r };
+      }
+    }
+    // Then remaining ring tiles (diagonals and edges)
     for (let dr = -radius; dr <= radius; dr++) {
       for (let dc = -radius; dc <= radius; dc++) {
-        if (Math.abs(dr) !== radius && Math.abs(dc) !== radius) continue; // only check ring
+        if (Math.abs(dr) !== radius && Math.abs(dc) !== radius) continue;
+        if ((dc === 0 || dr === 0) && (Math.abs(dc) === radius || Math.abs(dr) === radius)) continue; // skip orthogonals already checked
         const r = row + dr;
         const c = col + dc;
         if (c < 0 || c >= map.cols || r < 0 || r >= map.rows) continue;

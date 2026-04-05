@@ -22,6 +22,19 @@ import { soundManager } from '../audio/SoundManager';
 
 const ARRIVAL_THRESHOLD = 96; // px — close enough to base to deposit (~3 tiles, accounts for 3x3 CC footprint)
 
+/** If a worker is standing on an unwalkable tile, snap to the nearest walkable one. */
+function ensureWalkable(eid: number, map: MapData): void {
+  const tile = worldToTile(posX[eid], posY[eid]);
+  if (tile.col < 0 || tile.col >= map.cols || tile.row < 0 || tile.row >= map.rows) return;
+  if (map.walkable[tile.row * map.cols + tile.col] === 1) return;
+  const walkable = findNearestWalkableTile(map, tile.col, tile.row);
+  if (walkable) {
+    const wp = tileToWorld(walkable.col, walkable.row);
+    posX[eid] = wp.x;
+    posY[eid] = wp.y;
+  }
+}
+
 /**
  * Worker AI state machine: gather resources and deposit at base.
  * Runs every tick after AbilitySystem.
@@ -39,6 +52,9 @@ export function gatherSystem(
 
     const state = workerState[eid] as WorkerState;
     if (state === WorkerState.Idle) continue;
+
+    // Safety: if worker ended up on an unwalkable tile (building placed on them, etc.), push out
+    ensureWalkable(eid, map);
 
     switch (state) {
       case WorkerState.MovingToResource:
@@ -122,26 +138,45 @@ function tickMovingToResource(world: World, eid: number, map: MapData): void {
   const distSq = dx * dx + dy * dy;
 
   if (distSq <= mineRange * mineRange) {
-    // Start mining — track saturation
-    workerState[eid] = WorkerState.Mining;
-    workerMineTimer[eid] = MINE_DURATION;
-    movePathIndex[eid] = -1; // Stop movement
-    workerCountOnResource[target]++;
-    soundManager.playGather();
+    startMining(eid, target);
   } else if (movePathIndex[eid] < 0) {
     // Not moving and not in range — try to path to resource
     const pathed = pathToResource(eid, target, map);
     if (!pathed) {
-      // Gas workers: don't fall back to minerals — just keep trying next tick
-      if (isBuilding) return;
-      // Can't reach this patch (blocked by other workers/terrain) — try a different one
-      const alt = findLeastSaturatedMineral(world, posX[eid], posY[eid], 12 * TILE_SIZE);
-      if (alt > 0 && alt !== target) {
-        workerTargetEid[eid] = alt;
-        pathToResource(eid, alt, map);
+      // Path failed — check if we're already at the closest walkable tile
+      if (isAtResourceTile(eid, target, map)) {
+        // As close as we can get — start mining anyway
+        startMining(eid, target);
+      } else if (isBuilding) {
+        return; // Gas workers: don't fall back to minerals — retry next tick
+      } else {
+        // Can't reach this patch (blocked by other workers/terrain) — try a different one
+        const alt = findLeastSaturatedMineral(world, posX[eid], posY[eid], 12 * TILE_SIZE);
+        if (alt > 0 && alt !== target) {
+          workerTargetEid[eid] = alt;
+          pathToResource(eid, alt, map);
+        }
       }
     }
   }
+}
+
+/** Enter Mining state for a worker at a resource target. */
+function startMining(eid: number, target: number): void {
+  workerState[eid] = WorkerState.Mining;
+  workerMineTimer[eid] = MINE_DURATION;
+  movePathIndex[eid] = -1;
+  workerCountOnResource[target]++;
+  soundManager.playGather();
+}
+
+/** Check if a worker is already standing on the nearest walkable tile to the target. */
+function isAtResourceTile(eid: number, target: number, map: MapData): boolean {
+  const targetTile = worldToTile(posX[target], posY[target]);
+  const walkable = findNearestWalkableTile(map, targetTile.col, targetTile.row);
+  if (!walkable) return false;
+  const workerTile = worldToTile(posX[eid], posY[eid]);
+  return workerTile.col === walkable.col && workerTile.row === walkable.row;
 }
 
 function tickMining(world: World, eid: number, dt: number, map: MapData): void {
@@ -353,6 +388,10 @@ function pathToResource(eid: number, target: number, map: MapData): boolean {
   if (!walkable) return false;
 
   const startTile = worldToTile(posX[eid], posY[eid]);
+
+  // Already at the destination tile — no path needed
+  if (startTile.col === walkable.col && startTile.row === walkable.row) return true;
+
   const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
 
   if (tilePath.length > 0) {
@@ -373,6 +412,13 @@ function pathToBase(eid: number, map: MapData): void {
   if (!walkable) return;
 
   const startTile = worldToTile(posX[eid], posY[eid]);
+
+  // Already at the base tile — no path needed, deposit will happen immediately
+  if (startTile.col === walkable.col && startTile.row === walkable.row) {
+    movePathIndex[eid] = -1;
+    return;
+  }
+
   const tilePath = findPath(map, startTile.col, startTile.row, walkable.col, walkable.row);
 
   if (tilePath.length > 0) {
@@ -382,7 +428,7 @@ function pathToBase(eid: number, map: MapData): void {
     });
     setPath(eid, worldPath);
   } else {
-    // Fallback: direct movement toward base (no path found)
+    // Fallback: no path found, deposit will trigger via movePathIndex < 0
     movePathIndex[eid] = -1;
   }
 }

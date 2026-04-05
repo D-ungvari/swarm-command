@@ -870,8 +870,11 @@ const AI_BUILDING_SCHEDULE: Array<{ minTime: number; type: number; colOffset: nu
   { minTime: 120, type: BuildingType.EvolutionChamber,  colOffset: 0,  rowOffset: 5 },
   { minTime: 180, type: BuildingType.HydraliskDen,      colOffset: 5,  rowOffset: 5 },
   { minTime: 240, type: BuildingType.Extractor,         colOffset: 7,  rowOffset: -3 },
+  { minTime: 150, type: BuildingType.BanelingNest,       colOffset: -3, rowOffset: 3 },
   { minTime: 300, type: BuildingType.Spire,             colOffset: -5, rowOffset: 5 },
   { minTime: 360, type: BuildingType.InfestationPit,    colOffset: -5, rowOffset: -3 },
+  { minTime: 250, type: BuildingType.LurkerDen,         colOffset: 6,  rowOffset: 3 },
+  { minTime: 420, type: BuildingType.UltraliskCavern,   colOffset: -6, rowOffset: 4 },
 ];
 let aiBuildingsPlaced: Set<number> = new Set();
 

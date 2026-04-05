@@ -1058,8 +1058,9 @@ export class Game {
         this.isTechAvailable(BuildingType.EvolutionChamber),                  // 7: EvoChamber (req SpawningPool)
         this.isTechAvailable(BuildingType.InfestationPit),                    // 8: InfestationPit (req SpawningPool)
         this.isTechAvailable(BuildingType.SpineCrawler),                      // 9: SpineCrawler (req SpawningPool)
-        true,                                                                  // 10: unused
-        true,                                                                  // 11: unused
+        this.isTechAvailable(BuildingType.BanelingNest),                      // 0: BanelingNest (req SpawningPool)
+        this.isTechAvailable(BuildingType.UltraliskCavern),                   // -: UltraliskCavern (req Hive)
+        this.isTechAvailable(BuildingType.LurkerDen),                         // =: LurkerDen (req Lair)
       ];
     }
     // Existing Terran logic
@@ -1074,7 +1075,8 @@ export class Game {
       this.isTechAvailable(BuildingType.MissileTurret),
       this.isTechAvailable(BuildingType.Armory),           // 9: Armory (req Factory)
       this.isTechAvailable(BuildingType.GhostAcademy),     // 0: Ghost Academy (req Barracks)
-      this.isTechAvailable(BuildingType.FusionCore),       // click: Fusion Core (req Starport)
+      this.isTechAvailable(BuildingType.FusionCore),       // -: Fusion Core (req Starport)
+      true,                                                  // =: unused
     ];
   }
 
@@ -1147,6 +1149,24 @@ export class Game {
             this.placementBuildingType = BuildingType.SpineCrawler;
           } else {
             this.buildMenuRenderer.flashLocked(8, this.getRequiresName(BuildingType.SpineCrawler));
+          }
+        } else if (input.keysJustPressed.has('Digit0')) {
+          if (this.isTechAvailable(BuildingType.BanelingNest)) {
+            this.placementBuildingType = BuildingType.BanelingNest;
+          } else {
+            this.buildMenuRenderer.flashLocked(9, this.getRequiresName(BuildingType.BanelingNest));
+          }
+        } else if (input.keysJustPressed.has('Minus')) {
+          if (this.isTechAvailable(BuildingType.UltraliskCavern)) {
+            this.placementBuildingType = BuildingType.UltraliskCavern;
+          } else {
+            this.buildMenuRenderer.flashLocked(10, this.getRequiresName(BuildingType.UltraliskCavern));
+          }
+        } else if (input.keysJustPressed.has('Equal')) {
+          if (this.isTechAvailable(BuildingType.LurkerDen)) {
+            this.placementBuildingType = BuildingType.LurkerDen;
+          } else {
+            this.buildMenuRenderer.flashLocked(11, this.getRequiresName(BuildingType.LurkerDen));
           }
         }
         if (input.keysJustPressed.has('Escape')) {

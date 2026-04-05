@@ -285,7 +285,8 @@ export class UnitRenderer {
           || bt === BuildingType.EvolutionChamber || bt === BuildingType.RoachWarren
           || bt === BuildingType.HydraliskDen || bt === BuildingType.Spire
           || bt === BuildingType.InfestationPit
-          || bt === BuildingType.SpineCrawler || bt === BuildingType.SporeCrawler;
+          || bt === BuildingType.SpineCrawler || bt === BuildingType.SporeCrawler
+          || bt === BuildingType.BanelingNest || bt === BuildingType.UltraliskCavern || bt === BuildingType.LurkerDen;
 
         if (isZergBuilding) {
           // === Zerg buildings: organic ellipses ===
@@ -678,6 +679,78 @@ export class UnitRenderer {
                   g.fill({ color: 0x66dd66, alpha: fAlpha * baseAlpha });
                 }
               }
+            }
+          } else if (bt === BuildingType.BanelingNest) {
+            // BanelingNest: acid pool with bubbling green toxic vats
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x446622, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Acid pool base
+            g.ellipse(x, y, w * 0.35, h * 0.3);
+            g.fill({ color: 0x336611, alpha: 0.6 * baseAlpha });
+
+            // Bubbling acid — 4 bubbles rising
+            for (let b = 0; b < 4; b++) {
+              const bAngle = (b / 4) * Math.PI * 2 + gameTime * 0.6;
+              const bR = w * 0.15 + Math.sin(gameTime * 2 + b * 1.7) * 3;
+              const bx = x + Math.cos(bAngle) * bR;
+              const by = y + Math.sin(bAngle) * bR;
+              const bSize = 2 + Math.sin(gameTime * 3 + b * 2) * 1;
+              g.circle(bx, by, bSize);
+              g.fill({ color: 0x77cc22, alpha: (0.5 + 0.2 * Math.sin(gameTime * 4 + b)) * baseAlpha });
+            }
+
+            // Central toxic glow
+            const toxPulse = 1 + 0.15 * Math.sin(gameTime * 2.5);
+            g.circle(x, y, 4 * toxPulse);
+            g.fill({ color: 0x88ee33, alpha: 0.4 * baseAlpha });
+          } else if (bt === BuildingType.UltraliskCavern) {
+            // UltraliskCavern: dark cave mouth with bone tusks
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x443322, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Cave mouth — dark inner ellipse
+            g.ellipse(x, y + 2, w * 0.3, h * 0.2);
+            g.fill({ color: 0x110808, alpha: 0.9 * baseAlpha });
+
+            // Bone tusks — 2 curved spikes flanking the entrance
+            for (let side = -1; side <= 1; side += 2) {
+              const tuskX = x + side * w * 0.22;
+              g.moveTo(tuskX, y + 4);
+              g.lineTo(tuskX + side * 3, y - h * 0.25);
+              g.lineTo(tuskX + side * 1, y - h * 0.3);
+              g.stroke({ color: 0xccbb99, width: 2.5, alpha: 0.8 * baseAlpha });
+            }
+
+            // Deep rumble glow
+            const rumble = 0.3 + 0.15 * Math.sin(gameTime * 1.5);
+            g.ellipse(x, y + 2, w * 0.2, h * 0.12);
+            g.fill({ color: 0x882211, alpha: rumble * baseAlpha });
+          } else if (bt === BuildingType.LurkerDen) {
+            // LurkerDen: subterranean burrow with spine ridges
+            g.ellipse(x, y, w / 2, h / 2);
+            g.stroke({ color: 0x554433, width: 2, alpha: 0.7 * baseAlpha });
+
+            // Central burrow opening
+            g.ellipse(x, y, w * 0.25, h * 0.2);
+            g.fill({ color: 0x221111, alpha: 0.8 * baseAlpha });
+
+            // 5 spine ridges radiating outward
+            for (let s = 0; s < 5; s++) {
+              const sAngle = (s / 5) * Math.PI * 2;
+              const innerR = w * 0.15;
+              const outerR = w * 0.35;
+              const wave = Math.sin(gameTime * 1.8 + s * 1.3) * 2;
+              const sx = x + Math.cos(sAngle) * innerR;
+              const sy = y + Math.sin(sAngle) * innerR;
+              const ex = x + Math.cos(sAngle + 0.1) * outerR + wave;
+              const ey = y + Math.sin(sAngle + 0.1) * outerR;
+              g.moveTo(sx, sy);
+              g.lineTo(ex, ey);
+              g.stroke({ color: 0x886655, width: 2, alpha: 0.6 * baseAlpha });
+              // Spine tip
+              g.circle(ex, ey, 1.5);
+              g.fill({ color: 0xaa7755, alpha: 0.5 * baseAlpha });
             }
           }
         } else {

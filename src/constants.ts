@@ -113,6 +113,9 @@ export const enum BuildingType {
   // Zerg Advanced (upgrade-in-place from Hatchery)
   Lair = 41,
   Hive = 42,
+  BanelingNest = 45,
+  UltraliskCavern = 46,
+  LurkerDen = 47,
   // Neutral / Map objects
   Rock = 40,
   // Terran Advanced

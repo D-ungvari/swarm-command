@@ -86,16 +86,16 @@ const UNIT_TECH_REQUIREMENTS: Partial<Record<number, number>> = {
   [UnitType.Battlecruiser]: BuildingType.FusionCore,
   [UnitType.Zergling]:  BuildingType.SpawningPool,
   [UnitType.Queen]:     BuildingType.SpawningPool,
-  [UnitType.Baneling]:  BuildingType.SpawningPool,     // SC2: morphs from Zergling, simplified here
+  [UnitType.Baneling]:  BuildingType.BanelingNest,
   [UnitType.Roach]:     BuildingType.RoachWarren,
   [UnitType.Ravager]:   BuildingType.RoachWarren,       // SC2: morphs from Roach, simplified here
   [UnitType.Hydralisk]: BuildingType.HydraliskDen,
-  [UnitType.Lurker]:    BuildingType.HydraliskDen,      // SC2: morphs from Hydralisk, simplified here
+  [UnitType.Lurker]:    BuildingType.LurkerDen,
   [UnitType.Mutalisk]:  BuildingType.Spire,
   [UnitType.Corruptor]: BuildingType.Spire,
   [UnitType.Infestor]:  BuildingType.InfestationPit,
   [UnitType.Viper]:     BuildingType.InfestationPit,
-  [UnitType.Ultralisk]: BuildingType.InfestationPit,    // SC2: requires Hive (simplified to InfPit)
+  [UnitType.Ultralisk]: BuildingType.UltraliskCavern,
 };
 
 const UPGRADE_NAMES: Record<number, string> = {

@@ -4317,6 +4317,18 @@ export class UnitRenderer {
       const dx = evt.x + spreadX;
       const dy = evt.y - floatY;
 
+      // Elevation miss: white "X" marker
+      if (evt.isMiss) {
+        const mSize = 4 * (1 - t * 0.3);
+        g.moveTo(dx - mSize, dy - mSize);
+        g.lineTo(dx + mSize, dy + mSize);
+        g.stroke({ color: 0xffffff, width: 1.5, alpha: alpha * 0.8 });
+        g.moveTo(dx + mSize, dy - mSize);
+        g.lineTo(dx - mSize, dy + mSize);
+        g.stroke({ color: 0xffffff, width: 1.5, alpha: alpha * 0.8 });
+        continue;
+      }
+
       // Scale by damage amount: small hits = small marker, big hits = big marker
       const dmg = evt.amount;
       const severity = Math.min(1, dmg / 50); // normalize: 50+ damage = max size

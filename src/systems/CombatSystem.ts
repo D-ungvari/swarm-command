@@ -85,6 +85,8 @@ export interface DamageEvent {
   time: number;
   /** Color based on victim's faction: red = Terran hit, blue-white = Zerg hit */
   color: number;
+  /** True if this attack missed due to low-ground penalty */
+  isMiss?: boolean;
 }
 
 const MAX_DAMAGE_EVENTS = 64;
@@ -304,6 +306,20 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // Stop moving while attacking
     movePathIndex[eid] = -1;
+
+    // Elevation miss chance: 30% miss when attacking from low ground to high ground
+    const aTile = worldToTile(posX[eid], posY[eid]);
+    const tTile = worldToTile(posX[tgt], posY[tgt]);
+    const aElev = map.elevation[aTile.row * map.cols + aTile.col] ?? 0;
+    const tElev = map.elevation[tTile.row * map.cols + tTile.col] ?? 0;
+    if (aElev < tElev && Math.random() < 0.3) {
+      // MISS — push miss event and skip damage
+      pendingDamage[tgt] = Math.max(0, pendingDamage[tgt] - atkDamage[eid]);
+      if (damageEvents.length < MAX_DAMAGE_EVENTS) {
+        damageEvents.push({ x: posX[tgt], y: posY[tgt], amount: 0, time: gameTime, color: 0xffffff, isMiss: true });
+      }
+      continue;
+    }
 
     // Compute actual damage with SC2 bonus-damage model and armor reduction
     // Multi-hit: armor applies per-hit (Reaper 4×2, Queen ground 4×2, Thor Javelin 6×4)

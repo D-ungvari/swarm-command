@@ -34,7 +34,7 @@ import {
   buildingType, buildState, buildProgress, buildTimeTotal, builderEid,
   rallyX, rallyY, prodUnitType, prodProgress, prodTimeTotal,
   prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
-  prodQueue, prodQueueLen, PROD_QUEUE_MAX,
+  prodQueue, prodQueueLen, prodQueueProgress, prodQueueTimeTotal, PROD_QUEUE_MAX,
   supplyProvided, supplyCost,
   selected, setPath,
   energy, cloaked, veterancyLevel,
@@ -2073,6 +2073,16 @@ export class Game {
       const qBase = buildingEid * PROD_QUEUE_MAX;
       prodQueue[qBase + qLen] = uType;
       prodQueueLen[buildingEid] = qLen + 1;
+
+      // Zerg instant morph: consume larva and start timer immediately (all morphs run in parallel)
+      if (isHatchType(buildingType[buildingEid])) {
+        larvaCount[buildingEid]--;
+        if (larvaRegenTimer[buildingEid] <= 0 && larvaCount[buildingEid] < 3) {
+          larvaRegenTimer[buildingEid] = 11;
+        }
+        prodQueueProgress[qBase + qLen - 1] = uDef.buildTime;
+        prodQueueTimeTotal[qBase + qLen - 1] = uDef.buildTime;
+      }
     }
   }
 

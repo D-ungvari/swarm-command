@@ -274,6 +274,9 @@ export const supplyCost = new Uint8Array(MAX_ENTITIES);
 export const PROD_QUEUE_MAX = 5;
 /** Flat queue: prodQueue[eid * 5 + 0..4] = UnitType values */
 export const prodQueue = new Uint8Array(MAX_ENTITIES * PROD_QUEUE_MAX);
+/** Parallel morph timers for Zerg queue items (all morph simultaneously) */
+export const prodQueueProgress = new Float32Array(MAX_ENTITIES * PROD_QUEUE_MAX);
+export const prodQueueTimeTotal = new Float32Array(MAX_ENTITIES * PROD_QUEUE_MAX);
 /** Number of items currently in the queue for each entity */
 export const prodQueueLen = new Uint8Array(MAX_ENTITIES);
 
@@ -429,5 +432,7 @@ export function resetComponents(eid: number): void {
   const qBase = eid * PROD_QUEUE_MAX;
   for (let i = 0; i < PROD_QUEUE_MAX; i++) {
     prodQueue[qBase + i] = 0;
+    prodQueueProgress[qBase + i] = 0;
+    prodQueueTimeTotal[qBase + i] = 0;
   }
 }

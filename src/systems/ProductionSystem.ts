@@ -4,7 +4,7 @@ import {
   buildState, buildingType,
   prodUnitType, prodProgress, prodTimeTotal,
   prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
-  prodQueue, prodQueueLen, PROD_QUEUE_MAX,
+  prodQueue, prodQueueLen, prodQueueProgress, prodQueueTimeTotal, PROD_QUEUE_MAX,
   posX, posY, faction, rallyX, rallyY, hpCurrent, hpMax,
   commandMode, setPath, movePathIndex,
   workerState, workerTargetEid, workerBaseX, workerBaseY,
@@ -170,15 +170,19 @@ export function productionSystem(
     return { type: nextType, buildTime: nextDef.buildTime };
   }
 
-  // Helper: shift queue forward by one
+  // Helper: shift queue forward by one (shifts timers too for parallel morph support)
   function shiftQueue(eid: number): void {
     const qBase = eid * PROD_QUEUE_MAX;
     const qLen = prodQueueLen[eid];
     for (let i = 0; i < qLen - 1; i++) {
       prodQueue[qBase + i] = prodQueue[qBase + i + 1];
+      prodQueueProgress[qBase + i] = prodQueueProgress[qBase + i + 1];
+      prodQueueTimeTotal[qBase + i] = prodQueueTimeTotal[qBase + i + 1];
     }
     if (qLen > 0) {
       prodQueue[qBase + qLen - 1] = 0;
+      prodQueueProgress[qBase + qLen - 1] = 0;
+      prodQueueTimeTotal[qBase + qLen - 1] = 0;
       prodQueueLen[eid] = qLen - 1;
     }
   }
@@ -190,6 +194,7 @@ export function productionSystem(
     if (bt === BuildingType.EngineeringBay || bt === BuildingType.EvolutionChamber || bt === BuildingType.Armory) continue;
 
     const hasReactor = addonType[eid] === AddonType.Reactor;
+    const isZergBase = isHatchType(bt);
 
     // ── Slot 1 production ──
     if (prodUnitType[eid] !== 0) {
@@ -197,16 +202,23 @@ export function productionSystem(
       if (prodProgress[eid] <= 0) {
         spawnCompleted(eid, prodUnitType[eid]);
 
-        // Dequeue next for slot 1
-        const next = dequeueNext(eid);
-        if (next) {
-          prodUnitType[eid] = next.type;
-          prodProgress[eid] = next.buildTime;
-          prodTimeTotal[eid] = next.buildTime;
-        } else {
+        if (isZergBase) {
+          // Zerg: slot 1 done, don't dequeue (queue items morph in parallel)
           prodUnitType[eid] = 0;
           prodProgress[eid] = 0;
           prodTimeTotal[eid] = 0;
+        } else {
+          // Terran: dequeue next for slot 1
+          const next = dequeueNext(eid);
+          if (next) {
+            prodUnitType[eid] = next.type;
+            prodProgress[eid] = next.buildTime;
+            prodTimeTotal[eid] = next.buildTime;
+          } else {
+            prodUnitType[eid] = 0;
+            prodProgress[eid] = 0;
+            prodTimeTotal[eid] = 0;
+          }
         }
       }
     }
@@ -227,6 +239,31 @@ export function productionSystem(
           prodSlot2UnitType[eid] = 0;
           prodSlot2Progress[eid] = 0;
           prodSlot2TimeTotal[eid] = 0;
+        }
+      }
+    }
+
+    // ── Zerg parallel queue morphing ──
+    if (isZergBase) {
+      const qBase = eid * PROD_QUEUE_MAX;
+      let qLen = prodQueueLen[eid];
+      for (let qi = qLen - 1; qi >= 0; qi--) {
+        if (prodQueueProgress[qBase + qi] <= 0) continue;
+        prodQueueProgress[qBase + qi] -= dt;
+        if (prodQueueProgress[qBase + qi] <= 0) {
+          // Morph complete — spawn and remove from queue
+          spawnCompleted(eid, prodQueue[qBase + qi]);
+          // Remove item at index qi by shifting remaining items down
+          for (let j = qi; j < qLen - 1; j++) {
+            prodQueue[qBase + j] = prodQueue[qBase + j + 1];
+            prodQueueProgress[qBase + j] = prodQueueProgress[qBase + j + 1];
+            prodQueueTimeTotal[qBase + j] = prodQueueTimeTotal[qBase + j + 1];
+          }
+          prodQueue[qBase + qLen - 1] = 0;
+          prodQueueProgress[qBase + qLen - 1] = 0;
+          prodQueueTimeTotal[qBase + qLen - 1] = 0;
+          qLen--;
+          prodQueueLen[eid] = qLen;
         }
       }
     }

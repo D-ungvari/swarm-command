@@ -9,9 +9,10 @@ import {
   movePathIndex,
   atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash,
   canTargetGround, canTargetAir, targetEntity,
+  isDetector, detectionRange,
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
-import { BuildState, CommandMode, WorkerState, WORKER_MINE_RANGE, Faction, TILE_SIZE } from '../constants';
+import { BuildState, BuildingType, CommandMode, WorkerState, WORKER_MINE_RANGE, Faction, TILE_SIZE } from '../constants';
 import type { PlayerResources } from '../types';
 import { markCreepDirty } from './CreepSystem';
 import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
@@ -96,6 +97,13 @@ export function buildSystem(
         targetEntity[eid] = -1;
         // HoldPosition prevents CombatSystem from trying to chase targets
         commandMode[eid] = CommandMode.HoldPosition;
+      }
+
+      // Detector buildings: MissileTurret, SporeCrawler (range 11 tiles)
+      const bt = buildingType[eid];
+      if (bt === BuildingType.MissileTurret || bt === BuildingType.SporeCrawler) {
+        isDetector[eid] = 1;
+        detectionRange[eid] = 11 * TILE_SIZE;
       }
 
       // Release builder SCV (Terran only — Zerg drone was already consumed)

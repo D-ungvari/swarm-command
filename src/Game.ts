@@ -84,6 +84,7 @@ import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import { creepSystem, resetCreepSystem } from './systems/CreepSystem';
 import { upgradeSystem, encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from './systems/UpgradeSystem';
 import { fogSystem, resetFogSystem } from './systems/FogSystem';
+import { detectionSystem } from './systems/DetectionSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import { WaypointRenderer } from './rendering/WaypointRenderer';
 import { ProjectileRenderer } from './rendering/ProjectileRenderer';
@@ -711,6 +712,7 @@ export class Game {
     // Snapshot resources before gather to calculate income delta
     const res = this.resources[this.playerFaction];
     const resBefore = res.minerals + res.gas;
+    detectionSystem(this.world);
     combatSystem(this.world, dt, this.gameTime, this.map, this.resources);
     abilitySystem(this.world, dt, this.gameTime);
     gatherSystem(this.world, dt, this.map, this.resources);

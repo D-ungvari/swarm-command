@@ -128,6 +128,14 @@ export const cloaked = new Uint8Array(MAX_ENTITIES);
 /** 1 = burrowed (Lurker, WidowMine), 0 = unburrowed. Separate from cloak. */
 export const burrowed = new Uint8Array(MAX_ENTITIES);
 
+// ── Detection ──
+/** 1 = this entity is a detector (MissileTurret, SporeCrawler, Overseer, Raven) */
+export const isDetector = new Uint8Array(MAX_ENTITIES);
+/** Detection range in world pixels */
+export const detectionRange = new Float32Array(MAX_ENTITIES);
+/** 1 = revealed by detection this tick (reset each frame) */
+export const revealed = new Uint8Array(MAX_ENTITIES);
+
 // ── Resource node ──
 /** ResourceType enum: Mineral=1, Gas=2 */
 export const resourceType = new Uint8Array(MAX_ENTITIES);
@@ -372,6 +380,9 @@ export function resetComponents(eid: number): void {
   energy[eid] = 0;
   cloaked[eid] = 0;
   burrowed[eid] = 0;
+  isDetector[eid] = 0;
+  detectionRange[eid] = 0;
+  revealed[eid] = 0;
   resourceType[eid] = 0;
   resourceRemaining[eid] = 0;
   workerCountOnResource[eid] = 0;

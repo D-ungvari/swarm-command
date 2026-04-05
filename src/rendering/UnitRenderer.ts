@@ -25,7 +25,7 @@ import {
   neuralTarget, neuralEndTime,
   kd8LandTime, kd8LandX, kd8LandY,
   causticTarget,
-  burrowed,
+  burrowed, revealed,
   thorMode,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
@@ -3828,6 +3828,23 @@ export class UnitRenderer {
           g.rect(posX[eid] - rw, posY[eid] - rh, renderWidth[eid], renderHeight[eid]);
         }
         g.fill({ color: 0x000044, alpha: 0.5 });
+      }
+
+      // Detection reveal: scanning ring around revealed cloaked/burrowed units
+      if (revealed[eid] === 1 && (cloaked[eid] === 1 || burrowed[eid] === 1)) {
+        const revPulse = 0.5 + 0.3 * Math.sin(gameTime * 5 + eid);
+        const rw = renderWidth[eid] / 2;
+        const rh = renderHeight[eid] / 2;
+        const revR = Math.max(rw, rh) + 6;
+        // Pulsing red detection ring
+        g.circle(posX[eid], posY[eid], revR);
+        g.stroke({ color: 0xff4444, width: 2, alpha: revPulse });
+        // Inner scanning sweep
+        const sweepAngle = (gameTime * 3 + eid) % (Math.PI * 2);
+        const sx = posX[eid] + Math.cos(sweepAngle) * revR;
+        const sy = posY[eid] + Math.sin(sweepAngle) * revR;
+        g.circle(sx, sy, 3);
+        g.fill({ color: 0xff6666, alpha: 0.6 });
       }
 
       // ── Universal status effect overlays (all unit types) ──

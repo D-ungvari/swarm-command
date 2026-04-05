@@ -521,11 +521,7 @@ export function commandSystem(
             if (!hasComponents(world, other, POSITION | UNIT_TYPE)) continue;
             if (faction[other] === myFac || faction[other] === 0) continue;
             if (hpCurrent[other] <= 0) continue;
-            // Snipe only hits biological units (all Zerg + Terran infantry)
-            const ut = unitType[other] as UnitType;
-            if (ut === UnitType.SiegeTank || ut === UnitType.Hellion || ut === UnitType.Thor ||
-                ut === UnitType.Battlecruiser || ut === UnitType.Viking || ut === UnitType.WidowMine ||
-                ut === UnitType.Medivac) continue;
+            // SC2 LotV Steady Targeting hits all unit types (biological + mechanical)
             // Must be in range of the Ghost
             const dxR = posX[other] - posX[eid];
             const dyR = posY[other] - posY[eid];
@@ -1070,7 +1066,7 @@ function hellionTransform(units: number[]): void {
       atkRange[eid] = 0.5 * TILE_SIZE;
       moveSpeed[eid] = 3.15 * TILE_SIZE;
       atkSplash[eid] = 1.0;
-      bonusDmg[eid] = 11;
+      bonusDmg[eid] = 12;
       renderWidth[eid] = 20;
       renderHeight[eid] = 16;
     } else {

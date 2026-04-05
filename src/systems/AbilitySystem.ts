@@ -2,7 +2,7 @@ import { type World, hasComponents } from '../ecs/world';
 import {
   POSITION, HEALTH, ABILITY, UNIT_TYPE, BUILDING,
   posX, posY, hpCurrent, hpMax, faction, unitType,
-  moveSpeed, atkCooldown, atkDamage, atkRange, atkSplash, atkLastTime,
+  moveSpeed, atkCooldown, atkDamage, atkRange, atkSplash, atkMinRange, atkLastTime,
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
   lastCombatTime, movePathIndex,
@@ -23,7 +23,7 @@ import { UNIT_DEFS } from '../data/units';
 import {
   UnitType, Faction, SiegeMode, CommandMode, TILE_SIZE,
   STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
-  SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH, SIEGE_BONUS_DAMAGE, ArmorClass,
+  SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH, SIEGE_BONUS_DAMAGE, SIEGE_COOLDOWN, SIEGE_MIN_RANGE, ArmorClass,
   MEDIVAC_HEAL_RATE, MEDIVAC_HEAL_RANGE,
   ROACH_REGEN_COMBAT, ROACH_REGEN_IDLE, ROACH_COMBAT_TIMEOUT,
   REAPER_REGEN_RATE, REAPER_REGEN_TIMEOUT,
@@ -137,6 +137,8 @@ function processSiegeTransitions(world: World, gameTime: number): void {
       atkSplash[eid] = SIEGE_SPLASH;
       bonusDmg[eid] = SIEGE_BONUS_DAMAGE;
       bonusVsTag[eid] = ArmorClass.Armored;
+      atkCooldown[eid] = SIEGE_COOLDOWN;
+      atkMinRange[eid] = SIEGE_MIN_RANGE * TILE_SIZE;
     } else {
       // Packing complete → Mobile
       siegeMode[eid] = SiegeMode.Mobile;
@@ -147,6 +149,8 @@ function processSiegeTransitions(world: World, gameTime: number): void {
         atkSplash[eid] = def.splashRadius;
         bonusDmg[eid] = def.bonusDamage;
         bonusVsTag[eid] = def.bonusVsTag;
+        atkCooldown[eid] = def.attackCooldown;
+        atkMinRange[eid] = 0;
       }
     }
   }
@@ -200,7 +204,8 @@ function processRoachRegen(world: World, dt: number, gameTime: number): void {
     if (hpCurrent[eid] >= hpMax[eid]) continue;
 
     const isInCombat = gameTime - lastCombatTime[eid] < ROACH_COMBAT_TIMEOUT;
-    const rate = isInCombat ? ROACH_REGEN_COMBAT : ROACH_REGEN_IDLE;
+    // SC2: fast regen (7 HP/s) only while burrowed; combat regen always active
+    const rate = isInCombat ? ROACH_REGEN_COMBAT : (burrowed[eid] === 1 ? ROACH_REGEN_IDLE : ROACH_REGEN_COMBAT);
     hpCurrent[eid] = Math.min(hpMax[eid], hpCurrent[eid] + rate * dt);
   }
 }
@@ -306,12 +311,13 @@ function processWidowMineSentinel(world: World, gameTime: number): void {
       });
     }
 
-    // Splash: deal 125 raw damage to all enemies within 2.0 tiles of the target
+    // Splash: deal 125 raw damage to ALL units within 2.0 tiles (SC2: friendly fire enabled)
     const splashSq = SENTINEL_SPLASH * SENTINEL_SPLASH;
     const splashCandidates = spatialHash.queryRadius(posX[nearestEid], posY[nearestEid], SENTINEL_SPLASH);
     for (const other of splashCandidates) {
       if (other === nearestEid) continue;
-      if (faction[other] === myFac || faction[other] === 0) continue;
+      if (other === eid) continue; // don't damage self (the mine)
+      if (faction[other] === 0) continue;
       if (hpCurrent[other] <= 0) continue;
       const sdx = posX[other] - posX[nearestEid];
       const sdy = posY[other] - posY[nearestEid];
@@ -445,7 +451,7 @@ function processFungalGrowth(world: World, gameTime: number): void {
   const FUNGAL_DAMAGE = 30;
   const FUNGAL_RADIUS = 2.25 * TILE_SIZE;
   const FUNGAL_RADIUS_SQ = FUNGAL_RADIUS * FUNGAL_RADIUS;
-  const FUNGAL_SLOW_DURATION = 3; // seconds
+  const FUNGAL_SLOW_DURATION = 2.85; // seconds (SC2 LotV)
 
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (unitType[eid] !== UnitType.Infestor) continue;
@@ -464,9 +470,9 @@ function processFungalGrowth(world: World, gameTime: number): void {
       const dy = posY[other] - fy;
       if (dx * dx + dy * dy <= FUNGAL_RADIUS_SQ) {
         hpCurrent[other] = Math.max(0, hpCurrent[other] - FUNGAL_DAMAGE);
-        // 75% slow for 3s (not a root) — Ultralisk immune (Frenzied passive)
+        // Full root for 2.85s (SC2 LotV) — Ultralisk immune (Frenzied passive)
         if (unitType[other] !== UnitType.Ultralisk) {
-          slowFactor[other] = 0.75;
+          slowFactor[other] = 1.0;
           slowEndTime[other] = gameTime + FUNGAL_SLOW_DURATION;
         }
       }

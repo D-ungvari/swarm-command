@@ -14,7 +14,7 @@ import {
   moveSpeed, atkCooldown, atkDamage, atkRange, atkSplash,
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd,
-  lastCombatTime,
+  lastCombatTime, burrowed,
   unitType, faction,
   velX, velY,
   setPath, movePathIndex,
@@ -474,12 +474,13 @@ describe('AbilitySystem', () => {
       }));
       hpCurrent[roach] = 100;
       lastCombatTime[roach] = 0; // long ago — idle
+      burrowed[roach] = 1; // SC2: fast regen requires burrowed
 
       const dt = 1.0;
       const gameTime = 100.0; // well past ROACH_COMBAT_TIMEOUT
       abilitySystem(world, dt, gameTime);
 
-      // Idle rate: 7.0 HP/s * 1.0s = 7.0
+      // Idle rate: 7.0 HP/s * 1.0s = 7.0 (only while burrowed)
       expect(hpCurrent[roach]).toBeCloseTo(107);
     });
 
@@ -512,12 +513,13 @@ describe('AbilitySystem', () => {
       }));
       hpCurrent[roach] = 144; // 1 below max
       lastCombatTime[roach] = 0;
+      burrowed[roach] = 1; // SC2: fast regen requires burrowed
 
       const dt = 1.0;
       const gameTime = 100.0;
       abilitySystem(world, dt, gameTime);
 
-      // Would heal 2.0 but only 1 HP headroom
+      // Would heal 7.0 but only 1 HP headroom, clamped to hpMax
       expect(hpCurrent[roach]).toBe(145);
     });
 

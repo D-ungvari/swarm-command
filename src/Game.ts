@@ -23,7 +23,7 @@ import {
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
-  atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, movePathIndex,
+  atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, atkHitCount, movePathIndex,
   bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount,
   targetEntity, commandMode,
   stimEndTime, slowEndTime, slowFactor,
@@ -1841,6 +1841,11 @@ export class Game {
     atkCooldown[eid] = def.attackCooldown;
     atkSplash[eid] = def.splashRadius;
     atkLastTime[eid] = 0;
+    // Multi-hit units: Reaper 4×2, Queen 4×2 (ground), Thor 6×4 (Javelin)
+    if (type === UnitType.Reaper) atkHitCount[eid] = 2;
+    else if (type === UnitType.Queen) atkHitCount[eid] = 2;
+    else if (type === UnitType.Thor) atkHitCount[eid] = 4;
+    else atkHitCount[eid] = 1;
     bonusDmg[eid] = def.bonusDamage;
     bonusVsTag[eid] = def.bonusVsTag;
     armorClass[eid] = def.armorClass;

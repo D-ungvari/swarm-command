@@ -203,6 +203,8 @@ export const SIEGE_DAMAGE = 35;
 export const SIEGE_RANGE = 13;
 export const SIEGE_SPLASH = 1.25;
 export const SIEGE_BONUS_DAMAGE = 30;      // +30 vs Armored
+export const SIEGE_COOLDOWN = 2140;        // ms (mobile is 860ms)
+export const SIEGE_MIN_RANGE = 2;          // tiles
 
 // Medivac Heal
 export const MEDIVAC_HEAL_RATE = 9.0;

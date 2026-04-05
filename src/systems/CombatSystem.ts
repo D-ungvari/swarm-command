@@ -2,7 +2,7 @@ import { type World, hasComponents, entityExists } from '../ecs/world';
 import {
   POSITION, HEALTH, ATTACK, MOVEMENT,
   posX, posY, faction, hpCurrent,
-  atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, atkFlashTimer,
+  atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, atkMinRange, atkHitCount, atkFlashTimer,
   targetEntity, commandMode,
   movePathIndex, setPath,
   unitType,
@@ -269,6 +269,12 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       continue;
     }
 
+    // --- Minimum range check (e.g. Siege Tank in siege mode) ---
+    if (atkMinRange[eid] > 0 && distSq < atkMinRange[eid] * atkMinRange[eid]) {
+      targetEntity[eid] = -1;
+      continue;
+    }
+
     // --- Attack execution ---
     // Convert cooldown from ms to seconds for comparison
     const cooldownSec = atkCooldown[eid] / 1000;
@@ -300,28 +306,45 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     movePathIndex[eid] = -1;
 
     // Compute actual damage with SC2 bonus-damage model and armor reduction
-    // Queen has dual attack: 4x2=8 vs ground, 9 vs air
-    // Thor has dual attack: 30x2=60 vs ground, 6x4=24 vs air (Javelin Missiles)
+    // Multi-hit: armor applies per-hit (Reaper 4×2, Queen ground 4×2, Thor Javelin 6×4)
     let baseDmg = atkDamage[eid];
+    let hits = atkHitCount[eid] || 1;
+    // Queen dual attack: 4×2=8 vs ground (hitCount=2), 9×1 vs air
     if (unitType[eid] === UnitType.Queen && isAir[tgt] === 0) {
-      baseDmg = 8; // ground attack (4 damage x 2 hits)
+      baseDmg = 8;
+    } else if (unitType[eid] === UnitType.Queen && isAir[tgt] === 1) {
+      hits = 1; // air attack is single-hit
     }
-    // Thor anti-air: mode 0 = Javelin Missiles (6x4=24, single-target), mode 1 = Explosive Payload (6, splash 0.5 tiles)
+    // Thor anti-air: mode 0 = Javelin Missiles (6×4=24, single-target), mode 1 = Explosive Payload (6×1, splash)
     let thorSplashActive = false;
     if (unitType[eid] === UnitType.Thor && isAir[tgt] === 1) {
       if (thorMode[eid] === 0) {
-        baseDmg = 24; // Javelin Missiles (6 damage x 4 hits)
+        baseDmg = 24; // Javelin total (6 per hit × 4 hits)
       } else {
-        baseDmg = 6;  // Explosive Payload (splash)
+        baseDmg = 6;
+        hits = 1; // Explosive Payload is single-hit + splash
         thorSplashActive = true;
       }
+    }
+    // Thor ground attack is single-hit (60 damage)
+    if (unitType[eid] === UnitType.Thor && isAir[tgt] === 0) {
+      hits = 1;
     }
     const bonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[tgt]);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
     const armorBonus = getArmorBonus(resources, faction[tgt]);
     const vetBonus = veterancyLevel[eid]; // 0-3 extra damage
     const vetArmor = veterancyLevel[tgt]; // 0-3 extra armor
-    const rawDmg = Math.max(0.5, (baseDmg + bonus + weaponBonus + vetBonus) - (baseArmor[tgt] + armorBonus + vetArmor));
+    const totalArmor = baseArmor[tgt] + armorBonus + vetArmor;
+    // Multi-hit: split damage evenly, apply armor per hit
+    const perHitDmg = baseDmg / hits;
+    const perHitBonus = bonus / hits;
+    const perHitWeapon = weaponBonus / hits;
+    const perHitVet = vetBonus / hits;
+    let rawDmg = 0;
+    for (let h = 0; h < hits; h++) {
+      rawDmg += Math.max(0.5, (perHitDmg + perHitBonus + perHitWeapon + perHitVet) - totalArmor);
+    }
 
     // Apply damage
     hpCurrent[tgt] -= rawDmg;

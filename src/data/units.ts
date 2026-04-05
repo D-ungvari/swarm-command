@@ -121,7 +121,7 @@ export const UNIT_DEFS: Record<number, UnitDef> = {
     attackCooldown: 710, splashRadius: 0,
     width: 14, height: 12, color: 0x335577,
     costMinerals: 150, costGas: 100, buildTime: 32,
-    bonusDamage: 0, bonusVsTag: -1, armorClass: ArmorClass.Armored, baseArmor: 1,
+    bonusDamage: 12, bonusVsTag: ArmorClass.Armored, armorClass: ArmorClass.Armored, baseArmor: 1,
     isAir: 0, canTargetGround: 1, canTargetAir: 1, supply: 3,
   },
   [UnitType.Thor]: {

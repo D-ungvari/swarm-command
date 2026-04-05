@@ -34,6 +34,8 @@ export const atkRange = new Float32Array(MAX_ENTITIES);
 export const atkCooldown = new Float32Array(MAX_ENTITIES);
 export const atkLastTime = new Float32Array(MAX_ENTITIES);
 export const atkSplash = new Float32Array(MAX_ENTITIES);
+export const atkMinRange = new Float32Array(MAX_ENTITIES);
+export const atkHitCount = new Uint8Array(MAX_ENTITIES);
 
 // ── Movement ──
 export const moveSpeed = new Float32Array(MAX_ENTITIES);
@@ -329,7 +331,7 @@ export function resetComponents(eid: number): void {
   velX[eid] = 0; velY[eid] = 0;
   hpCurrent[eid] = 0; hpMax[eid] = 0;
   atkDamage[eid] = 0; atkRange[eid] = 0; atkCooldown[eid] = 0;
-  atkLastTime[eid] = 0; atkSplash[eid] = 0;
+  atkLastTime[eid] = 0; atkSplash[eid] = 0; atkMinRange[eid] = 0; atkHitCount[eid] = 1;
   bonusDmg[eid] = 0; bonusVsTag[eid] = -1; armorClass[eid] = 0; baseArmor[eid] = 0;
   pendingDamage[eid] = 0; killCount[eid] = 0; veterancyLevel[eid] = 0;
   moveSpeed[eid] = 0; moveTargetX[eid] = -1; moveTargetY[eid] = -1;

@@ -1357,6 +1357,7 @@ export class UnitRenderer {
           g.stroke({ color: 0xffaa22, width: 1, alpha: 0.15 * prodPulse });
 
           // Progress arc (bright, thicker)
+          g.moveTo(x + Math.cos(startAngle) * arcRadius, y + Math.sin(startAngle) * arcRadius);
           g.arc(x, y, arcRadius, startAngle, endAngle, false);
           g.stroke({ color: 0xffbb33, width: 2.5, alpha: prodPulse });
 

@@ -29,7 +29,7 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     tileHeight: 2,
     supplyProvided: 8,
     produces: [],
-    color: 0x224488,
+    color: 0x3366aa,
     requires: null,
   },
   [BuildingType.Barracks]: {
@@ -59,7 +59,7 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     tileHeight: 2,
     supplyProvided: 0,
     produces: [],
-    color: 0x226644,
+    color: 0x338855,
     requires: null,
   },
   [BuildingType.Factory]: {
@@ -119,7 +119,7 @@ export const BUILDING_DEFS: Record<number, BuildingDef> = {
     tileHeight: 2,
     supplyProvided: 0,
     produces: [],
-    color: 0x882222,
+    color: 0xaa3333,
     requires: null,
   },
   [BuildingType.EngineeringBay]: {

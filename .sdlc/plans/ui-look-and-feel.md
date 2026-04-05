@@ -141,7 +141,7 @@ text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 **Terran:**
 | Token | Value | Usage |
 |-------|-------|-------|
-| primary | `#3399ff` / `0x3399ff` | Accents, active highlights |
+| primary | `#55aaff` / `0x55aaff` | Accents, active highlights |
 | secondary | `#88ccff` | Text on active elements |
 | border | `rgba(80, 140, 220, 0.35)` | Panel/button borders |
 | borderHover | `rgba(100, 180, 255, 0.6)` | Hovered borders |
@@ -158,7 +158,7 @@ text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 **Zerg:**
 | Token | Value | Usage |
 |-------|-------|-------|
-| primary | `#cc4444` / `0xcc4444` | Accents, active highlights |
+| primary | `#ee4444` / `0xee4444` | Accents, active highlights |
 | secondary | `#ff8866` | Text on active elements |
 | border | `rgba(200, 80, 60, 0.35)` | Panel/button borders |
 | borderHover | `rgba(255, 120, 80, 0.55)` | Hovered borders |
@@ -176,8 +176,8 @@ text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| mineral | `#44bbff` / `0x44bbff` | Mineral resource text/icons |
-| gas | `#44ff66` / `0x44ff66` | Gas resource text/icons |
+| mineral | `#55ddff` / `0x55ddff` | Mineral resource text/icons |
+| gas | `#66ff88` / `0x66ff88` | Gas resource text/icons |
 | supply | `#ffcc44` | Supply text/icon |
 | hpHigh | `#55ff55` | HP bar >50% |
 | hpMid | `#ffbb33` | HP bar 25-50% |
@@ -225,8 +225,8 @@ border: 1px solid rgba(RESOURCE_COLOR, 0.3);
 box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 flex-shrink: 0;
 ```
-- Mineral: background `#44bbff`, border `rgba(68, 187, 255, 0.3)`, shape = rounded square
-- Gas: background `#44ff66`, border `rgba(68, 255, 102, 0.3)`, shape = circle (border-radius: 50%)
+- Mineral: background `#55ddff`, border `rgba(85, 221, 255, 0.3)`, shape = rounded square
+- Gas: background `#66ff88`, border `rgba(102, 255, 136, 0.3)`, shape = circle (border-radius: 50%)
 - Supply: background `#ffcc44`, border `rgba(255, 204, 68, 0.3)`, shape = rounded square
 
 ### Minimap Frame (PixiJS)
@@ -375,8 +375,8 @@ export interface FactionPalette {
 }
 
 export const TERRAN_PALETTE: FactionPalette = {
-  primary: '#3399ff',
-  primaryHex: 0x3399ff,
+  primary: '#55aaff',
+  primaryHex: 0x55aaff,
   secondary: '#88ccff',
   border: 'rgba(80, 140, 220, 0.35)',
   borderHover: 'rgba(100, 180, 255, 0.6)',
@@ -392,8 +392,8 @@ export const TERRAN_PALETTE: FactionPalette = {
 };
 
 export const ZERG_PALETTE: FactionPalette = {
-  primary: '#cc4444',
-  primaryHex: 0xcc4444,
+  primary: '#ee4444',
+  primaryHex: 0xee4444,
   secondary: '#ff8866',
   border: 'rgba(200, 80, 60, 0.35)',
   borderHover: 'rgba(255, 120, 80, 0.55)',
@@ -414,8 +414,8 @@ export function getFactionPalette(f: Faction): FactionPalette {
 
 // ── Common Colors ──
 export const colors = {
-  mineral: '#44bbff',       mineralHex: 0x44bbff,
-  gas: '#44ff66',           gasHex: 0x44ff66,
+  mineral: '#55ddff',       mineralHex: 0x55ddff,
+  gas: '#66ff88',           gasHex: 0x66ff88,
   supply: '#ffcc44',
   hpHigh: '#55ff55',        hpHighGrad: '#33cc33',
   hpMid: '#ffbb33',         hpMidGrad: '#cc8800',

@@ -58,7 +58,7 @@ export function setAbilityPendingRange(range: number, unitTypeFilter: number, co
 export let aoePreviewX = 0;
 export let aoePreviewY = 0;
 export let aoePreviewRadius = 0; // in px (0 = no preview)
-export let aoePreviewColor = 0xff4444;
+export let aoePreviewColor = 0xff5555;
 export function setAoePreview(wx: number, wy: number, radius: number, color: number): void {
   aoePreviewX = wx; aoePreviewY = wy; aoePreviewRadius = radius; aoePreviewColor = color;
 }
@@ -273,7 +273,7 @@ export class UnitRenderer {
             const hpRatio = Math.max(0, hpCurrent[eid] / hpMax[eid]);
             g.rect(barX, barY, barW, barH);
             g.fill({ color: 0x333333, alpha: 0.8 });
-            const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
+            const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffbb22 : 0xff3333;
             g.rect(barX, barY, barW * hpRatio, barH);
             g.fill({ color: hpColor });
           }
@@ -397,7 +397,7 @@ export class UnitRenderer {
               const depth1 = 0.4 + 0.3 * Math.sin(t0 * Math.PI * 3 + helixPhase + Math.PI / 2);
               g.moveTo(x0, y0a);
               g.lineTo(x1, y1a);
-              g.stroke({ color: 0x44cc44, width: 1.5, alpha: depth1 * baseAlpha });
+              g.stroke({ color: 0x55ee55, width: 1.5, alpha: depth1 * baseAlpha });
               // Strand 2 (offset by PI)
               const y0b = y + Math.sin(t0 * Math.PI * 3 + helixPhase + Math.PI) * helixAmp;
               const y1b = y + Math.sin(t1 * Math.PI * 3 + helixPhase + Math.PI) * helixAmp;
@@ -569,7 +569,7 @@ export class UnitRenderer {
               const ty = y + Math.sin(tAngle) * tLen;
               g.moveTo(x, y + 2);
               g.lineTo(tx, ty);
-              g.stroke({ color: 0x664422, width: 2.5, alpha: 0.6 * baseAlpha });
+              g.stroke({ color: 0x886644, width: 2.5, alpha: 0.6 * baseAlpha });
             }
 
             // Central body mass
@@ -676,15 +676,15 @@ export class UnitRenderer {
         const hw = w / 2;
         const hh = h / 2;
 
-        let borderColor = 0x446688;
-        if (bt === BuildingType.CommandCenter) borderColor = 0x5588bb;
-        else if (bt === BuildingType.SupplyDepot) borderColor = 0x3366aa;
-        else if (bt === BuildingType.Barracks) borderColor = 0x6644aa;
-        else if (bt === BuildingType.Refinery) borderColor = 0x448844;
-        else if (bt === BuildingType.Factory) borderColor = 0x886644;
-        else if (bt === BuildingType.Starport) borderColor = 0x4466aa;
-        else if (bt === BuildingType.EngineeringBay) borderColor = 0x5577cc;
-        else if (bt === BuildingType.MissileTurret) borderColor = 0x668899;
+        let borderColor = 0x557799;
+        if (bt === BuildingType.CommandCenter) borderColor = 0x6699cc;
+        else if (bt === BuildingType.SupplyDepot) borderColor = 0x4477bb;
+        else if (bt === BuildingType.Barracks) borderColor = 0x7755bb;
+        else if (bt === BuildingType.Refinery) borderColor = 0x559955;
+        else if (bt === BuildingType.Factory) borderColor = 0x997755;
+        else if (bt === BuildingType.Starport) borderColor = 0x5577bb;
+        else if (bt === BuildingType.EngineeringBay) borderColor = 0x6688dd;
+        else if (bt === BuildingType.MissileTurret) borderColor = 0x7799aa;
 
         if (bt === BuildingType.CommandCenter) {
           // Octagonal footprint
@@ -805,7 +805,7 @@ export class UnitRenderer {
             if (lx1 < lx2) {
               g.moveTo(lx1, ly1);
               g.lineTo(lx2, ly2);
-              g.stroke({ color: 0xffaa22, width: 1, alpha: 0.15 });
+              g.stroke({ color: 0xffbb33, width: 1, alpha: 0.15 });
             }
           }
         }
@@ -819,7 +819,7 @@ export class UnitRenderer {
             const xInset = (Math.abs(py) > hh - cut) ? cut * 0.7 : 4;
             g.moveTo(x - hw + xInset, y + py);
             g.lineTo(x + hw - xInset, y + py);
-            g.stroke({ color: 0x6699cc, width: 0.6, alpha: 0.25 * baseAlpha });
+            g.stroke({ color: 0x88bbdd, width: 0.6, alpha: 0.25 * baseAlpha });
           }
 
           // Rotating radar dish on top
@@ -929,9 +929,9 @@ export class UnitRenderer {
           // Green gas venting glow on top of each tank
           const ventPulse = 0.3 + 0.2 * Math.sin(gameTime * 3);
           g.circle(x - w * 0.25, y - tankH / 2 - 2, 4);
-          g.fill({ color: 0x44ff66, alpha: ventPulse * baseAlpha });
+          g.fill({ color: 0x66ff88, alpha: ventPulse * baseAlpha });
           g.circle(x + w * 0.25, y - tankH / 2 - 2, 4);
-          g.fill({ color: 0x44ff66, alpha: ventPulse * baseAlpha });
+          g.fill({ color: 0x66ff88, alpha: ventPulse * baseAlpha });
         } else if (bt === BuildingType.Factory) {
           // Smokestack cap (stack body is part of base shape)
           g.rect(x + hw - 20, y - hh - 18, 16, 3);
@@ -982,7 +982,7 @@ export class UnitRenderer {
           const doorW2 = 12;
           const doorH2 = 7;
           g.rect(x - doorW2 / 2, y + h / 2 - doorH2, doorW2, doorH2);
-          g.fill({ color: 0x112244, alpha: 0.8 * baseAlpha });
+          g.fill({ color: 0x223355, alpha: 0.8 * baseAlpha });
           g.rect(x - doorW2 / 2, y + h / 2 - doorH2, doorW2, doorH2);
           g.stroke({ color: 0x886644, width: 1, alpha: 0.6 * baseAlpha });
         } else if (bt === BuildingType.Starport) {
@@ -1012,7 +1012,7 @@ export class UnitRenderer {
               const ly = y + hh * 0.1 + Math.sin(lAngle) * 14;
               const lit = li === blinkPhase;
               g.circle(lx, ly, 2);
-              g.fill({ color: lit ? 0x44ff88 : 0x224433, alpha: (lit ? 0.9 : 0.3) * baseAlpha });
+              g.fill({ color: lit ? 0x55ffaa : 0x224433, alpha: (lit ? 0.9 : 0.3) * baseAlpha });
             }
           }
         } else if (bt === BuildingType.EngineeringBay) {
@@ -1102,7 +1102,7 @@ export class UnitRenderer {
               const flashX = x + Math.cos(turretAngle) * podLen;
               const flashY = y + Math.sin(turretAngle) * podLen;
               g.circle(flashX, flashY, 4 * fa);
-              g.fill({ color: 0xffaa22, alpha: fa * 0.8 });
+              g.fill({ color: 0xffbb33, alpha: fa * 0.8 });
               g.circle(flashX, flashY, 2 * fa);
               g.fill({ color: 0xffffff, alpha: fa * 0.9 });
             }
@@ -1114,13 +1114,13 @@ export class UnitRenderer {
         if (bs === BuildState.Complete && !isZergBuilding) {
           const pwrGlow = 0.5 + 0.3 * Math.sin(gameTime * 1.5);
           g.circle(x - w / 2 + 6, y + h / 2 - 6, 2.5);
-          g.fill({ color: 0x44aaff, alpha: pwrGlow * baseAlpha });
+          g.fill({ color: 0x66ccff, alpha: pwrGlow * baseAlpha });
         }
 
         // Production glow — pulsing aura when actively training a unit
         if (bs === BuildState.Complete && prodUnitType[eid] > 0 && prodTimeTotal[eid] > 0) {
           const prodGlow = 0.15 + 0.1 * Math.sin(gameTime * 4);
-          const glowColor = isZergBuilding ? 0xff6644 : 0x44aaff;
+          const glowColor = isZergBuilding ? 0xff6644 : 0x55bbff;
           const glowR = Math.max(w, h) / 2 + 6;
           g.circle(x, y, glowR);
           g.stroke({ color: glowColor, width: 2, alpha: prodGlow });
@@ -1135,7 +1135,7 @@ export class UnitRenderer {
           g.rect(barX2, barY2, barW2, barH2);
           g.fill({ color: 0x333333, alpha: 0.8 });
           g.rect(barX2, barY2, barW2 * buildProgress[eid], barH2);
-          g.fill({ color: 0xffaa22 });
+          g.fill({ color: 0xffbb33 });
         }
 
         // Health bar (only if complete and damaged)
@@ -1147,7 +1147,7 @@ export class UnitRenderer {
           const hpRatio = Math.max(0, hpCurrent[eid] / hpMax[eid]);
           g.rect(barX3, barY3, barW3, barH3);
           g.fill({ color: 0x333333, alpha: 0.8 });
-          const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
+          const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffbb22 : 0xff3333;
           g.rect(barX3, barY3, barW3 * hpRatio, barH3);
           g.fill({ color: hpColor });
 
@@ -1163,7 +1163,7 @@ export class UnitRenderer {
             }
             if (flicker2) {
               g.circle(x + w * 0.15, y - h * 0.5 - 5, 3);
-              g.fill({ color: 0xff4400, alpha: 0.7 });
+              g.fill({ color: 0xff6622, alpha: 0.7 });
             }
           }
         }
@@ -1176,7 +1176,7 @@ export class UnitRenderer {
           const ry = rallyY[eid];
 
           // Dashed line to rally point
-          drawDashedLine(g, bx, by, rx, ry, 0x44ff88, 0.5, 5, 4);
+          drawDashedLine(g, bx, by, rx, ry, 0x55ffaa, 0.5, 5, 4);
 
           // Flag marker at rally point
           g.moveTo(rx, ry - 10);
@@ -1184,7 +1184,7 @@ export class UnitRenderer {
           g.moveTo(rx, ry - 10);
           g.lineTo(rx + 7, ry - 7);
           g.lineTo(rx, ry - 4);
-          g.stroke({ color: 0x44ff88, width: 1.5, alpha: 0.8 });
+          g.stroke({ color: 0x55ffaa, width: 1.5, alpha: 0.8 });
         }
 
         // Production progress ring (visible without selecting)
@@ -1197,11 +1197,11 @@ export class UnitRenderer {
 
           // Outer glow ring (full circle, dim)
           g.circle(x, y, arcRadius + 1);
-          g.stroke({ color: 0xff8800, width: 1, alpha: 0.15 * prodPulse });
+          g.stroke({ color: 0xffaa22, width: 1, alpha: 0.15 * prodPulse });
 
           // Progress arc (bright, thicker)
           g.arc(x, y, arcRadius, startAngle, endAngle, false);
-          g.stroke({ color: 0xffaa22, width: 2.5, alpha: prodPulse });
+          g.stroke({ color: 0xffbb33, width: 2.5, alpha: prodPulse });
 
           // Leading dot at the arc's tip
           const tipX = x + Math.cos(endAngle) * arcRadius;
@@ -1211,7 +1211,7 @@ export class UnitRenderer {
 
           // Inner activity glow (shows building is working)
           g.circle(x, y, Math.max(w, h) * 0.25);
-          g.fill({ color: 0xffaa22, alpha: 0.06 + Math.sin(gameTime * 5) * 0.03 });
+          g.fill({ color: 0xffbb33, alpha: 0.06 + Math.sin(gameTime * 5) * 0.03 });
         }
         continue;
       }
@@ -1285,7 +1285,7 @@ export class UnitRenderer {
       // Range circle for selected units that can attack
       if (isSelected && hasComponents(world, eid, ATTACK) && atkDamage[eid] > 0) {
         g.circle(x, y, atkRange[eid]);
-        g.stroke({ color: 0xff4444, width: 0.5, alpha: 0.2 });
+        g.stroke({ color: 0xff5555, width: 0.5, alpha: 0.2 });
       }
 
       // Slow debuff indicator — icy stroke ring around unit
@@ -1311,7 +1311,7 @@ export class UnitRenderer {
       // Unit body color — stim = bright teal, flash = white, otherwise normal
       let bodyColor = tint;
       if (isFlashing) bodyColor = 0xffffff;
-      else if (isStimmed) bodyColor = 0x66ddff;
+      else if (isStimmed) bodyColor = 0x77eeff;
 
       // LOD: at low zoom, render a simple colored dot instead of full geometry
       if (viewportScale < 0.4) {
@@ -1335,7 +1335,7 @@ export class UnitRenderer {
           g.fill({ color: bodyColor });
           // Lighter center eye spot
           g.ellipse(x, y - h * 0.1, w * 0.2, h * 0.15);
-          g.fill({ color: 0xff8866, alpha: 0.7 });
+          g.fill({ color: 0xff9977, alpha: 0.7 });
           // Antennae — curved lines going up-outward, ending in dots
           g.moveTo(x - w * 0.15, y - h * 0.4);
           g.lineTo(x - w * 0.35, y - h * 0.7);
@@ -1428,7 +1428,7 @@ export class UnitRenderer {
             g.moveTo(x + w * 0.6, y - h * 0.3);
             g.lineTo(x + w * 0.9, y);
             g.lineTo(x + w * 0.6, y + h * 0.3);
-            g.stroke({ color: 0xff8866, width: 1.5, alpha: slashAlpha * 0.5 });
+            g.stroke({ color: 0xff9977, width: 1.5, alpha: slashAlpha * 0.5 });
           }
 
           // Dorsal spine ridge — 4 spikes
@@ -1443,7 +1443,7 @@ export class UnitRenderer {
 
           // Glowing eyes — brighter during engagement
           const eyeGlow = isAttacking ? 1.0 : 0.9;
-          const eyeSize = isAttacking ? 2.0 : 1.5;
+          const eyeSize = isAttacking ? 2.5 : 2.0;
           g.circle(x + w * 0.35, y - h * 0.1, eyeSize);
           g.fill({ color: ZERG_EYE, alpha: eyeGlow });
           g.circle(x + w * 0.35, y + h * 0.1, eyeSize);
@@ -1492,7 +1492,7 @@ export class UnitRenderer {
           if (hpRatio < 0.6) {
             const auraR = w / 2 + 6 + volatility * 2;
             g.circle(x, y, auraR);
-            g.fill({ color: 0x88ff22, alpha: (1 - hpRatio) * 0.08 });
+            g.fill({ color: 0x99ff44, alpha: (1 - hpRatio) * 0.08 });
           }
 
           // Outer glow ring (pulsing — faster when volatile)
@@ -1786,7 +1786,7 @@ export class UnitRenderer {
 
           // Eye — brighter during engagement
           const eyeAlpha = isAttacking ? 1.0 : 0.9;
-          g.circle(x, y - h * 0.15 + bodyBob, isAttacking ? 2 : 1.5);
+          g.circle(x, y - h * 0.15 + bodyBob, isAttacking ? 2.5 : 2.0);
           g.fill({ color: 0xff44cc, alpha: eyeAlpha });
 
           // Tail spine curving backward — sways more aggressively
@@ -1975,9 +1975,9 @@ export class UnitRenderer {
           g.ellipse(x + w * 0.45, y, w * 0.12, h * 0.15);
           g.fill({ color: darken(bodyColor, 15) });
           const eyeGlow = lurkerAttacking ? 1.0 : 0.7;
-          g.circle(x + w * 0.55, y - h * 0.06, lurkerAttacking ? 1.8 : 1.2);
+          g.circle(x + w * 0.55, y - h * 0.06, lurkerAttacking ? 2.3 : 1.7);
           g.fill({ color: ZERG_EYE, alpha: eyeGlow });
-          g.circle(x + w * 0.55, y + h * 0.06, lurkerAttacking ? 1.8 : 1.2);
+          g.circle(x + w * 0.55, y + h * 0.06, lurkerAttacking ? 2.3 : 1.7);
           g.fill({ color: ZERG_EYE, alpha: eyeGlow });
 
           // Body border stroke
@@ -2150,9 +2150,9 @@ export class UnitRenderer {
 
           // Glowing red eyes — more menacing, pulsing with aggression
           const eyePulse = 0.7 + 0.3 * Math.sin(gameTime * 3 + eid);
-          g.circle(x - w * 0.12, y - h * 0.25 + bodyShake, 2.5);
+          g.circle(x - w * 0.12, y - h * 0.25 + bodyShake, 3.0);
           g.fill({ color: ZERG_EYE, alpha: eyePulse });
-          g.circle(x + w * 0.12, y - h * 0.25 + bodyShake, 2.5);
+          g.circle(x + w * 0.12, y - h * 0.25 + bodyShake, 3.0);
           g.fill({ color: ZERG_EYE, alpha: eyePulse });
           // Eye glow halo
           g.circle(x - w * 0.12, y - h * 0.25 + bodyShake, 5);
@@ -2199,7 +2199,7 @@ export class UnitRenderer {
           g.lineTo(x + hw * 0.7, y - hh * 0.35);
           g.stroke({ color: 0xaa66aa, width: 2, alpha: 0.8 });
           // Eye
-          g.circle(x, y - hh * 0.2, 2);
+          g.circle(x, y - hh * 0.2, 2.5);
           g.fill({ color: ZERG_EYE, alpha: 0.8 });
           // Corruption aura (faint purple glow)
           const corruptPulse = 0.15 + Math.sin(gameTime * 2 + eid) * 0.05;
@@ -2250,9 +2250,9 @@ export class UnitRenderer {
           g.circle(x, y - hh * 0.35, hw * 0.2);
           g.fill({ color: bodyColor });
           // Eyes (glowing)
-          g.circle(x - 2, y - hh * 0.38, 1.5);
+          g.circle(x - 2, y - hh * 0.38, 2.0);
           g.fill({ color: ZERG_EYE, alpha: 0.9 });
-          g.circle(x + 2, y - hh * 0.38, 1.5);
+          g.circle(x + 2, y - hh * 0.38, 2.0);
           g.fill({ color: ZERG_EYE, alpha: 0.9 });
 
         } else if (uType === UnitType.Overlord) {
@@ -2297,16 +2297,16 @@ export class UnitRenderer {
           g.fill({ color: lighten(bodyColor, 15), alpha: 0.7 });
 
           // Eyes (small, front-facing)
-          g.circle(x - hw * 0.15, y - hh * 0.35 + floatBob, 1.8);
+          g.circle(x - hw * 0.15, y - hh * 0.35 + floatBob, 2.3);
           g.fill({ color: ZERG_EYE, alpha: 0.8 });
-          g.circle(x + hw * 0.15, y - hh * 0.35 + floatBob, 1.8);
+          g.circle(x + hw * 0.15, y - hh * 0.35 + floatBob, 2.3);
           g.fill({ color: ZERG_EYE, alpha: 0.8 });
 
           // Slight gas shimmer underneath when moving
           if (isMoving) {
             const shimmer = 0.08 + Math.sin(gameTime * 5 + eid * 2) * 0.04;
             g.ellipse(x, y + hh * 0.4 + floatBob, hw * 0.4, hh * 0.12);
-            g.fill({ color: 0x886622, alpha: shimmer });
+            g.fill({ color: 0xaa8833, alpha: shimmer });
           }
 
         } else if (uType === UnitType.Queen) {
@@ -2354,7 +2354,7 @@ export class UnitRenderer {
             // Crown tip glow on attack
             if (queenAttacking) {
               g.circle(tipX, tipY, 1.5);
-              g.fill({ color: 0xcc44cc, alpha: queenAttackT * 0.5 });
+              g.fill({ color: 0xdd55dd, alpha: queenAttackT * 0.5 });
             }
           }
 
@@ -2388,13 +2388,13 @@ export class UnitRenderer {
 
           // Large glowing purple eye — PULSES with authority
           const eyeIntensity = queenAttacking ? 1.0 : 0.75 + Math.sin(gameTime * 2 + eid) * 0.15;
-          g.circle(x + bodySway, y - h * 0.15, queenAttacking ? 3.5 : 3);
-          g.fill({ color: 0xcc44cc, alpha: eyeIntensity });
+          g.circle(x + bodySway, y - h * 0.15, queenAttacking ? 4.0 : 3.5);
+          g.fill({ color: 0xdd55dd, alpha: eyeIntensity });
           g.circle(x + bodySway, y - h * 0.15, queenAttacking ? 7 : 5);
-          g.stroke({ color: 0xbb44bb, width: 1.5, alpha: eyeIntensity * 0.3 });
+          g.stroke({ color: 0xcc55cc, width: 1.5, alpha: eyeIntensity * 0.3 });
           // Command aura (faint halo around queen)
           g.circle(x + bodySway, y - h * 0.15, 8);
-          g.fill({ color: 0xbb44bb, alpha: 0.06 });
+          g.fill({ color: 0xcc55cc, alpha: 0.06 });
 
         } else {
           // Fallback for any unknown Zerg unit
@@ -2661,9 +2661,9 @@ export class UnitRenderer {
           if (isStimmed) {
             const sp = 0.55 + Math.sin(gameTime * 8) * 0.3;
             g.circle(bx, by, Math.max(w, h) * 0.85);
-            g.stroke({ color: 0xff8800, width: 2.5, alpha: sp });
+            g.stroke({ color: 0xffaa22, width: 2.5, alpha: sp });
             g.circle(bx, by, Math.max(w, h) * 0.65);
-            g.stroke({ color: 0xffaa44, width: 1, alpha: sp * 0.5 });
+            g.stroke({ color: 0xffbb55, width: 1, alpha: sp * 0.5 });
           }
 
         } else if (uType === UnitType.Marauder) {
@@ -2698,7 +2698,7 @@ export class UnitRenderer {
           g.rect(x + w * 0.4, y - h * 0.5 + marBreath, w * 0.3, h * 0.45);
           g.stroke({ color: 0x6688aa, width: 1 });
           // Grenade launchers — glow when firing
-          const launcherGlow = marAttacking ? 0xff8844 : TERRAN_METAL;
+          const launcherGlow = marAttacking ? 0xffaa66 : TERRAN_METAL;
           g.circle(x - w * 0.55, y - h * 0.35 + marBreath, 2.5);
           g.fill({ color: launcherGlow });
           g.circle(x - w * 0.55, y - h * 0.35 + marBreath, 2.5);
@@ -2712,9 +2712,9 @@ export class UnitRenderer {
             const fa = atkFlashTimer[eid] / 0.12;
             // Muzzle flash on both grenade launchers
             g.circle(x - w * 0.55, y - h * 0.35 + marBreath, 4 * fa);
-            g.fill({ color: 0xff8844, alpha: fa * 0.6 });
+            g.fill({ color: 0xffaa66, alpha: fa * 0.6 });
             g.circle(x + w * 0.55, y - h * 0.35 + marBreath, 4 * fa);
-            g.fill({ color: 0xff8844, alpha: fa * 0.6 });
+            g.fill({ color: 0xffaa66, alpha: fa * 0.6 });
             // Ground impact ring (concussive wave)
             g.circle(x, y + h * 0.5, 6 + fa * 8);
             g.stroke({ color: 0xff6633, width: 1.5, alpha: fa * 0.25 });
@@ -2726,7 +2726,7 @@ export class UnitRenderer {
           // Visor glow
           g.moveTo(x - w * 0.22, y - h * 0.45 + marBreath);
           g.lineTo(x + w * 0.22, y - h * 0.45 + marBreath);
-          g.stroke({ color: 0xff8866, width: 4, alpha: 0.15 });
+          g.stroke({ color: 0xff9977, width: 4, alpha: 0.15 });
 
         } else if (uType === UnitType.SiegeTank) {
           // ── Siege Tank: heavy artillery — power fantasy: DEVASTATING RANGE ──
@@ -2784,7 +2784,7 @@ export class UnitRenderer {
             if (siegeRecoil > 0) {
               g.moveTo(x + w * 0.3, y - h * 0.1);
               g.lineTo(cannonEndX, y - h * 0.1);
-              g.stroke({ color: 0xff6622, width: 1.5, alpha: siegeRecoil / (w * 0.08) * 0.3 });
+              g.stroke({ color: 0xff7733, width: 1.5, alpha: siegeRecoil / (w * 0.08) * 0.3 });
             }
 
             // DEVASTATING muzzle blast (when attacking)
@@ -2811,7 +2811,7 @@ export class UnitRenderer {
               // Idle muzzle glow (ready state)
               const muzzlePulse = 0.2 + 0.15 * Math.sin(gameTime * 4);
               g.circle(cannonEndX, y - h * 0.1, 3);
-              g.fill({ color: 0xffaa44, alpha: muzzlePulse });
+              g.fill({ color: 0xffbb55, alpha: muzzlePulse });
             }
           } else if (sm === SiegeMode.Packing || sm === SiegeMode.Unpacking) {
             // === TRANSITIONING: pulsing outline ===
@@ -2821,7 +2821,7 @@ export class UnitRenderer {
             g.fill({ color: bodyColor });
             const pulse = 0.3 + 0.5 * Math.sin(gameTime * 8);
             g.rect(x - w / 2 - 3, y - h / 2 - 3, w + 6, h + 6);
-            g.stroke({ color: 0xffaa00, width: 2, alpha: pulse });
+            g.stroke({ color: 0xffbb22, width: 2, alpha: pulse });
           } else {
             // === MOBILE MODE: body with treads and cannon ===
             // Shadow
@@ -2961,10 +2961,10 @@ export class UnitRenderer {
 
           // Scope with animated glint
           g.rect(x + w * 0.5, y - h * 0.52, w * 0.15, h * 0.08);
-          g.fill({ color: 0x334455, alpha: ghostAlpha });
+          g.fill({ color: 0x445577, alpha: ghostAlpha });
           const scopeGlint = 0.5 + 0.5 * Math.sin(gameTime * 2 + eid * 3);
           g.circle(x + w * 0.57, y - h * 0.48, 1.5);
-          g.fill({ color: 0x44ff88, alpha: scopeGlint * ghostAlpha });
+          g.fill({ color: 0x55ffaa, alpha: scopeGlint * ghostAlpha });
 
           // ★ LASER SIGHT — thin red line to target
           if (targetEntity[eid] >= 1 && entityExists(world, targetEntity[eid]) && hpCurrent[targetEntity[eid]] > 0) {
@@ -3053,7 +3053,7 @@ export class UnitRenderer {
                 const fy = y + (Math.random() - 0.5) * (8 + f * 3);
                 const fr = 3.5 - f * 0.6;
                 g.circle(fx, fy, fr);
-                g.fill({ color: f === 0 ? 0xffdd44 : 0xff6622, alpha: 0.8 - f * 0.15 });
+                g.fill({ color: f === 0 ? 0xffdd44 : 0xff7733, alpha: 0.8 - f * 0.15 });
               }
             }
           } else {
@@ -3087,7 +3087,7 @@ export class UnitRenderer {
                 const fy = y + (Math.random() - 0.5) * 6;
                 const fr = 3 - f * 0.8;
                 g.circle(fx, fy, fr);
-                g.fill({ color: f === 0 ? 0xffdd44 : 0xff6622, alpha: 0.7 - f * 0.2 });
+                g.fill({ color: f === 0 ? 0xffdd44 : 0xff7733, alpha: 0.7 - f * 0.2 });
               }
             }
             // Wheels with spin animation
@@ -3150,7 +3150,7 @@ export class UnitRenderer {
               g.circle(trailX, y + hh * 0.65, 1.8);
               g.fill({ color: 0xff6600, alpha: thrustPulse * 0.5 });
               g.circle(trailX, y + hh * 0.8, 1.2);
-              g.fill({ color: 0xff4400, alpha: thrustPulse * 0.3 });
+              g.fill({ color: 0xff6622, alpha: thrustPulse * 0.3 });
             }
           }
 
@@ -3176,12 +3176,12 @@ export class UnitRenderer {
           g.lineTo(x - hw * 0.65, y - hh * 0.15);
           g.stroke({ color: TERRAN_METAL, width: 1.8 });
           g.circle(x - hw * 0.65, y - hh * 0.15, 1);
-          g.fill({ color: 0xffaa44, alpha: 0.5 });
+          g.fill({ color: 0xffbb55, alpha: 0.5 });
           g.moveTo(x + hw * 0.3, y + hh * 0.05);
           g.lineTo(x + hw * 0.65, y - hh * 0.15);
           g.stroke({ color: TERRAN_METAL, width: 1.8 });
           g.circle(x + hw * 0.65, y - hh * 0.15, 1);
-          g.fill({ color: 0xffaa44, alpha: 0.5 });
+          g.fill({ color: 0xffbb55, alpha: 0.5 });
 
           // Layer 6: Head (smaller than Marine)
           g.arc(x, y - hh * 0.45, hw * 0.24, Math.PI, 0);
@@ -3231,11 +3231,11 @@ export class UnitRenderer {
           g.ellipse(x - hw * 0.55, y + hh * 0.25, 3, 5);
           g.fill({ color: TERRAN_DARK, alpha: 0.9 });
           g.circle(x - hw * 0.55, y + hh * 0.55, 2);
-          g.fill({ color: 0x4488ff, alpha: 0.5 + 0.3 * Math.sin(gameTime * 4 + eid) });
+          g.fill({ color: 0x55aaff, alpha: 0.5 + 0.3 * Math.sin(gameTime * 4 + eid) });
           g.ellipse(x + hw * 0.55, y + hh * 0.25, 3, 5);
           g.fill({ color: TERRAN_DARK, alpha: 0.9 });
           g.circle(x + hw * 0.55, y + hh * 0.55, 2);
-          g.fill({ color: 0x4488ff, alpha: 0.5 + 0.3 * Math.sin(gameTime * 4 + eid) });
+          g.fill({ color: 0x55aaff, alpha: 0.5 + 0.3 * Math.sin(gameTime * 4 + eid) });
 
           // Layer 5: Central fuselage (long narrow rect)
           g.rect(x - hw * 0.2, y - hh * 0.7, hw * 0.4, hh * 1.5);
@@ -3322,7 +3322,7 @@ export class UnitRenderer {
           g.circle(x, y, 2.5);
           g.fill({ color: 0xff2222, alpha: eyePulse });
           g.circle(x, y, 4);
-          g.stroke({ color: 0xff4444, width: 1, alpha: eyePulse * 0.4 });
+          g.stroke({ color: 0xff5555, width: 1, alpha: eyePulse * 0.4 });
 
           // Danger aura when attacking/targeting
           if (targetEntity[eid] > 0 && entityExists(world, targetEntity[eid])) {
@@ -3394,7 +3394,7 @@ export class UnitRenderer {
               const lockPulse = isAbilityLock
                 ? 0.6 + 0.3 * Math.sin(gameTime * 8) // faster, brighter pulse for ability lock
                 : 0.4 + 0.4 * Math.sin(gameTime * 6);
-              const lockColor = isAbilityLock ? 0xff2222 : 0xff4444;
+              const lockColor = isAbilityLock ? 0xff2222 : 0xff5555;
               g.circle(tgtX, tgtY, isAbilityLock ? 10 : 8);
               g.stroke({ color: lockColor, width: isAbilityLock ? 2 : 1.5, alpha: lockPulse });
               g.circle(tgtX, tgtY, isAbilityLock ? 5 : 4);
@@ -3405,9 +3405,9 @@ export class UnitRenderer {
               if (isAbilityLock) {
                 const crSize = 6;
                 g.moveTo(tgtX - crSize, tgtY); g.lineTo(tgtX + crSize, tgtY);
-                g.stroke({ color: 0xff4444, width: 1, alpha: lockPulse * 0.6 });
+                g.stroke({ color: 0xff5555, width: 1, alpha: lockPulse * 0.6 });
                 g.moveTo(tgtX, tgtY - crSize); g.lineTo(tgtX, tgtY + crSize);
-                g.stroke({ color: 0xff4444, width: 1, alpha: lockPulse * 0.6 });
+                g.stroke({ color: 0xff5555, width: 1, alpha: lockPulse * 0.6 });
               }
             }
           }
@@ -3435,9 +3435,9 @@ export class UnitRenderer {
           g.fill({ color: darken(bodyColor, 30) });
           // Feet with ground impact dust
           g.rect(x - hw * 0.9, y + hh * 0.8 + leftLegBob, hw * 0.5, hh * 0.15);
-          g.fill({ color: 0x334455 });
+          g.fill({ color: 0x445577 });
           g.rect(x + hw * 0.4, y + hh * 0.8 + rightLegBob, hw * 0.5, hh * 0.15);
-          g.fill({ color: 0x334455 });
+          g.fill({ color: 0x445577 });
           // Dust puffs on footfall
           if (isMoving) {
             const leftDown = Math.sin(stompCycle) > 0.7;
@@ -3495,7 +3495,7 @@ export class UnitRenderer {
           // Power core glow
           const thorPulse = 0.3 + Math.sin(gameTime * 1.5 + eid) * 0.1;
           g.circle(x, y - hh * 0.1, 3);
-          g.fill({ color: 0x4488ff, alpha: thorPulse });
+          g.fill({ color: 0x55aaff, alpha: thorPulse });
 
         } else if (uType === UnitType.Battlecruiser) {
           // ── Battlecruiser: capital ship — power fantasy: ORBITAL SUPREMACY ──
@@ -3522,7 +3522,7 @@ export class UnitRenderer {
               g.lineTo(engX, engY + trailLen);
               g.lineTo(engX + 2, engY);
               g.closePath();
-              g.fill({ color: 0x4488ff, alpha: 0.35 });
+              g.fill({ color: 0x55aaff, alpha: 0.35 });
               g.moveTo(engX - 1, engY);
               g.lineTo(engX, engY + trailLen * 0.6);
               g.lineTo(engX + 1, engY);
@@ -3589,7 +3589,7 @@ export class UnitRenderer {
             const fty = by + ft.oy * hh;
             // Muzzle flash at turret
             g.circle(ftx, fty, 5 * bcAttackT);
-            g.fill({ color: 0x44aaff, alpha: bcAttackT * 0.7 });
+            g.fill({ color: 0x55bbff, alpha: bcAttackT * 0.7 });
             g.circle(ftx, fty, 8 * bcAttackT);
             g.fill({ color: 0x2266ff, alpha: bcAttackT * 0.2 });
             // Beam line to target
@@ -3598,7 +3598,7 @@ export class UnitRenderer {
               const tty = posY[targetEntity[eid]];
               g.moveTo(ftx, fty);
               g.lineTo(ttx, tty);
-              g.stroke({ color: 0x44aaff, width: 2, alpha: bcAttackT * 0.5 });
+              g.stroke({ color: 0x55bbff, width: 2, alpha: bcAttackT * 0.5 });
               g.moveTo(ftx, fty);
               g.lineTo(ttx, tty);
               g.stroke({ color: 0x88ccff, width: 4, alpha: bcAttackT * 0.15 });
@@ -3608,14 +3608,14 @@ export class UnitRenderer {
             g.lineTo(bx - hw * 0.8, by + hh * 0.7);
             g.lineTo(bx + hw * 0.8, by + hh * 0.7);
             g.closePath();
-            g.stroke({ color: 0x4488ff, width: 1.5, alpha: bcAttackT * 0.2 });
+            g.stroke({ color: 0x55aaff, width: 1.5, alpha: bcAttackT * 0.2 });
           }
 
           // Engine glow array — 3 pulsing blue-white cores
           const engPulse = 0.6 + 0.3 * Math.sin(gameTime * 3);
           for (let eg = -1; eg <= 1; eg++) {
             g.circle(bx + eg * hw * 0.35, by + hh - 3, 3.5);
-            g.fill({ color: 0x4488ff, alpha: engPulse });
+            g.fill({ color: 0x55aaff, alpha: engPulse });
             g.circle(bx + eg * hw * 0.35, by + hh - 3, 1.8);
             g.fill({ color: 0xaaddff, alpha: engPulse * 0.9 });
             // Engine outer glow
@@ -3634,7 +3634,7 @@ export class UnitRenderer {
           // Shield shimmer (faint protective field)
           const shieldAlpha = 0.04 + Math.sin(gameTime * 1.2 + eid) * 0.02;
           g.ellipse(bx, by, hw * 0.9, hh * 0.85);
-          g.stroke({ color: 0x4488ff, width: 1, alpha: shieldAlpha });
+          g.stroke({ color: 0x55aaff, width: 1, alpha: shieldAlpha });
 
         } else {
           // Fallback for any unknown Terran unit
@@ -3673,7 +3673,7 @@ export class UnitRenderer {
         } else {
           g.rect(posX[eid] - rw, posY[eid] - rh, renderWidth[eid], renderHeight[eid]);
         }
-        g.fill({ color: 0x000033, alpha: 0.5 });
+        g.fill({ color: 0x000044, alpha: 0.5 });
       }
 
       // ── Universal status effect overlays (all unit types) ──
@@ -3684,9 +3684,9 @@ export class UnitRenderer {
         const sp = 0.5 + Math.sin(gameTime * 8) * 0.3;
         const maxDim = Math.max(w, h);
         g.circle(x, y, maxDim * 0.8);
-        g.stroke({ color: 0xff8800, width: 2, alpha: sp });
+        g.stroke({ color: 0xffaa22, width: 2, alpha: sp });
         g.circle(x, y, maxDim * 0.55);
-        g.stroke({ color: 0xffaa44, width: 1, alpha: sp * 0.4 });
+        g.stroke({ color: 0xffbb55, width: 1, alpha: sp * 0.4 });
       }
 
       // Slow debuff aura — icy blue shimmer
@@ -3714,7 +3714,7 @@ export class UnitRenderer {
         const sparkAlpha = 0.4 + Math.sin(gameTime * 12) * 0.3;
         // Transition glow ring
         g.circle(x, y, Math.max(w, h) * 0.7);
-        g.stroke({ color: 0xffaa22, width: 2, alpha: sparkAlpha * transProgress });
+        g.stroke({ color: 0xffbb33, width: 2, alpha: sparkAlpha * transProgress });
         // Spark dots around the tank
         for (let i = 0; i < 4; i++) {
           const angle = gameTime * 4 + i * Math.PI / 2;
@@ -3768,7 +3768,7 @@ export class UnitRenderer {
         const barX = x - barW / 2;
         const barY = y - h / 2 - 6;
         const hpRatio = Math.max(0, hpCurrent[eid] / hpMax[eid]);
-        const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
+        const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffbb22 : 0xff3333;
         const fillWidth = barW * hpRatio;
 
         // Background
@@ -3819,7 +3819,7 @@ export class UnitRenderer {
         g.fill({ color: 0x111133, alpha: 0.8 });
         if (eRatio > 0) {
           g.rect(eBarX, eBarY, eBarW * eRatio, eBarH);
-          g.fill({ color: 0x4488ff });
+          g.fill({ color: 0x55aaff });
         }
       }
 
@@ -3829,7 +3829,7 @@ export class UnitRenderer {
         const tgtEid = targetEntity[eid];
         const isGas = tgtEid >= 1 && hasComponents(world, tgtEid, BUILDING) &&
           buildingType[tgtEid] === BuildingType.Refinery;
-        const carryColor = isGas ? 0x44ff66 : 0x44bbff;
+        const carryColor = isGas ? 0x66ff88 : 0x55ddff;
         const glowColor = isGas ? 0x22aa44 : 0x2288cc;
 
         // Glow behind
@@ -3882,11 +3882,11 @@ export class UnitRenderer {
       if (factionVal === Faction.Terran) {
         // Terran mechanical death: orange flash
         g.circle(x, y, maxDim * (1 - progress) * 1.3);
-        g.fill({ color: 0xff8844, alpha: (1 - progress) * 0.4 });
+        g.fill({ color: 0xffaa66, alpha: (1 - progress) * 0.4 });
       } else if (factionVal === Faction.Zerg) {
         // Zerg death: green acid dissolve
         g.circle(x, y, maxDim * (1 - progress) * 1.2);
-        g.fill({ color: 0x88ff22, alpha: (1 - progress) * 0.3 });
+        g.fill({ color: 0x99ff44, alpha: (1 - progress) * 0.3 });
       }
 
       if (factionVal === Faction.Zerg) {
@@ -3927,18 +3927,18 @@ export class UnitRenderer {
         const pulse = 0.3 + Math.sin(gameTime * 8) * 0.15;
         const bileRadius = 1.5 * TILE_SIZE;
         g.circle(bileLandX[eid], bileLandY[eid], bileRadius);
-        g.stroke({ color: 0xff4444, width: 2, alpha: pulse });
+        g.stroke({ color: 0xff5555, width: 2, alpha: pulse });
         g.circle(bileLandX[eid], bileLandY[eid], bileRadius * 0.3);
-        g.fill({ color: 0xff4444, alpha: pulse * 0.5 });
+        g.fill({ color: 0xff5555, alpha: pulse * 0.5 });
       }
       // Fungal Growth landing zone
       if (fungalLandTime[eid] > 0 && fungalLandTime[eid] > gameTime) {
         const pulse = 0.3 + Math.sin(gameTime * 6) * 0.15;
         const fungalRadius = 2.25 * TILE_SIZE;
         g.circle(fungalLandX[eid], fungalLandY[eid], fungalRadius);
-        g.stroke({ color: 0x44ff88, width: 2, alpha: pulse });
+        g.stroke({ color: 0x55ffaa, width: 2, alpha: pulse });
         g.circle(fungalLandX[eid], fungalLandY[eid], fungalRadius * 0.3);
-        g.fill({ color: 0x44ff88, alpha: pulse * 0.5 });
+        g.fill({ color: 0x55ffaa, alpha: pulse * 0.5 });
       }
     }
 
@@ -3953,7 +3953,7 @@ export class UnitRenderer {
         const pulse = 0.25 + 0.1 * Math.sin(gameTime * 3 + eid);
         const bcRadius = 12; // visual radius around affected unit
         g.circle(posX[eid], posY[eid], bcRadius);
-        g.fill({ color: 0x6622aa, alpha: pulse * fade * 0.3 });
+        g.fill({ color: 0x8844cc, alpha: pulse * fade * 0.3 });
         g.circle(posX[eid], posY[eid], bcRadius);
         g.stroke({ color: 0x8844cc, width: 1.5, alpha: pulse * fade * 0.6 });
       }
@@ -3997,9 +3997,9 @@ export class UnitRenderer {
         const pulse = 0.4 + 0.3 * Math.sin(gameTime * 10) * Math.min(1, urgency + 0.3);
         const kd8Radius = 1.5 * TILE_SIZE;
         g.circle(kd8LandX[eid], kd8LandY[eid], kd8Radius);
-        g.stroke({ color: 0xff6622, width: 2, alpha: pulse });
+        g.stroke({ color: 0xff7733, width: 2, alpha: pulse });
         g.circle(kd8LandX[eid], kd8LandY[eid], kd8Radius * 0.2);
-        g.fill({ color: 0xff8844, alpha: pulse * 0.7 });
+        g.fill({ color: 0xffaa66, alpha: pulse * 0.7 });
       }
 
       // Caustic Spray: green acid beam from Corruptor to building target
@@ -4012,7 +4012,7 @@ export class UnitRenderer {
         g.stroke({ color: 0x44cc88, width: 3, alpha: pulse * 0.5 });
         // Splash on building
         g.circle(posX[tgt], posY[tgt], 8 + 3 * Math.sin(gameTime * 4));
-        g.fill({ color: 0x44ff88, alpha: pulse * 0.25 });
+        g.fill({ color: 0x55ffaa, alpha: pulse * 0.25 });
       }
     }
 
@@ -4035,9 +4035,9 @@ export class UnitRenderer {
       const sizeMult = Math.max(1, evt.size / 14); // scale effects by unit size
 
       // Faction-specific colors
-      const coreColor = isTerran ? 0xffaa44 : 0x88ff22;
-      const midColor = isTerran ? 0xff6622 : 0x44cc00;
-      const outerColor = isTerran ? 0x4488ff : 0x228800;
+      const coreColor = isTerran ? 0xffbb55 : 0x88ff22;
+      const midColor = isTerran ? 0xff7733 : 0x44cc00;
+      const outerColor = isTerran ? 0x55aaff : 0x228800;
       const sparkColor = isTerran ? 0xffcc88 : 0xaaff66;
       const debrisColor = isTerran ? 0x667788 : 0x554422;
 
@@ -4160,7 +4160,7 @@ export class UnitRenderer {
             const sx = evt.x + Math.cos(angle) * dist;
             const sy = evt.y + Math.sin(angle) * dist;
             g.circle(sx, sy, 3 + cookAlpha * 4);
-            g.fill({ color: 0xffaa22, alpha: cookAlpha * 0.5 });
+            g.fill({ color: 0xffbb33, alpha: cookAlpha * 0.5 });
             g.circle(sx, sy, 1.5 + cookAlpha * 2);
             g.fill({ color: 0xffffff, alpha: cookAlpha * 0.6 });
           }
@@ -4207,7 +4207,7 @@ export class UnitRenderer {
         // MASSIVE FIREBALL — capital ship goes down in a blaze
         const fireR = (20 + sizeMult * 10) * (0.5 + t * 0.5);
         g.circle(evt.x, evt.y, fireR);
-        g.fill({ color: 0xff6622, alpha: alpha * 0.2 });
+        g.fill({ color: 0xff7733, alpha: alpha * 0.2 });
         // Multiple fire spots
         for (let i = 0; i < 5; i++) {
           const fAngle = (i / 5) * Math.PI * 2 + evt.time;
@@ -4215,7 +4215,7 @@ export class UnitRenderer {
           const fx = evt.x + Math.cos(fAngle) * fDist;
           const fy = evt.y + Math.sin(fAngle) * fDist;
           g.circle(fx, fy, 3 + (1 - t) * 3);
-          g.fill({ color: 0xffaa44, alpha: alpha * 0.4 });
+          g.fill({ color: 0xffbb55, alpha: alpha * 0.4 });
         }
       }
     }
@@ -4304,11 +4304,11 @@ export class UnitRenderer {
       const beamPulse = 0.8 + Math.sin(gameTime * 6 + other) * 0.3;
       g.moveTo(mx, my);
       g.lineTo(tx, ty);
-      g.stroke({ color: 0x44ff88, width: 1.5 * beamPulse, alpha: 0.6 });
+      g.stroke({ color: 0x55ffaa, width: 1.5 * beamPulse, alpha: 0.6 });
       // Outer glow beam
       g.moveTo(mx, my);
       g.lineTo(tx, ty);
-      g.stroke({ color: 0x44ff88, width: 4, alpha: 0.12 });
+      g.stroke({ color: 0x55ffaa, width: 4, alpha: 0.12 });
 
       // Energy particle traveling along beam
       const beamDist = Math.sqrt(dx * dx + dy * dy);
@@ -4326,7 +4326,7 @@ export class UnitRenderer {
 
       // Heal endpoint glow on target
       g.circle(tx, ty, 4);
-      g.fill({ color: 0x44ff88, alpha: beamPulse * 0.15 });
+      g.fill({ color: 0x55ffaa, alpha: beamPulse * 0.15 });
     }
   }
 }

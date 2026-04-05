@@ -233,7 +233,7 @@ export const INJECT_LARVA_TIME = 29;       // seconds for inject to complete
 export const STARTING_SUPPLY = 10;
 export const SUPPLY_PER_DEPOT = 8;
 export const SUPPLY_PER_UNIT = 1;
-export const BUILDING_COLOR = 0x2266aa;
+export const BUILDING_COLOR = 0x3377bb;
 
 // ── Economy constants ──
 export const MINERAL_PER_PATCH = 1500;
@@ -317,8 +317,8 @@ export const AI_SPAWN_BASE_COL = 117;
 export const AI_SPAWN_BASE_ROW = 117;
 
 // ── Colors ──
-export const TERRAN_COLOR = 0x3399ff;
-export const ZERG_COLOR = 0xcc3333;
+export const TERRAN_COLOR = 0x55aaff;
+export const ZERG_COLOR = 0xee4444;
 export const MINERAL_COLOR = 0x55ddff;
 export const GAS_COLOR = 0x66ff88;
 export const GROUND_COLOR = 0x5aa830;
@@ -328,14 +328,14 @@ export const ROCK_COLOR = 0x998877;
 export const SELECTION_COLOR = 0x00ff00;
 
 // ── Unified Colour Palette ──
-export const TERRAN_VISOR     = 0x00eeff;
-export const TERRAN_METAL     = 0x445566;
-export const TERRAN_DARK      = 0x112244;
-export const TERRAN_HIGHLIGHT = 0x6699cc;
-export const TERRAN_WARNING   = 0xff6622;
-export const ZERG_ACID        = 0x88ff22;
-export const ZERG_EYE         = 0xff2200;
-export const ZERG_FLESH       = 0x882244;
-export const MINERAL_CRYSTAL  = 0x44aaff;
-export const GAS_GREEN        = 0x44ff88;
-export const NEUTRAL_STONE    = 0x888888;
+export const TERRAN_VISOR     = 0x22ffff;
+export const TERRAN_METAL     = 0x667788;
+export const TERRAN_DARK      = 0x223355;
+export const TERRAN_HIGHLIGHT = 0x88bbee;
+export const TERRAN_WARNING   = 0xff7733;
+export const ZERG_ACID        = 0x99ff44;
+export const ZERG_EYE         = 0xff4422;
+export const ZERG_FLESH       = 0xaa3355;
+export const MINERAL_CRYSTAL  = 0x55ddff;
+export const GAS_GREEN        = 0x66ff88;
+export const NEUTRAL_STONE    = 0xaaaaaa;

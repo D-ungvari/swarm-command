@@ -4,6 +4,15 @@
 
 | # | Title | Type | Priority | Notes |
 |---|-------|------|----------|-------|
+| 132 | Unit & Building Visual Overhaul — Carbot Palette Alignment | polish | HIGH | **ULTRAPLANNED** → `.sdlc/plans/unit-visual-overhaul.md` (8 tasks). Brighten all unit/building colors to match vibrant terrain. Update constants, unit data, UnitRenderer hardcoded hex, portraits, waypoints, effects. |
+|    | ↳ T1: Faction Color Constants | polish | — | Update TERRAN_COLOR, ZERG_COLOR, palette constants to brighter values |
+|    | ↳ T2: Unit & Building Data Colors | polish | — | Update custom color fields in units.ts and buildings.ts |
+|    | ↳ T3: Terran Unit Rendering Brighten | polish | — | Update hardcoded Terran hex in UnitRenderer |
+|    | ↳ T4: Zerg Unit Rendering Brighten | polish | — | Update hardcoded Zerg hex in UnitRenderer |
+|    | ↳ T5: Building Rendering Brighten | polish | — | Update hardcoded building hex in UnitRenderer |
+|    | ↳ T6: Portrait Renderer Color Update | polish | — | Sync portrait CSS constants with new faction colors |
+|    | ↳ T7: UI Theme Plan Alignment | polish | — | Update ui-look-and-feel.md with corrected color values |
+|    | ↳ T8: Effects & Health Bar Polish | polish | — | Attack flash, death halos, waypoints, carry indicators |
 | 95 | Bunker building + unit loading | feat | HIGH | Terran Bunker: 400 HP, 100 minerals, 2x2. Load up to 4 Marines (or 2 Marauders). Loaded units fire from inside with +1 range. Salvage for 75% refund. Hotkey to load/unload. |
 | 96 | Protoss faction — core units + buildings | feat | HIGH | Shields, pylon power, warp-in. Buildings: Nexus, Pylon, Gateway, Cybernetics Core, Robotics Facility, Stargate, Twilight Council. Units: Probe, Zealot, Stalker, Sentry, Immortal, Colossus, Phoenix, Void Ray, High Templar (Psi Storm), Dark Templar, Observer. Photon Overcharge. |
 | 97 | MULE / Orbital Command | feat | MED | CC upgrades to Orbital Command (150 minerals). Abilities: Call Down MULE (accelerated mining, 90s duration), Scanner Sweep (temporary vision), Extra Supplies (+8 supply to depot). |
@@ -71,6 +80,7 @@
 All previous Tier 0/1/2 sprints shipped. See PROGRESS.md history.
 | # | Title | Type | Completed | Commit |
 |---|-------|------|-----------|--------|
+| 131 | Map Visual Overhaul — Carbot-Inspired Vibrant Terrain | polish | 2026-04-05 | 0e1e73d |
 | — | SC2 mechanics parity: repair, snipe, transfuse, overkill, depot lower | feat | 2026-04-04 | 532245c |
 | — | Zerg faction fix, building system SC2 alignment, production UI overhaul | fix | 2026-04-04 | 0948882 |
 | 92 | Continue unit visual polish — remaining Terran/Zerg animations | feat | 2026-04-04 | N/A (already done) |

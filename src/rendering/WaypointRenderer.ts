@@ -43,9 +43,9 @@ export class WaypointRenderer {
       // Faction-specific waypoint colors
       const fac = faction[eid] as Faction;
       const isAttackMove = commandMode[eid] === CommandMode.AttackMove;
-      const lineColor = isAttackMove ? 0xff4444 : (fac === Faction.Terran ? 0x44aaff : 0x44ff88);
+      const lineColor = isAttackMove ? 0xff5555 : (fac === Faction.Terran ? 0x55bbff : 0x55ffaa);
       const lineAlpha = 0.5;
-      const waypointColor = isAttackMove ? 0xff6644 : (fac === Faction.Terran ? 0x66ccff : 0x66ffaa);
+      const waypointColor = isAttackMove ? 0xff7755 : (fac === Faction.Terran ? 0x77ddff : 0x77ffbb);
 
       // Draw dashed line from unit to first remaining waypoint, then waypoint-to-waypoint
       let prevX = posX[eid];

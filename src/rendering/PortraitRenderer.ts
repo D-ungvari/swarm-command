@@ -2,17 +2,17 @@ import { Faction, UnitType } from '../constants';
 import { UNIT_DEFS } from '../data/units';
 
 const SIZE = 44;
-const BG = '#1a1a2a';
+const BG = '#1a2235';
 
 // Faction base colors (CSS strings)
-const T_BLUE = '#3399ff';
-const T_STEEL = '#445566';
-const T_DARK = '#112244';
-const T_VISOR = '#00eeff';
-const T_HIGHLIGHT = '#6699cc';
-const Z_RED = '#cc3333';
-const Z_FLESH = '#882244';
-const Z_ACID = '#88ff22';
+const T_BLUE = '#55aaff';
+const T_STEEL = '#667788';
+const T_DARK = '#223355';
+const T_VISOR = '#22ffff';
+const T_HIGHLIGHT = '#88bbee';
+const Z_RED = '#ee4444';
+const Z_FLESH = '#aa3355';
+const Z_ACID = '#99ff44';
 
 function hexColor(hex: number): string {
   return '#' + hex.toString(16).padStart(6, '0');

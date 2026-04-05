@@ -455,8 +455,10 @@ export class UnitRenderer {
             }
 
             // Carapace arch with ridges
+            g.moveTo(x + Math.cos(Math.PI) * w * 0.3, y + Math.sin(Math.PI) * w * 0.3);
             g.arc(x, y, w * 0.3, Math.PI, 0, false);
             g.stroke({ color: 0x334411, width: 3, alpha: 0.7 * baseAlpha });
+            g.moveTo(x + Math.cos(Math.PI * 0.9) * w * 0.25, y + Math.sin(Math.PI * 0.9) * w * 0.25);
             g.arc(x, y, w * 0.25, Math.PI * 0.9, Math.PI * 0.1, false);
             g.stroke({ color: 0x445522, width: 1.5, alpha: 0.4 * baseAlpha });
           } else if (bt === BuildingType.HydraliskDen) {
@@ -1112,8 +1114,10 @@ export class UnitRenderer {
         } else if (bt === BuildingType.EngineeringBay) {
           // Satellite dish with scanning beam
           const dishR = 14;
+          g.moveTo(x + Math.cos(Math.PI * 0.15) * dishR, y - 2 + Math.sin(Math.PI * 0.15) * dishR);
           g.arc(x, y - 2, dishR, Math.PI * 0.15, Math.PI * 0.85);
           g.stroke({ color: 0x88aadd, width: 2.5, alpha: 0.7 * baseAlpha });
+          g.moveTo(x + Math.cos(Math.PI * 0.2) * dishR * 0.6, y - 2 + Math.sin(Math.PI * 0.2) * dishR * 0.6);
           g.arc(x, y - 2, dishR * 0.6, Math.PI * 0.2, Math.PI * 0.8);
           g.stroke({ color: 0x88aadd, width: 1.5, alpha: 0.4 * baseAlpha });
           // Dish feed
@@ -1255,8 +1259,10 @@ export class UnitRenderer {
             // Spinning energy ring
             const ringAngle = gameTime * 2;
             const ringR = coreR * 0.75;
+            g.moveTo(x + Math.cos(ringAngle) * ringR, y + Math.sin(ringAngle) * ringR);
             g.arc(x, y, ringR, ringAngle, ringAngle + Math.PI * 1.2);
             g.stroke({ color: 0x55ccff, width: 2, alpha: 0.6 * baseAlpha });
+            g.moveTo(x + Math.cos(ringAngle + Math.PI) * ringR, y + Math.sin(ringAngle + Math.PI) * ringR);
             g.arc(x, y, ringR, ringAngle + Math.PI, ringAngle + Math.PI + Math.PI * 1.2);
             g.stroke({ color: 0x55ccff, width: 2, alpha: 0.4 * baseAlpha });
             // Core glow
@@ -1435,6 +1441,7 @@ export class UnitRenderer {
           g.stroke({ color: 0xffcc44, width: 1.5, alpha: 0.9 });
         } else if (cm === CommandMode.Patrol) {
           // Small circular arrow indicator: arc above unit
+          g.moveTo(posX[eid] + Math.cos(-Math.PI * 0.8) * 4, posY[eid] - halfH - 6 + Math.sin(-Math.PI * 0.8) * 4);
           g.arc(posX[eid], posY[eid] - halfH - 6, 4, -Math.PI * 0.8, Math.PI * 0.8);
           g.stroke({ color: 0x44ffaa, width: 1.5, alpha: 0.9 });
         }
@@ -1816,6 +1823,7 @@ export class UnitRenderer {
           g.arc(x, y - h * 0.05, w * 0.5, Math.PI, 0, false);
           g.closePath();
           g.fill({ color: 0x662222, alpha: 0.5 });
+          g.moveTo(x + Math.cos(Math.PI) * w * 0.5, y - h * 0.05 + Math.sin(Math.PI) * w * 0.5);
           g.arc(x, y - h * 0.05, w * 0.5, Math.PI, 0, false);
           g.stroke({ color: 0x886644, width: 2, alpha: 0.7 });
           // Armor segment lines
@@ -1989,6 +1997,7 @@ export class UnitRenderer {
           g.arc(x, y - h * 0.05, w * 0.65, Math.PI, 0, false);
           g.closePath();
           g.fill({ color: darken(bodyColor, 40), alpha: 0.5 });
+          g.moveTo(x + Math.cos(Math.PI) * w * 0.65, y - h * 0.05 + Math.sin(Math.PI) * w * 0.65);
           g.arc(x, y - h * 0.05, w * 0.65, Math.PI, 0, false);
           g.stroke({ color: 0x886644, width: 2, alpha: 0.7 });
 
@@ -2171,6 +2180,7 @@ export class UnitRenderer {
           g.lineTo(x - blobR - 5, y - blobR + 1);
           g.stroke({ color: 0x668833, width: 1.5, alpha: 0.6 });
           // Dark arc mouth on front
+          g.moveTo(x + blobR * 0.3 + Math.cos(-Math.PI * 0.4) * blobR * 0.35, y + Math.sin(-Math.PI * 0.4) * blobR * 0.35);
           g.arc(x + blobR * 0.3, y, blobR * 0.35, -Math.PI * 0.4, Math.PI * 0.4);
           g.stroke({ color: 0x223311, width: 2, alpha: 0.7 });
           // 3 floating spore particles drifting slowly
@@ -3848,6 +3858,7 @@ export class UnitRenderer {
         const mPct = morphTimeTotal[eid] > 0 ? 1 - morphProgress[eid] / morphTimeTotal[eid] : 0;
         const mAngle = mPct * Math.PI * 2 - Math.PI / 2;
         const mR = Math.max(mRw, mRh) + 4;
+        g.moveTo(posX[eid] + Math.cos(-Math.PI / 2) * mR, posY[eid] + Math.sin(-Math.PI / 2) * mR);
         g.arc(posX[eid], posY[eid], mR, -Math.PI / 2, mAngle);
         g.stroke({ color: 0xffaa44, width: 2, alpha: 0.7 });
       }

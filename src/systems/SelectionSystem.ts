@@ -3,7 +3,7 @@ import {
   POSITION, SELECTABLE,
   posX, posY, renderWidth, renderHeight,
   selected, faction, RENDERABLE, UNIT_TYPE, BUILDING,
-  unitType, hpCurrent,
+  unitType, hpCurrent, buildingType,
 } from '../ecs/components';
 import { CommandType, type GameCommand } from '../input/CommandQueue';
 import { Faction } from '../constants';
@@ -20,6 +20,7 @@ export let controlGroupCenterFrame = 0;
 
 // Subgroup cycling state
 let subgroupIndex = 0;
+let buildingCycleIndex = 0;
 
 // Last recalled control group (for active highlight in UI)
 let lastActiveGroup = -1;
@@ -186,16 +187,30 @@ export function selectionSystem(
 
       case CommandType.Select: {
         lastActiveGroup = -1;
-        // Ctrl+click: filter current selection to clicked unit's type
+        // Ctrl+click: buildings → select all of same type; units → filter selection to type
         if (cmd.data === 1) {
           const worldPos = viewport.toWorld(cmd.sx!, cmd.sy!);
           const closest = findUnitAt(world, worldPos.x, worldPos.y, extraTolerance);
-          if (closest > 0 && hasComponents(world, closest, UNIT_TYPE)) {
-            const clickedType = unitType[closest];
-            for (let eid = 1; eid < world.nextEid; eid++) {
-              if (selected[eid] !== 1) continue;
-              if (!hasComponents(world, eid, UNIT_TYPE) || unitType[eid] !== clickedType) {
-                selected[eid] = 0;
+          if (closest > 0 && faction[closest] === playerFaction) {
+            if (hasComponents(world, closest, BUILDING)) {
+              // Building: select ALL of same building type globally
+              const bt = buildingType[closest];
+              clearSelection(world);
+              for (let eid = 1; eid < world.nextEid; eid++) {
+                if (!hasComponents(world, eid, BUILDING | SELECTABLE)) continue;
+                if (faction[eid] !== playerFaction) continue;
+                if (buildingType[eid] !== bt) continue;
+                if (hpCurrent[eid] <= 0) continue;
+                selected[eid] = 1;
+              }
+            } else if (hasComponents(world, closest, UNIT_TYPE)) {
+              // Unit: filter existing selection to clicked type
+              const clickedType = unitType[closest];
+              for (let eid = 1; eid < world.nextEid; eid++) {
+                if (selected[eid] !== 1) continue;
+                if (!hasComponents(world, eid, UNIT_TYPE) || unitType[eid] !== clickedType) {
+                  selected[eid] = 0;
+                }
               }
             }
           }
@@ -289,7 +304,7 @@ export function selectionSystem(
       }
 
       case CommandType.CycleSubgroup:
-        cycleSubgroup(world, playerFaction, cmd.data === -1 ? -1 : 1);
+        cycleSubgroup(world, playerFaction, viewport, cmd.data === -1 ? -1 : 1);
         break;
     }
   }
@@ -305,11 +320,37 @@ function clearSelection(world: World): void {
  * Cycle selection through subgroups of the current selection, grouped by unit type.
  * Each Tab press selects only the entities of the next unit type in the current selection.
  */
-function cycleSubgroup(world: World, playerFaction: Faction, direction: 1 | -1 = 1): void {
-  // Collect all currently selected player-faction unit-type entities
+function cycleSubgroup(world: World, playerFaction: Faction, viewport: Viewport, direction: 1 | -1 = 1): void {
+  // Check if all selected entities are buildings of the same type → building cycle mode
+  const selectedEids: number[] = [];
+  let allSameBuilding = true;
+  let firstBt = -1;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (selected[eid] !== 1) continue;
+    if (faction[eid] !== playerFaction) continue;
+    selectedEids.push(eid);
+    if (hasComponents(world, eid, BUILDING)) {
+      const bt = buildingType[eid];
+      if (firstBt === -1) firstBt = bt;
+      else if (bt !== firstBt) allSameBuilding = false;
+    } else {
+      allSameBuilding = false;
+    }
+  }
+
+  // Building cycle mode: Tab cycles through individual buildings, centering camera
+  if (allSameBuilding && selectedEids.length > 1 && firstBt >= 0) {
+    buildingCycleIndex = ((buildingCycleIndex + direction) % selectedEids.length + selectedEids.length) % selectedEids.length;
+    clearSelection(world);
+    const focusEid = selectedEids[buildingCycleIndex];
+    selected[focusEid] = 1;
+    viewport.moveCenter(posX[focusEid], posY[focusEid]);
+    return;
+  }
+
+  // Unit subgroup mode: cycle through unit types
   const bits = SELECTABLE | UNIT_TYPE;
   const typeToEids = new Map<number, number[]>();
-
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (selected[eid] !== 1) continue;
     if (!hasComponents(world, eid, bits)) continue;
@@ -321,12 +362,9 @@ function cycleSubgroup(world: World, playerFaction: Faction, direction: 1 | -1 =
   }
 
   const types = Array.from(typeToEids.keys()).sort((a, b) => a - b);
-  if (types.length <= 1) return; // Nothing to cycle through
+  if (types.length <= 1) return;
 
   subgroupIndex = ((subgroupIndex + direction) % types.length + types.length) % types.length;
-
-  // Keep all units selected — Tab only changes which subgroup is "active" for commands/abilities.
-  // The InfoPanel uses getActiveSubgroupIndex() to show the right abilities.
 }
 
 function findUnitAt(world: World, wx: number, wy: number, extraTolerance = 0): number {

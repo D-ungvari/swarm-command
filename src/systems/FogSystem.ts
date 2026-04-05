@@ -2,7 +2,7 @@ import { type World, hasComponents } from '../ecs/world';
 import {
   POSITION, BUILDING,
   posX, posY, faction, hpCurrent,
-  atkRange,
+  atkRange, isAir,
 } from '../ecs/components';
 import { MAP_COLS, MAP_ROWS, TILE_SIZE, Faction, activePlayerFaction } from '../constants';
 import type { MapData } from '../map/MapData';
@@ -97,6 +97,57 @@ export function fogSystem(world: World, map?: MapData): void {
           if (fogGrid[idx] !== FOG_VISIBLE) {
             fogGrid[idx] = FOG_VISIBLE;
             changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Watchtower vision: grant 12-tile reveal to the faction controlling each tower
+  if (map && map.watchtowerPositions) {
+    const TOWER_SIGHT = 12;
+    const TOWER_SIGHT_SQ = TOWER_SIGHT * TOWER_SIGHT;
+    const TOWER_CONTROL_RANGE_SQ = 2.25; // 1.5 tiles squared
+
+    for (const tower of map.watchtowerPositions) {
+      // Determine controlling faction: ground unit within 1.5 tiles of center
+      let controlFaction = 0;
+      let contested = false;
+      for (let eid = 1; eid < world.nextEid; eid++) {
+        if (!hasComponents(world, eid, POSITION)) continue;
+        if (hpCurrent[eid] <= 0) continue;
+        if (faction[eid] === 0) continue;
+        if (isAir[eid] === 1) continue; // Air units don't control towers
+        const dc = posX[eid] / TILE_SIZE - tower.col;
+        const dr = posY[eid] / TILE_SIZE - tower.row;
+        if (dc * dc + dr * dr > TOWER_CONTROL_RANGE_SQ) continue;
+        if (controlFaction === 0) {
+          controlFaction = faction[eid];
+        } else if (controlFaction !== faction[eid]) {
+          contested = true;
+          break;
+        }
+      }
+      // Contested or no controller: no vision
+      if (contested || controlFaction === 0) continue;
+      // Only grant fog reveal for the player's faction
+      if (controlFaction !== activePlayerFaction) continue;
+
+      // Reveal tiles in 12-tile radius around tower
+      const minCol = Math.max(0, tower.col - TOWER_SIGHT);
+      const maxCol = Math.min(MAP_COLS - 1, tower.col + TOWER_SIGHT);
+      const minRow = Math.max(0, tower.row - TOWER_SIGHT);
+      const maxRow = Math.min(MAP_ROWS - 1, tower.row + TOWER_SIGHT);
+      for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+          const dc = c - tower.col;
+          const dr = r - tower.row;
+          if (dc * dc + dr * dr <= TOWER_SIGHT_SQ) {
+            const idx = r * MAP_COLS + c;
+            if (fogGrid[idx] !== FOG_VISIBLE) {
+              fogGrid[idx] = FOG_VISIBLE;
+              changed = true;
+            }
           }
         }
       }

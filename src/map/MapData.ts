@@ -32,6 +32,8 @@ export interface MapData {
   creepMap: Uint8Array;
   /** Elevation per tile: 0 = low ground, 1 = high ground, 2 = ramp (transition) */
   elevation: Uint8Array;
+  /** Watchtower center positions (set during map generation) */
+  watchtowerPositions: Array<{col: number, row: number}>;
   cols: number;
   rows: number;
 }
@@ -43,6 +45,7 @@ export function generateMap(mapType: MapType = MapType.Plains): MapData {
   const destructibleHP = new Uint16Array(MAP_COLS * MAP_ROWS);
   const creepMap = new Uint8Array(MAP_COLS * MAP_ROWS);
   const elevation = new Uint8Array(MAP_COLS * MAP_ROWS);
+  collectedWatchtowers = []; // Reset for this generation
 
   // Fill with ground (all walkable), elevation defaults to 0 (low ground)
   tiles.fill(TileType.Ground);
@@ -82,7 +85,7 @@ export function generateMap(mapType: MapType = MapType.Plains): MapData {
     generatePlains(tiles, walkable, destructibleHP, elevation);
   }
 
-  return { tiles, walkable, destructibleHP, creepMap, elevation, cols: MAP_COLS, rows: MAP_ROWS };
+  return { tiles, walkable, destructibleHP, creepMap, elevation, watchtowerPositions: [...collectedWatchtowers], cols: MAP_COLS, rows: MAP_ROWS };
 }
 
 /**
@@ -1373,7 +1376,11 @@ function placeBackdoorRocks(tiles: Uint8Array, walkable: Uint8Array, destructibl
  * Place a Xel'Naga watchtower — 3×3 elevated ramp platform with cliff ring.
  * Walkable raised ground that grants vision advantage.
  */
+/** Collects watchtower positions during map generation */
+let collectedWatchtowers: Array<{col: number, row: number}> = [];
+
 function placeWatchtower(tiles: Uint8Array, walkable: Uint8Array, elevation: Uint8Array, centerR: number, centerC: number): void {
+  collectedWatchtowers.push({ col: centerC, row: centerR });
   for (let r = centerR - 3; r <= centerR + 3; r++) {
     for (let c = centerC - 3; c <= centerC + 3; c++) {
       if (r < 1 || r >= MAP_ROWS - 1 || c < 1 || c >= MAP_COLS - 1) continue;

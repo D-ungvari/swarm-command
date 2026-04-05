@@ -200,6 +200,8 @@ export class Game {
   private lastAlertX = -1;
   private lastAlertY = -1;
   private lastAlertTime = -1;
+  private attackIndicators: Array<{angle: number, time: number}> = [];
+  private attackIndicatorEls: HTMLDivElement[] = [];
 
   // Income rate tracking (minerals and gas per minute)
   private mineralPrev = 0;
@@ -405,11 +407,37 @@ export class Game {
       }
     }
     this.alertRenderer = new AlertRenderer(container);
+
+    // Screen-edge attack indicators (up to 3)
+    for (let i = 0; i < 3; i++) {
+      const el = document.createElement('div');
+      el.style.cssText = `
+        position: fixed; display: none; width: 0; height: 0;
+        border-left: 10px solid transparent; border-right: 10px solid transparent;
+        border-bottom: 18px solid #ff4444;
+        z-index: 40; pointer-events: none; filter: drop-shadow(0 0 4px rgba(255,50,50,0.6));
+      `;
+      container.appendChild(el);
+      this.attackIndicatorEls.push(el);
+    }
     this.debugOverlay = new DebugOverlay(container);
 
-    // Wire up production button callback
+    // Wire up production button callback — targets least-busy building of same type
     this.infoPanelRenderer.setProductionCallback((buildingEid, uType) => {
-      this.handleProductionButtonClick(buildingEid, uType);
+      // Find least-busy selected building of same type for production
+      const bt = buildingType[buildingEid];
+      let bestEid = buildingEid;
+      let bestQueue = prodQueueLen[buildingEid] + (prodUnitType[buildingEid] !== 0 ? 1 : 0);
+      for (let eid = 1; eid < this.world.nextEid; eid++) {
+        if (eid === buildingEid) continue;
+        if (selected[eid] !== 1) continue;
+        if (!hasComponents(this.world, eid, BUILDING)) continue;
+        if (buildingType[eid] !== bt) continue;
+        if (buildState[eid] !== BuildState.Complete) continue;
+        const q = prodQueueLen[eid] + (prodUnitType[eid] !== 0 ? 1 : 0);
+        if (q < bestQueue) { bestQueue = q; bestEid = eid; }
+      }
+      this.handleProductionButtonClick(bestEid, uType);
     });
 
     // Wire up research button callback (Engineering Bay / Evolution Chamber)
@@ -492,7 +520,7 @@ export class Game {
         if (t === TileType.Destructible) destructibleHP[i] = 500;
       }
       const elevation = new Uint8Array(tiles.length);
-      this.map = { tiles, walkable, destructibleHP, creepMap, elevation, cols: MAP_COLS, rows: MAP_ROWS };
+      this.map = { tiles, walkable, destructibleHP, creepMap, elevation, watchtowerPositions: [], cols: MAP_COLS, rows: MAP_ROWS };
     } else {
       this.map = generateMap(this.mapType);
     }
@@ -1006,6 +1034,24 @@ export class Game {
       this.lastAlertTime = this.gameTime;
       // Always place a minimap ping regardless of camera distance
       this.minimapRenderer.showAttackPing(hit.x, hit.y, this.gameTime);
+
+      // Screen-edge attack indicator (only for off-screen attacks)
+      const camX2 = this.viewport.center.x;
+      const camY2 = this.viewport.center.y;
+      const halfW = this.viewport.screenWidth / (2 * this.viewport.scale.x);
+      const halfH = this.viewport.screenHeight / (2 * this.viewport.scale.y);
+      const isOnScreen = Math.abs(hit.x - camX2) < halfW && Math.abs(hit.y - camY2) < halfH;
+      if (!isOnScreen) {
+        const angle = Math.atan2(hit.y - camY2, hit.x - camX2);
+        // Merge with existing indicator within 30°
+        const merged = this.attackIndicators.find(ind =>
+          Math.abs(ind.angle - angle) < 0.52 && this.gameTime - ind.time < 5);
+        if (merged) {
+          merged.time = this.gameTime;
+        } else if (this.attackIndicators.length < 3) {
+          this.attackIndicators.push({ angle, time: this.gameTime });
+        }
+      }
     }
 
     // Game speed: + / - (disabled in turbo mode and during countdown)
@@ -1077,6 +1123,38 @@ export class Game {
     }
 
     this.alertRenderer.update(this.gameTime);
+
+    // Update screen-edge attack indicators
+    this.attackIndicators = this.attackIndicators.filter(ind => this.gameTime - ind.time < 5);
+    for (let i = 0; i < 3; i++) {
+      const el = this.attackIndicatorEls[i];
+      if (!el) continue;
+      const ind = this.attackIndicators[i];
+      if (!ind) { el.style.display = 'none'; continue; }
+      const alpha = Math.max(0, 1 - (this.gameTime - ind.time) / 5);
+      if (alpha <= 0) { el.style.display = 'none'; continue; }
+      // Project angle to screen edge
+      const sw = window.innerWidth;
+      const sh = window.innerHeight;
+      const cx = sw / 2;
+      const cy = sh / 2;
+      const cosA = Math.cos(ind.angle);
+      const sinA = Math.sin(ind.angle);
+      // Find intersection with screen edge (inset 30px)
+      const margin = 30;
+      let ex = cx + cosA * 1000;
+      let ey = cy + sinA * 1000;
+      // Clamp to screen bounds
+      if (ex < margin) { const t = (margin - cx) / cosA; ex = margin; ey = cy + sinA * t; }
+      if (ex > sw - margin) { const t = (sw - margin - cx) / cosA; ex = sw - margin; ey = cy + sinA * t; }
+      if (ey < margin) { const t = (margin - cy) / sinA; ey = margin; ex = cx + cosA * t; }
+      if (ey > sh - margin) { const t = (sh - margin - cy) / sinA; ey = sh - margin; ex = cx + cosA * t; }
+      el.style.display = 'block';
+      el.style.left = `${ex - 10}px`;
+      el.style.top = `${ey - 9}px`;
+      el.style.opacity = String(alpha);
+      el.style.transform = `rotate(${ind.angle + Math.PI / 2}rad)`;
+    }
 
     // Cursor change based on current mode
     if (this.placementMode) {

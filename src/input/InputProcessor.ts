@@ -264,57 +264,58 @@ export class InputProcessor {
           this.simulationQueue.push({ type: CommandType.Cloak, units: this.snapshotSelection() });
         }
       }
-      if (keys.has('KeyV')) {
+      // V: Inject Larva (Queen only)
+      if (keys.has('KeyV') && this.hasSelectedUnitOfType(UnitType.Queen)) {
         this.simulationQueue.push({ type: CommandType.InjectLarva, units: this.snapshotSelection() });
       }
-      // Yamato Cannon (Battlecruiser) — enter aim mode, click to fire
-      if (keys.has('KeyY')) {
+      // Y: Yamato Cannon (Battlecruiser only)
+      if (keys.has('KeyY') && this.hasSelectedUnitOfType(UnitType.Battlecruiser)) {
         this.cancelAllPending();
         this.yamatoPending = true;
       }
-      // R: context-aware — Roach → Burrow toggle, Baneling → Burrow toggle, Ravager → Corrosive Bile
+      // R: context-aware — Roach → Burrow, Baneling → Burrow, Ravager → Corrosive Bile
       if (keys.has('KeyR')) {
         if (this.hasSelectedUnitOfType(UnitType.Roach)) {
           this.simulationQueue.push({ type: CommandType.RoachBurrow, units: this.snapshotSelection() });
         } else if (this.hasSelectedUnitOfType(UnitType.Baneling)) {
           this.simulationQueue.push({ type: CommandType.BanelingBurrow, units: this.snapshotSelection() });
-        } else {
+        } else if (this.hasSelectedUnitOfType(UnitType.Ravager)) {
           this.cancelAllPending();
           this.corrosiveBilePending = true;
         }
       }
-      // Fungal Growth (Infestor) — location ability, left-click to place
-      if (keys.has('KeyF')) {
+      // F: Fungal Growth (Infestor only)
+      if (keys.has('KeyF') && this.hasSelectedUnitOfType(UnitType.Infestor)) {
         this.cancelAllPending();
         this.fungalPending = true;
       }
-      // Abduct (Viper) — enter aim mode, click enemy to pull
-      if (keys.has('KeyG')) {
+      // G: Abduct (Viper only)
+      if (keys.has('KeyG') && this.hasSelectedUnitOfType(UnitType.Viper)) {
         this.cancelAllPending();
         this.abductPending = true;
       }
-      // D: context-aware — Reaper → KD8 Charge (ground-targeted AoE), Ghost → Snipe (targeted)
+      // D: context-aware — Reaper → KD8 Charge, Ghost → Snipe
       if (keys.has('KeyD')) {
         if (this.hasSelectedUnitOfType(UnitType.Reaper)) {
           this.cancelAllPending();
           this.kd8ChargePending = true;
-        } else {
+        } else if (this.hasSelectedUnitOfType(UnitType.Ghost)) {
           this.cancelAllPending();
           this.snipePending = true;
         }
       }
-      // Transfuse (Queen) — enter aim mode, click friendly to heal
-      if (keys.has('KeyX')) {
+      // X: Transfuse (Queen only)
+      if (keys.has('KeyX') && this.hasSelectedUnitOfType(UnitType.Queen)) {
         this.cancelAllPending();
         this.transfusePending = true;
       }
-      // Lock-On (Cyclone) — enter aim mode, click enemy to lock onto
-      if (keys.has('KeyQ')) {
+      // Q: Lock-On (Cyclone only)
+      if (keys.has('KeyQ') && this.hasSelectedUnitOfType(UnitType.Cyclone)) {
         this.cancelAllPending();
         this.lockOnPending = true;
       }
-      // Blinding Cloud (Viper) — ground-targeted AoE, left-click to place
-      if (keys.has('KeyB')) {
+      // B: Blinding Cloud (Viper only) — does NOT fire for workers (B = build menu in Game.ts)
+      if (keys.has('KeyB') && this.hasSelectedUnitOfType(UnitType.Viper)) {
         this.cancelAllPending();
         this.blindingCloudPending = true;
       }

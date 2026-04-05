@@ -13,7 +13,14 @@
 | 101 | Viper Abduct polish | feat | LOW | Abduct pulls target unit to Viper's location. Animation: tentacle lash, target slides to Viper. Range 9. Cost 75 energy. |
 | 102 | Shift-queue abilities | feat | LOW | Hold Shift while issuing commands to queue them. Units execute queued commands in order. Works for move, attack-move, patrol, abilities. |
 | 93 | Recreate iconic SC2 LotV ladder map | feat | MED | Faithful recreation of a famous competitive map. |
-| 94 | Advanced AI Commander — fair play, strategy profiles, build orders | feat | HIGH | AI plays by the same rules as the player. Build orders, strategy profiles, APM-based difficulty. |
+| 94 | Advanced AI Commander — Zerg AI Overhaul | feat | HIGH | **ULTRAPLANNED** → `.sdlc/plans/enemy-ai-overhaul.md` (7 tasks). Build order engine with 5 SC2-style Zerg profiles, production/economy fix, composition targeting, attack intelligence, Queen inject management, time-gated building schedule, difficulty rebalance. |
+|    | ↳ T1: Build Order Engine + 5 Zerg Profiles | feat | — | Replace 3-step build orders with 15-25 step SC2-style sequences |
+|    | ↳ T2: Production & Economy Fix | feat | — | Larva priority, supply management, APM cost rebalance |
+|    | ↳ T3: Army Composition Targeting | feat | — | Replace weighted random with ratio-based composition goals |
+|    | ↳ T4: Attack Intelligence & Wave System | feat | — | Time-based phases, composition readiness, proper wave sizing |
+|    | ↳ T5: Queen & Inject Management | feat | — | Dedicated queen roster, auto-inject, keep home |
+|    | ↳ T6: Building Schedule Overhaul | feat | — | Time-gated buildings, Spawning Pool first, multi-expansion |
+|    | ↳ T7: Difficulty Scaling Pass | feat | — | Retune APM, delays, profiles, income per difficulty |
 
 ## Completed
 All previous Tier 0/1/2 sprints shipped. See PROGRESS.md history.

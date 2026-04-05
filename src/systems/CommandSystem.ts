@@ -1304,56 +1304,38 @@ export function issuePathCommand(
     let offsetX = posX[eid] - posX[leadEidForOffset];
     let offsetY = posY[eid] - posY[leadEidForOffset];
     const offsetDist = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
-    // Scale spread with group size: small groups tight (1.5 tiles), large groups wider (3 tiles)
-    const maxSpread = Math.min(3, 1 + units.length / 20) * TILE_SIZE;
+    // Scale spread with group size: small groups (2 tiles), larger groups wider (4 tiles)
+    const maxSpread = Math.min(4, 1.5 + units.length / 15) * TILE_SIZE;
     if (offsetDist > 0) {
       const scale = Math.min(1, maxSpread / offsetDist);
       offsetX *= scale;
       offsetY *= scale;
     }
 
-    // Small groups (<= 12): compute individual paths per unit for better obstacle navigation
-    // Larger groups: share lead path with offset final waypoint for performance
+    // Every unit paths individually from its own position to its offset destination
     let unitPath: Array<[number, number]>;
-    if (units.length <= 24 && i > 0) {
-      const unitStart = worldToTile(posX[eid], posY[eid]);
-      const destX = tx + offsetX;
-      const destY = ty + offsetY;
-      let unitEnd = worldToTile(destX, destY);
-      // Ensure destination is walkable
-      if (unitEnd.col >= 0 && unitEnd.col < map.cols && unitEnd.row >= 0 && unitEnd.row < map.rows) {
-        if (map.walkable[unitEnd.row * map.cols + unitEnd.col] !== 1) {
-          const wk = findNearestWalkableTile(map, unitEnd.col, unitEnd.row);
-          if (wk) unitEnd = wk;
-        }
+    const unitStart = worldToTile(posX[eid], posY[eid]);
+    const destX = tx + offsetX;
+    const destY = ty + offsetY;
+    let unitEnd = worldToTile(destX, destY);
+    // Ensure destination is walkable
+    if (unitEnd.col >= 0 && unitEnd.col < map.cols && unitEnd.row >= 0 && unitEnd.row < map.rows) {
+      if (map.walkable[unitEnd.row * map.cols + unitEnd.col] !== 1) {
+        const wk = findNearestWalkableTile(map, unitEnd.col, unitEnd.row);
+        if (wk) unitEnd = wk;
       }
-      const indivPath = (unitStart.col === unitEnd.col && unitStart.row === unitEnd.row)
-        ? [[unitEnd.col, unitEnd.row] as [number, number]] // already at destination tile
-        : findPath(map, unitStart.col, unitStart.row, unitEnd.col, unitEnd.row);
-      if (indivPath.length > 0) {
-        unitPath = simplifyPath(indivPath.map(([c, r]) => {
-          const wp = tileToWorld(c, r);
-          return [wp.x, wp.y] as [number, number];
-        }));
-      } else {
-        // Fallback to shared path with gradual convergence
-        const pathLen = leadWorldPath.length;
-        unitPath = leadWorldPath.map(
-          (wp, idx) => {
-            const t = pathLen > 1 ? idx / (pathLen - 1) : 1;
-            return [wp[0] + offsetX * t, wp[1] + offsetY * t] as [number, number];
-          }
-        );
-      }
+    }
+    const indivPath = (unitStart.col === unitEnd.col && unitStart.row === unitEnd.row)
+      ? [[unitEnd.col, unitEnd.row] as [number, number]]
+      : findPath(map, unitStart.col, unitStart.row, unitEnd.col, unitEnd.row);
+    if (indivPath.length > 0) {
+      unitPath = simplifyPath(indivPath.map(([c, r]) => {
+        const wp = tileToWorld(c, r);
+        return [wp.x, wp.y] as [number, number];
+      }));
     } else {
-      // For shared-path units: gradually blend offset along the path so units converge
-      const pathLen = leadWorldPath.length;
-      unitPath = leadWorldPath.map(
-        (wp, idx) => {
-          const t = pathLen > 1 ? idx / (pathLen - 1) : 1; // 0 at start, 1 at end
-          return [wp[0] + offsetX * t, wp[1] + offsetY * t] as [number, number];
-        }
-      );
+      // Fallback: direct line to destination (stuck detection will repath if needed)
+      unitPath = [[destX, destY] as [number, number]];
     }
 
     // Verify final waypoint is walkable; snap to nearest walkable if not

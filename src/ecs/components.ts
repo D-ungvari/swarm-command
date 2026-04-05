@@ -91,6 +91,8 @@ export const pendingDamage = new Float32Array(MAX_ENTITIES);
 export const killCount = new Uint16Array(MAX_ENTITIES);
 /** Veterancy level: 0=Novice, 1=Veteran, 2=Elite, 3=Hero */
 export const veterancyLevel = new Uint8Array(MAX_ENTITIES);
+/** gameTime when next auto-acquire is allowed (0.15s cooldown between scans) */
+export const nextAutoAcquireTime = new Float32Array(MAX_ENTITIES);
 
 // ── Ability: Stim Pack ──
 /** gameTime when stim expires, 0 = not stimmed */

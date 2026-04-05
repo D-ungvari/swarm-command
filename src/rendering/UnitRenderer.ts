@@ -19,6 +19,13 @@ import {
   fungalLandX, fungalLandY, fungalLandTime,
   lockOnTarget, lockOnEndTime,
   hellbatMode,
+  blindingCloudEndTime,
+  parasiticBombEndTime, parasiticBombCasterFaction,
+  neuralTarget, neuralEndTime,
+  kd8LandTime, kd8LandX, kd8LandY,
+  causticTarget,
+  burrowed,
+  thorMode,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -3905,6 +3912,80 @@ export class UnitRenderer {
         g.stroke({ color: 0x44ff88, width: 2, alpha: pulse });
         g.circle(fungalLandX[eid], fungalLandY[eid], fungalRadius * 0.3);
         g.fill({ color: 0x44ff88, alpha: pulse * 0.5 });
+      }
+    }
+
+    // ── Spell effect visuals for active abilities ──
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (hpCurrent[eid] <= 0) continue;
+
+      // Blinding Cloud: purple translucent zone on affected units
+      if (blindingCloudEndTime[eid] > gameTime) {
+        const remaining = blindingCloudEndTime[eid] - gameTime;
+        const fade = Math.min(1, remaining / 1.0); // fade out in last second
+        const pulse = 0.25 + 0.1 * Math.sin(gameTime * 3 + eid);
+        const bcRadius = 12; // visual radius around affected unit
+        g.circle(posX[eid], posY[eid], bcRadius);
+        g.fill({ color: 0x6622aa, alpha: pulse * fade * 0.3 });
+        g.circle(posX[eid], posY[eid], bcRadius);
+        g.stroke({ color: 0x8844cc, width: 1.5, alpha: pulse * fade * 0.6 });
+      }
+
+      // Parasitic Bomb: pulsing pink aura on tagged air unit
+      if (parasiticBombEndTime[eid] > gameTime) {
+        const remaining = parasiticBombEndTime[eid] - gameTime;
+        const fade = Math.min(1, remaining / 1.0);
+        const pulse = 0.5 + 0.3 * Math.sin(gameTime * 6 + eid * 2);
+        const pbRadius = 3 * TILE_SIZE; // damage AoE visual
+        // Outer damage zone
+        g.circle(posX[eid], posY[eid], pbRadius);
+        g.stroke({ color: 0xff2266, width: 1, alpha: pulse * fade * 0.25 });
+        // Inner glow on unit
+        g.circle(posX[eid], posY[eid], 10);
+        g.fill({ color: 0xff4488, alpha: pulse * fade * 0.4 });
+      }
+
+      // Neural Parasite: purple beam from Infestor to victim
+      if (neuralTarget[eid] > 0 && entityExists(world, neuralTarget[eid]) && neuralEndTime[eid] > gameTime) {
+        const victim = neuralTarget[eid];
+        if (hpCurrent[victim] > 0) {
+          const pulse = 0.5 + 0.3 * Math.sin(gameTime * 5);
+          // Beam line
+          g.moveTo(posX[eid], posY[eid]);
+          g.lineTo(posX[victim], posY[victim]);
+          g.stroke({ color: 0xcc44ff, width: 2, alpha: pulse * 0.6 });
+          // Glow at victim
+          g.circle(posX[victim], posY[victim], 8);
+          g.fill({ color: 0xcc44ff, alpha: pulse * 0.3 });
+          // Ring at caster
+          g.circle(posX[eid], posY[eid], 10);
+          g.stroke({ color: 0xcc44ff, width: 1, alpha: pulse * 0.4 });
+        }
+      }
+
+      // KD8 Charge: orange pulsing circle at landing position
+      if (kd8LandTime[eid] > 0 && kd8LandTime[eid] > gameTime) {
+        const timeLeft = kd8LandTime[eid] - gameTime;
+        const urgency = 1 - timeLeft; // gets brighter as detonation approaches
+        const pulse = 0.4 + 0.3 * Math.sin(gameTime * 10) * Math.min(1, urgency + 0.3);
+        const kd8Radius = 1.5 * TILE_SIZE;
+        g.circle(kd8LandX[eid], kd8LandY[eid], kd8Radius);
+        g.stroke({ color: 0xff6622, width: 2, alpha: pulse });
+        g.circle(kd8LandX[eid], kd8LandY[eid], kd8Radius * 0.2);
+        g.fill({ color: 0xff8844, alpha: pulse * 0.7 });
+      }
+
+      // Caustic Spray: green acid beam from Corruptor to building target
+      if (causticTarget[eid] > 0 && entityExists(world, causticTarget[eid]) && hpCurrent[causticTarget[eid]] > 0) {
+        const tgt = causticTarget[eid];
+        const pulse = 0.5 + 0.3 * Math.sin(gameTime * 7 + eid);
+        // Acid beam
+        g.moveTo(posX[eid], posY[eid]);
+        g.lineTo(posX[tgt], posY[tgt]);
+        g.stroke({ color: 0x44cc88, width: 3, alpha: pulse * 0.5 });
+        // Splash on building
+        g.circle(posX[tgt], posY[tgt], 8 + 3 * Math.sin(gameTime * 4));
+        g.fill({ color: 0x44ff88, alpha: pulse * 0.25 });
       }
     }
 

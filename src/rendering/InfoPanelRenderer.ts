@@ -425,14 +425,77 @@ export class InfoPanelRenderer {
             }
           }
 
+          // Ability icon symbols for visual distinctness
+          const ABILITY_ICONS: Record<string, { symbol: string; color: string }> = {
+            'Stim Pack': { symbol: '\u2B06', color: '#ff4444' },
+            'Siege Mode': { symbol: '\u2693', color: '#ffaa22' },
+            'Cloak': { symbol: '\u{1F441}', color: '#88ddff' },
+            'Snipe': { symbol: '\u2316', color: '#ff6644' },
+            'EMP Round': { symbol: '\u26A1', color: '#44ccff' },
+            'Transform': { symbol: '\u21C4', color: '#6699ff' },
+            'Hellbat Mode': { symbol: '\u21C4', color: '#ff6600' },
+            'AA Mode': { symbol: '\u21C4', color: '#ffcc22' },
+            'Lock-On': { symbol: '\u25CE', color: '#ff2222' },
+            'Yamato': { symbol: '\u2604', color: '#ff4488' },
+            'KD8 Charge': { symbol: '\u25C9', color: '#ff6622' },
+            'Inject Larva': { symbol: '\u2B50', color: '#88ff44' },
+            'Transfuse': { symbol: '\u2764', color: '#44ff88' },
+            'Bile': { symbol: '\u25CF', color: '#88cc22' },
+            'Fungal': { symbol: '\u25A0', color: '#44cc44' },
+            'Neural': { symbol: '\u2B55', color: '#cc44ff' },
+            'Abduct': { symbol: '\u21A9', color: '#cc88ff' },
+            'Blinding Cloud': { symbol: '\u2601', color: '#8844cc' },
+            'Parasitic Bomb': { symbol: '\u2622', color: '#ff4488' },
+            'Caustic Spray': { symbol: '\u2623', color: '#44cc88' },
+            'Burrow': { symbol: '\u25BC', color: '#886644' },
+          };
+
           for (const ability of abilities) {
-            const btn = document.createElement('button');
-            btn.textContent = `[${ability.key}] ${ability.name}`;
+            const iconInfo = ABILITY_ICONS[ability.name] || { symbol: '\u2726', color: '#aaccff' };
+            const btn = document.createElement('div');
             btn.style.cssText = `
-              background: rgba(40,80,140,0.6); color: #cce0ff; border: 1px solid rgba(100,160,255,0.4);
-              padding: 4px 10px; font-family: 'Consolas', monospace; font-size: 11px; cursor: pointer;
+              display: flex; align-items: center; gap: 5px;
+              padding: 4px 8px;
+              background: rgba(20, 35, 70, 0.7);
+              border: 1px solid rgba(100, 160, 255, 0.4);
               border-radius: 3px;
+              cursor: pointer; pointer-events: auto;
+              transition: background 0.1s, border-color 0.1s;
+              user-select: none;
             `;
+
+            // Hotkey badge
+            const hotkeyEl = document.createElement('span');
+            hotkeyEl.style.cssText = `
+              font-size: 9px; font-family: Consolas, monospace;
+              color: rgba(180,210,255,0.5);
+              background: rgba(0,0,0,0.3);
+              padding: 0 3px; border-radius: 2px;
+              min-width: 12px; text-align: center;
+            `;
+            hotkeyEl.textContent = ability.key;
+            btn.appendChild(hotkeyEl);
+
+            // Icon
+            const iconEl = document.createElement('span');
+            iconEl.style.cssText = `font-size: 14px; color: ${iconInfo.color}; line-height: 1;`;
+            iconEl.textContent = iconInfo.symbol;
+            btn.appendChild(iconEl);
+
+            // Name
+            const nameEl = document.createElement('span');
+            nameEl.style.cssText = 'font-size: 10px; font-family: Consolas, monospace; color: #cce0ff;';
+            nameEl.textContent = ability.name;
+            btn.appendChild(nameEl);
+
+            btn.addEventListener('mouseenter', () => {
+              btn.style.background = 'rgba(40, 80, 160, 0.6)';
+              btn.style.borderColor = 'rgba(100, 180, 255, 0.7)';
+            });
+            btn.addEventListener('mouseleave', () => {
+              btn.style.background = 'rgba(20, 35, 70, 0.7)';
+              btn.style.borderColor = 'rgba(100, 160, 255, 0.4)';
+            });
             btn.addEventListener('click', () => {
               if (this.abilityCallback) this.abilityCallback(ability.commandType, [...unitEids]);
             });

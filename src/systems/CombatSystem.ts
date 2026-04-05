@@ -7,7 +7,7 @@ import {
   movePathIndex, setPath,
   unitType,
   slowEndTime, slowFactor, siegeMode, lastCombatTime,
-  bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount, veterancyLevel,
+  bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount, veterancyLevel, nextAutoAcquireTime,
   cloaked, burrowed,
   isAir, canTargetGround, canTargetAir,
   thorMode,
@@ -59,9 +59,6 @@ const CHASE_LEASH_SQ = CHASE_LEASH_RANGE * CHASE_LEASH_RANGE;
 /** Per-entity: last known target position we pathed toward */
 const chaseTargetX = new Float32Array(MAX_ENTITIES);
 const chaseTargetY = new Float32Array(MAX_ENTITIES);
-
-/** Per-entity: gameTime when next auto-acquire is allowed */
-const nextAutoAcquireTime = new Float32Array(MAX_ENTITIES);
 
 /** Reset per-entity combat state (for tests / game restart) */
 export function resetCombatEntity(eid: number): void {

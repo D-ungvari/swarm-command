@@ -6,7 +6,7 @@ import {
   movePathIndex, pathLengths, getPathWaypoint,
   slowFactor, siegeMode, faction, hpCurrent,
   patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
-  isAir, lastMovedTime,
+  isAir, lastMovedTime, nextAutoAcquireTime,
   neuralStunEndTime,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
@@ -73,11 +73,17 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
           setPath(eid, simplifyPath(worldPath));
         } else {
           movePathIndex[eid] = -1;
-    
+          if (commandMode[eid] === CommandMode.Move) {
+            commandMode[eid] = CommandMode.Idle;
+            nextAutoAcquireTime[eid] = 0;
+          }
         }
       } else {
         movePathIndex[eid] = -1;
-  
+        if (commandMode[eid] === CommandMode.Move) {
+          commandMode[eid] = CommandMode.Idle;
+          nextAutoAcquireTime[eid] = 0;
+        }
       }
       lastMovedTime[eid] = gameTime;
       pathIdx = movePathIndex[eid]; // re-read after potential repath
@@ -169,9 +175,13 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
           }
         } else {
           movePathIndex[eid] = -1;
-    
           velX[eid] = 0;
           velY[eid] = 0;
+          // Reset Move to Idle so units auto-attack and retaliate after arriving
+          if (commandMode[eid] === CommandMode.Move) {
+            commandMode[eid] = CommandMode.Idle;
+            nextAutoAcquireTime[eid] = 0;
+          }
         }
       }
       continue;

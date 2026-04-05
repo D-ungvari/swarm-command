@@ -269,8 +269,8 @@ describe('AISystem', () => {
   describe('attack waves', () => {
     it('triggers attack when army reaches threshold', () => {
       initCachedResources();
-      // Manually spawn many Zerglings for the AI to claim
-      for (let i = 0; i < FIRST_WAVE_SIZE + 10; i++) {
+      // Manually spawn many Zerglings for the AI to claim (extra buffer for harass/defense splits)
+      for (let i = 0; i < FIRST_WAVE_SIZE + 20; i++) {
         track(spawnUnit(world, {
           factionId: Faction.Zerg,
           unitTypeId: UnitType.Zergling,

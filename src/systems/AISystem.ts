@@ -888,6 +888,10 @@ let defenseEids: Set<number> = new Set();
 let queenEids: Set<number> = new Set();
 let lastDefenseTime = 0;
 let defenseAreaClearSince = 0;
+let isStaging = false;
+let stagingX = 0;
+let stagingY = 0;
+let stagingStartTime = 0;
 
 // ─────────────────────────────────────────
 // B.4 — Expanded AI Base (Living Base)
@@ -904,6 +908,10 @@ const AI_BUILDING_SCHEDULE: Array<{ minTime: number; type: number; colOffset: nu
   { minTime: 360, type: BuildingType.InfestationPit,    colOffset: -5, rowOffset: -3 },
   { minTime: 250, type: BuildingType.LurkerDen,         colOffset: 6,  rowOffset: 3 },
   { minTime: 420, type: BuildingType.UltraliskCavern,   colOffset: -6, rowOffset: 4 },
+  // Defensive structures
+  { minTime: 60,  type: BuildingType.SpineCrawler,     colOffset: -2, rowOffset: -4 },
+  { minTime: 75,  type: BuildingType.SpineCrawler,     colOffset: 2,  rowOffset: -4 },
+  { minTime: 150, type: BuildingType.SporeCrawler,     colOffset: 0,  rowOffset: -3 },
 ];
 let aiBuildingsPlaced: Set<number> = new Set();
 
@@ -981,6 +989,10 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   queenEids = new Set();
   lastDefenseTime = 0;
   defenseAreaClearSince = 0;
+  isStaging = false;
+  stagingX = 0;
+  stagingY = 0;
+  stagingStartTime = 0;
   aiBuildingsPlaced = new Set();
   terranBuildingsPlaced = new Set();
   harassSquad1 = new Set();
@@ -1380,6 +1392,54 @@ function checkAIBuildingSchedule(
   }
 }
 
+/** Rebuild critical buildings if destroyed (prevents permanent tech death) */
+function checkCriticalBuildings(
+  world: World,
+  map: MapData,
+  resources: Record<number, PlayerResources>,
+  spawnBuildingFn: SpawnBuildingFn,
+): void {
+  if (world.nextEid >= MAX_ENTITIES - 50) return;
+  const res = resources[currentAIFaction];
+  if (!res || res.minerals < 200) return;
+
+  const hatch = findZergHatchery(world);
+  if (hatch === 0) return;
+  const hatchTile = worldToTile(posX[hatch], posY[hatch]);
+
+  const criticals: Array<{ type: number; colOffset: number; rowOffset: number }> = [
+    { type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 },
+    { type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 },
+    { type: BuildingType.HydraliskDen, colOffset: 5, rowOffset: 5 },
+  ];
+
+  for (const crit of criticals) {
+    // Check if we ever built one via schedule
+    let wasBuilt = false;
+    for (let i = 0; i < AI_BUILDING_SCHEDULE.length; i++) {
+      if (AI_BUILDING_SCHEDULE[i].type === crit.type && aiBuildingsPlaced.has(i)) {
+        wasBuilt = true;
+        break;
+      }
+    }
+    if (!wasBuilt) continue;
+
+    // Check if a living instance exists
+    let exists = false;
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
+      if (faction[eid] !== currentAIFaction) continue;
+      if (buildingType[eid] !== crit.type) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      exists = true;
+      break;
+    }
+    if (exists) continue;
+
+    aiBuildBuilding(world, crit.type, hatchTile.col + crit.colOffset, hatchTile.row + crit.rowOffset, map, resources, spawnBuildingFn);
+  }
+}
+
 // ─────────────────────────────────────────
 // B.4b — Auto-build Terran buildings on time schedule
 // ─────────────────────────────────────────
@@ -1410,6 +1470,35 @@ function checkTerranBuildingSchedule(
 // ─────────────────────────────────────────
 // B.6 — Persistent Harassment Squad Logic
 // ─────────────────────────────────────────
+/** Find actual enemy worker clusters for harassment targeting */
+function findHarassTarget(world: World, secondary: boolean): { col: number; row: number } {
+  // Scan for enemy workers
+  let bestEid = 0;
+  let bestDist = secondary ? -Infinity : Infinity;
+  const baseTile = playerBaseTile;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, POSITION | HEALTH | WORKER)) continue;
+    if (faction[eid] === currentAIFaction || faction[eid] === 0) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    const dx = posX[eid] / TILE_SIZE - baseTile.col;
+    const dy = posY[eid] / TILE_SIZE - baseTile.row;
+    const distSq = dx * dx + dy * dy;
+    // Primary: closest worker cluster to player base. Secondary: furthest (expansion workers).
+    if (secondary ? distSq > bestDist : distSq < bestDist) {
+      bestDist = distSq;
+      bestEid = eid;
+    }
+  }
+  if (bestEid > 0) {
+    return worldToTile(posX[bestEid], posY[bestEid]);
+  }
+  // Fallback: use intel or player base
+  if (intel.lastKnownEnemyX > 0) {
+    return worldToTile(intel.lastKnownEnemyX, intel.lastKnownEnemyY);
+  }
+  return secondary ? HARASS_TARGET_2 : HARASS_TARGET_1;
+}
+
 function runHarassSquads(world: World, map: MapData): void {
   // Dead units already pruned in pruneDeadUnits()
 
@@ -1417,10 +1506,11 @@ function runHarassSquads(world: World, map: MapData): void {
   fillHarassSquad(harassSquad1, HARASS_SQUAD_SIZE);
   fillHarassSquad(harassSquad2, HARASS_SQUAD_SIZE);
 
-  // Move squad 1 to player mineral line
-  moveHarassSquadToTarget(world, map, harassSquad1, HARASS_TARGET_1);
-  // Move squad 2 to opposite flank
-  moveHarassSquadToTarget(world, map, harassSquad2, HARASS_TARGET_2);
+  // Dynamic harassment targets: find actual enemy worker clusters
+  const target1 = findHarassTarget(world, false);
+  const target2 = findHarassTarget(world, true);
+  moveHarassSquadToTarget(world, map, harassSquad1, target1);
+  moveHarassSquadToTarget(world, map, harassSquad2, target2);
 }
 
 function fillHarassSquad(squad: Set<number>, maxSize: number): void {
@@ -1744,6 +1834,9 @@ export function aiSystem(
   // Macro management (idle workers, supply, worker production, tech buildings)
   runMacroManagement(world, map, resources, gameTime, spawnBuildingFn);
 
+  // Rebuild critical buildings if destroyed
+  checkCriticalBuildings(world, map, resources, spawnBuildingFn);
+
   // Attempt expansion after wave 5
   if (waveCount >= 5 && !hasExpanded) {
     attemptExpansion(resources, spawnBuildingFn);
@@ -1791,9 +1884,12 @@ export function aiSystem(
   // B.6 — Persistent harassment squads
   runHarassSquads(world, map);
 
+  // Staging check: army gathers before attack launch
+  checkStagingComplete(world, map, gameTime);
+
   // Attack or harass
   const prevWave = waveCount;
-  if (!retreating) {
+  if (!retreating && !isStaging) {
     decideAttack(world, map, gameTime, diffConfig);
     if (gameTime - lastHarassTime > HARASSMENT_INTERVALS[currentDifficulty] * personality.aggressionMult && !isAttacking && armyEids.size >= 3) {
       sendHarassment(world, map, gameTime);
@@ -2497,7 +2593,6 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
   mergeVanguardIntoArmy();
 
   // Launch wave!
-  isAttacking = true;
   retreating = false;
   waveCount++;
 
@@ -2508,15 +2603,72 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
 
   const target = findAttackTarget(world);
 
-  // Hard/Brutal: always send a dedicated harass squad to a second entry point
-  if (currentDifficulty >= Difficulty.Hard) {
-    sendDifficultyMultiProngAttack(world, map, target.x, target.y);
-  } else if (armyEids.size >= 10 && rng.next() < 0.3) {
-    // Easy/Normal: 30% chance random multi-prong from different angles (existing behavior)
-    sendMultiProngAttack(world, map, target.x, target.y);
-  } else {
+  // Small armies (< 6) skip staging for responsiveness
+  if (armyEids.size < 6) {
+    isAttacking = true;
     const angle = pickAttackAngle(target.x, target.y, map);
     sendUnitsToAttack(world, map, armyEids, target.x, target.y, angle);
+    return;
+  }
+
+  // Enter staging phase: gather army at staging point before attack
+  isStaging = true;
+  stagingStartTime = gameTime;
+  // Staging point: halfway between AI base and target
+  const hatch = findZergHatchery(world);
+  const baseX = hatch > 0 ? posX[hatch] : AI_SPAWN_BASE_COL * TILE_SIZE;
+  const baseY = hatch > 0 ? posY[hatch] : AI_SPAWN_BASE_ROW * TILE_SIZE;
+  stagingX = (baseX + target.x) / 2;
+  stagingY = (baseY + target.y) / 2;
+  // Send army to staging point with attack-move
+  for (const eid of armyEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    commandMode[eid] = CommandMode.AttackMove;
+    const startTile = worldToTile(posX[eid], posY[eid]);
+    const endTile = worldToTile(stagingX, stagingY);
+    const tilePath = findPath(currentMap!, startTile.col, startTile.row, endTile.col, endTile.row);
+    if (tilePath.length > 0) {
+      const wp: Array<[number, number]> = tilePath.map(([c, r]) => {
+        const p = tileToWorld(c, r);
+        return [p.x, p.y] as [number, number];
+      });
+      setPath(eid, wp);
+    }
+  }
+}
+
+/** Check staging completion and launch the actual attack */
+function checkStagingComplete(world: World, map: MapData, gameTime: number): void {
+  if (!isStaging) return;
+
+  // Count how many army units are near staging point
+  let nearCount = 0;
+  let totalAlive = 0;
+  const stagingRangeSq = (6 * TILE_SIZE) * (6 * TILE_SIZE);
+  for (const eid of armyEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    totalAlive++;
+    const dx = posX[eid] - stagingX;
+    const dy = posY[eid] - stagingY;
+    if (dx * dx + dy * dy <= stagingRangeSq) nearCount++;
+  }
+
+  const percentStaged = totalAlive > 0 ? nearCount / totalAlive : 0;
+  const timeout = gameTime - stagingStartTime > 5;
+
+  if (percentStaged >= 0.7 || timeout) {
+    // Launch attack from staging point
+    isStaging = false;
+    isAttacking = true;
+    const target = findAttackTarget(world);
+    if (currentDifficulty >= Difficulty.Hard) {
+      sendDifficultyMultiProngAttack(world, map, target.x, target.y);
+    } else if (armyEids.size >= 10 && rng.next() < 0.3) {
+      sendMultiProngAttack(world, map, target.x, target.y);
+    } else {
+      const angle = pickAttackAngle(target.x, target.y, map);
+      sendUnitsToAttack(world, map, armyEids, target.x, target.y, angle);
+    }
   }
 }
 

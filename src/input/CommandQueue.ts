@@ -45,6 +45,7 @@ export const enum CommandType {
   LoadTransport = 43,
   UnloadTransport = 44,
   MedivacBoost = 45,
+  TacticalJump = 46,
 }
 
 export interface GameCommand {

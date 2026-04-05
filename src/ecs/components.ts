@@ -136,6 +136,15 @@ export const detectionRange = new Float32Array(MAX_ENTITIES);
 /** 1 = revealed by detection this tick (reset each frame) */
 export const revealed = new Uint8Array(MAX_ENTITIES);
 
+// ── Tactical Jump (Battlecruiser) ──
+/** Game time when jump channel completes (0 = not channeling) */
+export const jumpChannelEnd = new Float32Array(MAX_ENTITIES);
+/** Cooldown expiry time (0 = available) */
+export const jumpCooldownEnd = new Float32Array(MAX_ENTITIES);
+/** Target coordinates for the jump */
+export const jumpTargetX = new Float32Array(MAX_ENTITIES);
+export const jumpTargetY = new Float32Array(MAX_ENTITIES);
+
 // ── Transport / Cargo ──
 /** Max number of units this entity can carry (Medivac=8) */
 export const cargoCapacity = new Uint8Array(MAX_ENTITIES);
@@ -403,6 +412,10 @@ export function resetComponents(eid: number): void {
   isDetector[eid] = 0;
   detectionRange[eid] = 0;
   revealed[eid] = 0;
+  jumpChannelEnd[eid] = 0;
+  jumpCooldownEnd[eid] = 0;
+  jumpTargetX[eid] = 0;
+  jumpTargetY[eid] = 0;
   cargoCapacity[eid] = 0;
   cargoCount[eid] = 0;
   loadedInto[eid] = 0;

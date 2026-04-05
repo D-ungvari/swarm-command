@@ -223,6 +223,10 @@ export const MEDIVAC_BOOST_DURATION = 5.71;
 export const MEDIVAC_BOOST_COOLDOWN = 14;
 export const MEDIVAC_BOOST_SPEED_MULT = 1.5;
 
+// BC Tactical Jump
+export const TACTICAL_JUMP_CHANNEL = 1.0;
+export const TACTICAL_JUMP_COOLDOWN = 71;
+
 // Ghost Snipe
 export const SNIPE_DAMAGE = 170;
 export const SNIPE_ENERGY_COST = 75;

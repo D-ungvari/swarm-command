@@ -53,7 +53,10 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
     { name: 'Unload', key: 'D', commandType: CommandType.UnloadTransport },
     { name: 'Boost', key: 'B', commandType: CommandType.MedivacBoost },
   ],
-  [UnitType.Battlecruiser]: [{ name: 'Yamato', key: 'Y', commandType: CommandType.Yamato }],
+  [UnitType.Battlecruiser]: [
+    { name: 'Yamato', key: 'Y', commandType: CommandType.Yamato },
+    { name: 'Tactical Jump', key: 'J', commandType: CommandType.TacticalJump },
+  ],
   [UnitType.Queen]: [
     { name: 'Inject Larva', key: 'V', commandType: CommandType.InjectLarva },
     { name: 'Transfuse', key: 'X', commandType: CommandType.Transfuse },

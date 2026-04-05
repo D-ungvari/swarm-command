@@ -18,6 +18,7 @@ import {
   parasiticBombEndTime, parasiticBombCasterFaction,
   neuralTarget, neuralEndTime, neuralStunEndTime,
   boostEndTime, boostCooldownEnd,
+  jumpChannelEnd, jumpTargetX, jumpTargetY,
 } from '../ecs/components';
 import { entityExists } from '../ecs/world';
 import { UNIT_DEFS } from '../data/units';
@@ -68,6 +69,7 @@ export function abilitySystem(world: World, dt: number, gameTime: number): void 
   processParasiticBomb(world, dt, gameTime);
   processNeuralParasite(world, gameTime);
   processBoostExpiry(world, gameTime);
+  processTacticalJump(world, gameTime);
 }
 
 /** Medivac Boost: clear boost when it expires */
@@ -77,6 +79,20 @@ function processBoostExpiry(world: World, gameTime: number): void {
     if (gameTime >= boostEndTime[eid]) {
       boostEndTime[eid] = 0;
     }
+  }
+}
+
+/** BC Tactical Jump: teleport when channel completes */
+function processTacticalJump(world: World, gameTime: number): void {
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (jumpChannelEnd[eid] <= 0) continue;
+    if (gameTime < jumpChannelEnd[eid]) continue;
+    // Channel complete — teleport
+    posX[eid] = jumpTargetX[eid];
+    posY[eid] = jumpTargetY[eid];
+    jumpChannelEnd[eid] = 0;
+    jumpTargetX[eid] = 0;
+    jumpTargetY[eid] = 0;
   }
 }
 

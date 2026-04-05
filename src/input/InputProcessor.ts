@@ -21,6 +21,7 @@ export class InputProcessor {
   private empPending = false;
   private kd8ChargePending = false;
   private neuralParasitePending = false;
+  private tacticalJumpPending = false;
   private lastRecalledGroup = -1;
   private lastRecalledTime = 0;
 
@@ -62,6 +63,7 @@ export class InputProcessor {
   get isEmpPending(): boolean { return this.empPending; }
   get isKD8ChargePending(): boolean { return this.kd8ChargePending; }
   get isNeuralParasitePending(): boolean { return this.neuralParasitePending; }
+  get isTacticalJumpPending(): boolean { return this.tacticalJumpPending; }
 
   /** True if any ability targeting mode is active */
   get isAnyAbilityPending(): boolean {
@@ -69,7 +71,7 @@ export class InputProcessor {
       this.snipePending || this.yamatoPending || this.abductPending || this.transfusePending ||
       this.lockOnPending || this.causticSprayPending ||
       this.blindingCloudPending || this.parasiticBombPending || this.empPending ||
-      this.kd8ChargePending || this.neuralParasitePending;
+      this.kd8ChargePending || this.neuralParasitePending || this.tacticalJumpPending;
   }
 
   /** Allow external UI (TouchCommandBar) to set attack-move mode */
@@ -103,6 +105,7 @@ export class InputProcessor {
   setEmpPending(v: boolean): void { this.cancelAllPending(); this.empPending = v; }
   setKD8ChargePending(v: boolean): void { this.cancelAllPending(); this.kd8ChargePending = v; }
   setNeuralParasitePending(v: boolean): void { this.cancelAllPending(); this.neuralParasitePending = v; }
+  setTacticalJumpPending(v: boolean): void { this.cancelAllPending(); this.tacticalJumpPending = v; }
 
   /** Cancel all pending ability modes */
   cancelAllPending(): void {
@@ -121,6 +124,7 @@ export class InputProcessor {
     this.empPending = false;
     this.kd8ChargePending = false;
     this.neuralParasitePending = false;
+    this.tacticalJumpPending = false;
   }
 
   pushSimulation(cmd: GameCommand): void {
@@ -486,6 +490,15 @@ export class InputProcessor {
             units: this.snapshotSelection(),
           });
           this.neuralParasitePending = false;
+        } else if (this.tacticalJumpPending) {
+          // BC Tactical Jump: click on ground to teleport
+          const worldPos = this.viewport.toWorld(evt.x, evt.y);
+          this.simulationQueue.push({
+            type: CommandType.TacticalJump,
+            wx: worldPos.x, wy: worldPos.y,
+            units: this.snapshotSelection(),
+          });
+          this.tacticalJumpPending = false;
         } else {
           // Single click — select
           const type: CommandType = evt.isDouble

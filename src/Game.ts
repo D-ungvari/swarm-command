@@ -460,6 +460,7 @@ export class Game {
         case CommandType.Transfuse: this.inputProcessor.setTransfusePending(true); return;
         case CommandType.CorrosiveBile: this.inputProcessor.cancelAllPending(); this.inputProcessor.setCorrosiveBilePending(true); return;
         case CommandType.FungalGrowth: this.inputProcessor.cancelAllPending(); this.inputProcessor.setFungalPending(true); return;
+        case CommandType.TacticalJump: this.inputProcessor.setTacticalJumpPending(true); return;
         default: break;
       }
       // Morph: determine target unit type from the first unit's type

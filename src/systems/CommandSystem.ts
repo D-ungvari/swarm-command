@@ -28,6 +28,7 @@ import {
   neuralTarget, neuralEndTime, neuralStunEndTime,
   morphTarget, morphProgress, morphTimeTotal,
   cargoCapacity, cargoCount, loadedInto,
+  jumpChannelEnd, jumpCooldownEnd, jumpTargetX, jumpTargetY,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -37,7 +38,7 @@ import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile, markBuildingTiles, clearBuildingTiles } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import {
-  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE, isHatchType, UpgradeType, getMorphDef,
+  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE, isHatchType, UpgradeType, getMorphDef, TACTICAL_JUMP_CHANNEL, TACTICAL_JUMP_COOLDOWN,
   STIM_DURATION, STIM_HP_COST, STIM_HP_COST_MARAUDER, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
   INJECT_LARVA_COST, INJECT_LARVA_TIME, LARVA_MAX, LARVA_REGEN_TIME,
@@ -856,6 +857,29 @@ export function commandSystem(
           activateMedivacBoost(cmd.units, gameTime);
         }
         break;
+
+      case CommandType.TacticalJump: {
+        if (!cmd.units || cmd.wx === undefined || cmd.wy === undefined) break;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Battlecruiser) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (jumpChannelEnd[eid] > 0) continue; // already channeling
+          if (jumpCooldownEnd[eid] > gameTime) continue; // on cooldown
+          // Start channel
+          jumpChannelEnd[eid] = gameTime + TACTICAL_JUMP_CHANNEL;
+          jumpCooldownEnd[eid] = gameTime + TACTICAL_JUMP_COOLDOWN;
+          jumpTargetX[eid] = cmd.wx;
+          jumpTargetY[eid] = cmd.wy;
+          // Immobilize during channel
+          commandMode[eid] = CommandMode.Idle;
+          movePathIndex[eid] = -1;
+          velX[eid] = 0;
+          velY[eid] = 0;
+          addCommandPing(cmd.wx, cmd.wy, 0xff4444, gameTime);
+          break; // one BC per command
+        }
+        break;
+      }
 
       case CommandType.AttackMove: {
         const units = cmd.units ?? [];

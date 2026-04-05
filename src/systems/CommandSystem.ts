@@ -121,7 +121,7 @@ export function commandSystem(
       case CommandType.Cloak:
         if (cmd.units) {
           for (const eid of cmd.units) {
-            if (unitType[eid] !== UnitType.Ghost) continue;
+            if (unitType[eid] !== UnitType.Ghost && unitType[eid] !== UnitType.Banshee) continue;
             cloaked[eid] = cloaked[eid] === 1 ? 0 : 1; // toggle
           }
           soundManager.playCloakToggle();

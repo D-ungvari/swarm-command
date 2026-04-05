@@ -37,7 +37,7 @@ import {
   prodQueue, prodQueueLen, prodQueueProgress, prodQueueTimeTotal, PROD_QUEUE_MAX,
   supplyProvided, supplyCost,
   selected, setPath,
-  energy, cloaked, veterancyLevel, cargoCapacity,
+  energy, cloaked, veterancyLevel, cargoCapacity, isDetector, detectionRange,
   isAir, canTargetGround, canTargetAir,
   larvaCount, larvaRegenTimer,
   addonType, workerCountOnResource, RESOURCE,
@@ -1988,7 +1988,10 @@ export class Game {
     veterancyLevel[eid] = 0;
 
     // Energy setup for caster units (SC2: casters spawn with 50 energy, Queen with 25)
-    if (type === UnitType.Ghost) {
+    if (type === UnitType.Ghost || type === UnitType.Banshee) {
+      energy[eid] = 50;
+    }
+    if (type === UnitType.Raven) {
       energy[eid] = 50;
     }
     if (type === UnitType.Infestor) {
@@ -2002,6 +2005,11 @@ export class Game {
     }
     if (type === UnitType.Medivac) {
       cargoCapacity[eid] = 8;
+    }
+    // Mobile detectors
+    if (type === UnitType.Raven || type === UnitType.Overseer) {
+      isDetector[eid] = 1;
+      detectionRange[eid] = 11 * TILE_SIZE;
     }
 
     // Overlord provides 8 supply when spawned

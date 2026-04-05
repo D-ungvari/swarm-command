@@ -73,6 +73,14 @@ export const enum UnitType {
   Ultralisk = 27,
   Corruptor = 28,
   Viper     = 29,
+  // Additional Terran
+  Banshee    = 30,
+  Liberator  = 31,
+  Raven      = 32,
+  // Additional Zerg
+  Overseer   = 33,
+  BroodLord  = 34,
+  SwarmHost  = 35,
 }
 
 // ── Command modes ──
@@ -132,6 +140,7 @@ export const TECHLAB_UNITS: ReadonlySet<number> = new Set([
   UnitType.Marauder, UnitType.Ghost,       // Barracks
   UnitType.SiegeTank, UnitType.Thor, UnitType.Cyclone, // Factory
   UnitType.Battlecruiser,                  // Starport
+  UnitType.Banshee, UnitType.Liberator, UnitType.Raven,  // Starport + TechLab
 ]);
 
 // ── Addon types ──
@@ -207,9 +216,11 @@ export interface MorphDef {
 }
 
 export const MORPH_DEFS: MorphDef[] = [
-  { from: UnitType.Zergling,   to: UnitType.Baneling,  minerals: 25,  gas: 25,  time: 14, requires: BuildingType.BanelingNest },
-  { from: UnitType.Roach,      to: UnitType.Ravager,   minerals: 25,  gas: 75,  time: 9,  requires: BuildingType.RoachWarren },
-  { from: UnitType.Hydralisk,  to: UnitType.Lurker,    minerals: 50,  gas: 100, time: 18, requires: BuildingType.LurkerDen },
+  { from: UnitType.Zergling,   to: UnitType.Baneling,   minerals: 25,  gas: 25,  time: 14, requires: BuildingType.BanelingNest },
+  { from: UnitType.Roach,      to: UnitType.Ravager,    minerals: 25,  gas: 75,  time: 9,  requires: BuildingType.RoachWarren },
+  { from: UnitType.Hydralisk,  to: UnitType.Lurker,     minerals: 50,  gas: 100, time: 18, requires: BuildingType.LurkerDen },
+  { from: UnitType.Overlord,   to: UnitType.Overseer,   minerals: 50,  gas: 50,  time: 12, requires: BuildingType.Lair },
+  { from: UnitType.Corruptor,  to: UnitType.BroodLord,  minerals: 150, gas: 150, time: 24, requires: BuildingType.Spire },
 ];
 
 /** Get morph def for a source unit type, or undefined if no morph available */

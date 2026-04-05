@@ -45,6 +45,7 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
     { name: 'EMP Round', key: 'E', commandType: CommandType.EMP },
   ],
   [UnitType.Reaper]: [{ name: 'KD8 Charge', key: 'D', commandType: CommandType.KD8Charge }],
+  [UnitType.Banshee]: [{ name: 'Cloak', key: 'C', commandType: CommandType.Cloak }],
   [UnitType.Viking]: [{ name: 'Transform', key: 'E', commandType: CommandType.SiegeToggle }],
   [UnitType.Hellion]: [{ name: 'Hellbat Mode', key: 'E', commandType: CommandType.SiegeToggle }],
   [UnitType.Cyclone]: [{ name: 'Lock-On', key: 'Q', commandType: CommandType.LockOn }],
@@ -73,7 +74,11 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
     { name: 'Fungal', key: 'F', commandType: CommandType.FungalGrowth },
     { name: 'Neural', key: 'N', commandType: CommandType.NeuralParasite },
   ],
-  [UnitType.Corruptor]: [{ name: 'Caustic Spray', key: 'C', commandType: CommandType.CausticSpray }],
+  [UnitType.Overlord]: [{ name: 'Morph Overseer', key: 'V', commandType: CommandType.Morph }],
+  [UnitType.Corruptor]: [
+    { name: 'Caustic Spray', key: 'C', commandType: CommandType.CausticSpray },
+    { name: 'Morph Brood Lord', key: 'V', commandType: CommandType.Morph },
+  ],
   [UnitType.Viper]: [
     { name: 'Abduct', key: 'G', commandType: CommandType.Abduct },
     { name: 'Blinding Cloud', key: 'B', commandType: CommandType.BlindingCloud },
@@ -135,6 +140,10 @@ const UNIT_TECH_REQUIREMENTS: Partial<Record<number, number>> = {
   [UnitType.Infestor]:  BuildingType.InfestationPit,
   [UnitType.Viper]:     BuildingType.InfestationPit,
   [UnitType.Ultralisk]: BuildingType.UltraliskCavern,
+  [UnitType.Banshee]:   BuildingType.Starport,
+  [UnitType.Liberator]: BuildingType.Starport,
+  [UnitType.Raven]:     BuildingType.Starport,
+  [UnitType.SwarmHost]: BuildingType.InfestationPit,
 };
 
 const UPGRADE_NAMES: Record<number, string> = {

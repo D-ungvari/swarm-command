@@ -112,7 +112,7 @@ function processGhostCloak(world: World, dt: number): void {
   const bits = ABILITY | UNIT_TYPE;
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
-    if (unitType[eid] !== UnitType.Ghost) continue;
+    if (unitType[eid] !== UnitType.Ghost && unitType[eid] !== UnitType.Banshee) continue;
     if (hpCurrent[eid] <= 0) continue;
 
     // Regenerate energy when not cloaked (0.7875/s)

@@ -17,6 +17,7 @@ import {
   isAir,
   parasiticBombEndTime, parasiticBombCasterFaction,
   neuralTarget, neuralEndTime, neuralStunEndTime,
+  boostEndTime, boostCooldownEnd,
 } from '../ecs/components';
 import { entityExists } from '../ecs/world';
 import { UNIT_DEFS } from '../data/units';
@@ -24,7 +25,7 @@ import {
   UnitType, Faction, SiegeMode, CommandMode, TILE_SIZE,
   STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_DAMAGE, SIEGE_RANGE, SIEGE_SPLASH, SIEGE_BONUS_DAMAGE, SIEGE_COOLDOWN, SIEGE_MIN_RANGE, ArmorClass,
-  MEDIVAC_HEAL_RATE, MEDIVAC_HEAL_RANGE,
+  MEDIVAC_HEAL_RATE, MEDIVAC_HEAL_RANGE, MEDIVAC_BOOST_DURATION, MEDIVAC_BOOST_COOLDOWN,
   ROACH_REGEN_COMBAT, ROACH_REGEN_IDLE, ROACH_COMBAT_TIMEOUT,
   REAPER_REGEN_RATE, REAPER_REGEN_TIMEOUT,
   QUEEN_ENERGY_MAX, QUEEN_ENERGY_REGEN,
@@ -66,6 +67,29 @@ export function abilitySystem(world: World, dt: number, gameTime: number): void 
   processLockOn(world, dt, gameTime);
   processParasiticBomb(world, dt, gameTime);
   processNeuralParasite(world, gameTime);
+  processBoostExpiry(world, gameTime);
+}
+
+/** Medivac Boost: clear boost when it expires */
+function processBoostExpiry(world: World, gameTime: number): void {
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (boostEndTime[eid] <= 0) continue;
+    if (gameTime >= boostEndTime[eid]) {
+      boostEndTime[eid] = 0;
+    }
+  }
+}
+
+/** Activate Medivac Boost for given units */
+export function activateMedivacBoost(units: number[], gameTime: number): void {
+  for (const eid of units) {
+    if (unitType[eid] !== UnitType.Medivac) continue;
+    if (hpCurrent[eid] <= 0) continue;
+    if (boostEndTime[eid] > 0) continue; // already boosting
+    if (boostCooldownEnd[eid] > gameTime) continue; // on cooldown
+    boostEndTime[eid] = gameTime + MEDIVAC_BOOST_DURATION;
+    boostCooldownEnd[eid] = gameTime + MEDIVAC_BOOST_COOLDOWN;
+  }
 }
 
 function processGhostCloak(world: World, dt: number): void {

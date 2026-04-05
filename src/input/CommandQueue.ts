@@ -42,6 +42,9 @@ export const enum CommandType {
   KD8Charge = 40,
   NeuralParasite = 41,
   Morph = 42,
+  LoadTransport = 43,
+  UnloadTransport = 44,
+  MedivacBoost = 45,
 }
 
 export interface GameCommand {

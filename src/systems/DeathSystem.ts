@@ -6,6 +6,7 @@ import {
   buildingType, buildState, builderEid, supplyProvided, supplyCost,
   commandMode, workerState, workerTargetEid,
   deathTime, renderWidth, renderHeight,
+  cargoCapacity, cargoCount, loadedInto,
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
 import { clearBuildingTiles, worldToTile } from '../map/MapData';
@@ -70,6 +71,17 @@ export function deathSystem(
     // --- Pass 1: Start death animation for newly-dead entities ---
     if (deathTime[eid] === 0) {
       deathTime[eid] = gameTime;
+
+      // Transport death: kill all loaded cargo
+      if (cargoCount[eid] > 0) {
+        for (let cargo = 1; cargo < world.nextEid; cargo++) {
+          if (loadedInto[cargo] === eid) {
+            hpCurrent[cargo] = 0;
+            loadedInto[cargo] = 0;
+          }
+        }
+        cargoCount[eid] = 0;
+      }
 
       // Record death event for visual effects
       if (deathEvents.length < MAX_DEATH_EVENTS) {

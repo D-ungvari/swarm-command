@@ -27,6 +27,7 @@ import {
   parasiticBombEndTime, parasiticBombCasterFaction,
   neuralTarget, neuralEndTime, neuralStunEndTime,
   morphTarget, morphProgress, morphTimeTotal,
+  cargoCapacity, cargoCount, loadedInto,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -57,6 +58,7 @@ import { addCommandPing } from '../rendering/UnitRenderer';
 import { emitProjectile } from '../rendering/ProjectileRenderer';
 import { simplifyPath } from '../utils/pathUtils';
 import { damageEvents } from './CombatSystem';
+import { activateMedivacBoost } from './AbilitySystem';
 import { soundManager } from '../audio/SoundManager';
 import { triggerCameraShake } from '../rendering/CameraShake';
 
@@ -801,6 +803,59 @@ export function commandSystem(
         }
         break;
       }
+
+      case CommandType.LoadTransport: {
+        // Load: data = target unit to load
+        if (!cmd.units) break;
+        const loadTarget = cmd.data ?? cmd.targetEid ?? 0;
+        if (loadTarget <= 0) break;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Medivac) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (cargoCount[eid] >= cargoCapacity[eid]) break;
+          if (loadedInto[loadTarget] > 0) break; // already loaded
+          if (faction[loadTarget] !== faction[eid]) break; // must be friendly
+          if (hpCurrent[loadTarget] <= 0) break;
+          if (hasComponents(world, loadTarget, BUILDING)) break; // can't load buildings
+          // Load the unit
+          loadedInto[loadTarget] = eid;
+          cargoCount[eid]++;
+          // Hide loaded unit: stop movement, make idle
+          commandMode[loadTarget] = CommandMode.Idle;
+          movePathIndex[loadTarget] = -1;
+          velX[loadTarget] = 0;
+          velY[loadTarget] = 0;
+          break;
+        }
+        break;
+      }
+
+      case CommandType.UnloadTransport: {
+        if (!cmd.units) break;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== UnitType.Medivac) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (cargoCount[eid] <= 0) continue;
+          // Unload all cargo at Medivac position
+          const ux = posX[eid];
+          const uy = posY[eid];
+          for (let cargo = 1; cargo < world.nextEid; cargo++) {
+            if (loadedInto[cargo] !== eid) continue;
+            loadedInto[cargo] = 0;
+            posX[cargo] = ux + (Math.random() - 0.5) * 20;
+            posY[cargo] = uy + (Math.random() - 0.5) * 20;
+            commandMode[cargo] = CommandMode.Idle;
+          }
+          cargoCount[eid] = 0;
+        }
+        break;
+      }
+
+      case CommandType.MedivacBoost:
+        if (cmd.units) {
+          activateMedivacBoost(cmd.units, gameTime);
+        }
+        break;
 
       case CommandType.AttackMove: {
         const units = cmd.units ?? [];

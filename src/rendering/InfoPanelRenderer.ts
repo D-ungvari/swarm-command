@@ -13,6 +13,7 @@ import {
   larvaCount, addonType,
   upgradingTo, upgradeProgress, upgradeTimeTotal,
   workerTargetEid,
+  cargoCount, cargoCapacity, loadedInto,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -48,6 +49,10 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
   [UnitType.Hellion]: [{ name: 'Hellbat Mode', key: 'E', commandType: CommandType.SiegeToggle }],
   [UnitType.Cyclone]: [{ name: 'Lock-On', key: 'Q', commandType: CommandType.LockOn }],
   [UnitType.Thor]: [{ name: 'AA Mode', key: 'E', commandType: CommandType.SiegeToggle }],
+  [UnitType.Medivac]: [
+    { name: 'Unload', key: 'D', commandType: CommandType.UnloadTransport },
+    { name: 'Boost', key: 'B', commandType: CommandType.MedivacBoost },
+  ],
   [UnitType.Battlecruiser]: [{ name: 'Yamato', key: 'Y', commandType: CommandType.Yamato }],
   [UnitType.Queen]: [
     { name: 'Inject Larva', key: 'V', commandType: CommandType.InjectLarva },
@@ -584,6 +589,19 @@ export class InfoPanelRenderer {
         }
       } else {
         this.abilityButtonsRow.style.display = 'none';
+      }
+
+      // Medivac cargo display
+      if (selCount === 1) {
+        const medEid = sel;
+        if (unitType[medEid] === UnitType.Medivac) {
+          const count = cargoCount[medEid];
+          const cap = cargoCapacity[medEid];
+          if (cap > 0) {
+            const cargoText = count > 0 ? `Cargo: ${count}/${cap}` : `Cargo: empty (${cap} capacity)`;
+            this.detailEl.textContent += `  ${cargoText}`;
+          }
+        }
       }
 
       // Border stays blue (player's faction)

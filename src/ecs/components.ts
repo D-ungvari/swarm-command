@@ -136,6 +136,18 @@ export const detectionRange = new Float32Array(MAX_ENTITIES);
 /** 1 = revealed by detection this tick (reset each frame) */
 export const revealed = new Uint8Array(MAX_ENTITIES);
 
+// ── Transport / Cargo ──
+/** Max number of units this entity can carry (Medivac=8) */
+export const cargoCapacity = new Uint8Array(MAX_ENTITIES);
+/** Current number of loaded units */
+export const cargoCount = new Uint8Array(MAX_ENTITIES);
+/** Entity ID of the transport this unit is loaded into (0 = not loaded) */
+export const loadedInto = new Int16Array(MAX_ENTITIES);
+/** Medivac Boost: game time when boost expires (0 = no boost) */
+export const boostEndTime = new Float32Array(MAX_ENTITIES);
+/** Medivac Boost: game time when cooldown expires (0 = available) */
+export const boostCooldownEnd = new Float32Array(MAX_ENTITIES);
+
 // ── Morph ──
 /** Target unit type to morph into (0 = not morphing) */
 export const morphTarget = new Uint8Array(MAX_ENTITIES);
@@ -391,6 +403,11 @@ export function resetComponents(eid: number): void {
   isDetector[eid] = 0;
   detectionRange[eid] = 0;
   revealed[eid] = 0;
+  cargoCapacity[eid] = 0;
+  cargoCount[eid] = 0;
+  loadedInto[eid] = 0;
+  boostEndTime[eid] = 0;
+  boostCooldownEnd[eid] = 0;
   morphTarget[eid] = 0;
   morphProgress[eid] = 0;
   morphTimeTotal[eid] = 0;

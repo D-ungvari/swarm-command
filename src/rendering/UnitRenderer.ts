@@ -28,6 +28,7 @@ import {
   burrowed, revealed,
   thorMode,
   morphTarget, morphProgress, morphTimeTotal,
+  loadedInto, cargoCount, boostEndTime,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -123,6 +124,7 @@ export class UnitRenderer {
 
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (!hasComponents(world, eid, bits)) continue;
+      if (loadedInto[eid] > 0) continue; // Skip units inside transports
 
       const x = posX[eid];
       let y = posY[eid];

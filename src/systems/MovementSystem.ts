@@ -8,9 +8,11 @@ import {
   patrolOriginX, patrolOriginY, commandMode, setPath, targetEntity,
   isAir, lastMovedTime, nextAutoAcquireTime,
   neuralStunEndTime,
+  loadedInto,
+  boostEndTime,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
-import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, Faction } from '../constants';
+import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, Faction, MEDIVAC_BOOST_SPEED_MULT } from '../constants';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
@@ -34,8 +36,9 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
 
-    // Skip dead units
+    // Skip dead or loaded units
     if (hpCurrent[eid] <= 0) continue;
+    if (loadedInto[eid] > 0) continue;
 
     // Siege immobilization: sieged or transitioning tanks can't move
     const sm = siegeMode[eid] as SiegeMode;
@@ -201,6 +204,11 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
           effectiveSpeed *= 1.3;
         }
       }
+    }
+
+    // Medivac Boost: 50% speed increase while active
+    if (boostEndTime[eid] > 0 && gameTime < boostEndTime[eid]) {
+      effectiveSpeed *= MEDIVAC_BOOST_SPEED_MULT;
     }
 
     const dist = Math.sqrt(distSq);

@@ -1,7 +1,7 @@
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import {
   POSITION, HEALTH, ATTACK, MOVEMENT,
-  posX, posY, faction, hpCurrent,
+  posX, posY, faction, hpCurrent, loadedInto,
   atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash, atkMinRange, atkHitCount, atkFlashTimer,
   targetEntity, commandMode,
   movePathIndex, setPath,
@@ -154,6 +154,9 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     if (atkFlashTimer[eid] > 0) {
       atkFlashTimer[eid] = Math.max(0, atkFlashTimer[eid] - dt);
     }
+
+    // Skip loaded units (inside a transport)
+    if (loadedInto[eid] > 0) continue;
 
     // Neural Parasite stun: stunned units can't attack
     if (neuralStunEndTime[eid] > 0 && neuralStunEndTime[eid] > gameTime) continue;

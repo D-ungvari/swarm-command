@@ -5,7 +5,7 @@ import {
   resourceRemaining, resourceType, workerCountOnResource,
   buildingType, buildState,
   atkDamage, atkMinRange, targetEntity, pendingDamage,
-  cloaked, burrowed, revealed,
+  cloaked, burrowed, revealed, loadedInto,
   isAir, canTargetGround, canTargetAir,
 } from './components';
 import { type Faction, ResourceType, BuildingType, BuildState } from '../constants';
@@ -372,7 +372,8 @@ export function findBestTarget(world: World, eid: number, range: number): number
     if (faction[other] === myFac || faction[other] === 0) continue;
     if (hpCurrent[other] <= 0) continue;
 
-    // Skip cloaked/burrowed enemies unless revealed by a detector
+    // Skip loaded, cloaked/burrowed enemies unless revealed by a detector
+    if (loadedInto[other] > 0) continue;
     if ((cloaked[other] === 1 || burrowed[other] === 1) && revealed[other] === 0) continue;
 
     // Respect air/ground targeting restrictions

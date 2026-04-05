@@ -218,6 +218,11 @@ export function getMorphDef(fromType: UnitType): MorphDef | undefined {
 }
 
 // ── Ability constants ──
+// Medivac Boost (Afterburners)
+export const MEDIVAC_BOOST_DURATION = 5.71;
+export const MEDIVAC_BOOST_COOLDOWN = 14;
+export const MEDIVAC_BOOST_SPEED_MULT = 1.5;
+
 // Ghost Snipe
 export const SNIPE_DAMAGE = 170;
 export const SNIPE_ENERGY_COST = 75;

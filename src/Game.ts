@@ -37,7 +37,7 @@ import {
   prodQueue, prodQueueLen, prodQueueProgress, prodQueueTimeTotal, PROD_QUEUE_MAX,
   supplyProvided, supplyCost,
   selected, setPath,
-  energy, cloaked, veterancyLevel,
+  energy, cloaked, veterancyLevel, cargoCapacity,
   isAir, canTargetGround, canTargetAir,
   larvaCount, larvaRegenTimer,
   addonType, workerCountOnResource, RESOURCE,
@@ -1998,6 +1998,9 @@ export class Game {
     }
     if (type === UnitType.Queen) {
       energy[eid] = 25;
+    }
+    if (type === UnitType.Medivac) {
+      cargoCapacity[eid] = 8;
     }
 
     // Overlord provides 8 supply when spawned

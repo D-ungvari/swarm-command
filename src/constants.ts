@@ -180,7 +180,8 @@ export enum UpgradeType {
   ZergMelee       = 3,
   ZergRanged      = 4,
   ZergCarapace    = 5,
-  COUNT           = 6,
+  VehicleArmor    = 6,
+  COUNT           = 7,
 }
 
 // ── Ability constants ──

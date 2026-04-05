@@ -72,7 +72,11 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
 const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
   { type: UpgradeType.InfantryWeapons, label: 'Inf Weapons' },
   { type: UpgradeType.InfantryArmor,   label: 'Inf Armor'   },
-  { type: UpgradeType.VehicleWeapons,  label: 'Veh Weapons' },
+];
+
+const ARMORY_UPGRADES: { type: UpgradeType; label: string }[] = [
+  { type: UpgradeType.VehicleWeapons, label: 'Veh Weapons' },
+  { type: UpgradeType.VehicleArmor,   label: 'Veh Armor'   },
 ];
 
 /** Units that require a tech building before they can be trained. */
@@ -101,6 +105,7 @@ const UPGRADE_NAMES: Record<number, string> = {
   [UpgradeType.ZergMelee]:       'Zerg Melee',
   [UpgradeType.ZergRanged]:      'Zerg Ranged',
   [UpgradeType.ZergCarapace]:    'Zerg Carapace',
+  [UpgradeType.VehicleArmor]:    'Veh Armor',
 };
 
 /**
@@ -598,8 +603,8 @@ export class InfoPanelRenderer {
       this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
 
-      // Engineering Bay: research buttons + research progress
-      if (bt === BuildingType.EngineeringBay) {
+      // Research buildings: Engineering Bay, Evolution Chamber, Armory
+      if (bt === BuildingType.EngineeringBay || bt === BuildingType.Armory) {
         this.detailEl.textContent = bs === BuildState.UnderConstruction
           ? `${facName} | Under Construction`
           : facName;
@@ -1184,12 +1189,15 @@ export class InfoPanelRenderer {
       [UpgradeType.InfantryWeapons]: { symbol: '\u2694', color: '#ff6644' },
       [UpgradeType.InfantryArmor]:   { symbol: '\u26E8', color: '#4488ff' },
       [UpgradeType.VehicleWeapons]:  { symbol: '\u2699', color: '#ff8822' },
+      [UpgradeType.VehicleArmor]:    { symbol: '\u26E8', color: '#88aacc' },
       [UpgradeType.ZergMelee]:       { symbol: '\u2694', color: '#cc3333' },
       [UpgradeType.ZergRanged]:      { symbol: '\u2739', color: '#88ff22' },
       [UpgradeType.ZergCarapace]:    { symbol: '\u26E8', color: '#cc3333' },
     };
 
-    for (const { type, label } of ENGBAY_UPGRADES) {
+    const bt = buildingType[buildingEid] as BuildingType;
+    const upgradeList = bt === BuildingType.Armory ? ARMORY_UPGRADES : ENGBAY_UPGRADES;
+    for (const { type, label } of upgradeList) {
       const currentLevel = playerResources ? playerResources.upgrades[type] : 0;
       const cost = getUpgradeCost(type, currentLevel);
       const maxed = cost === null;

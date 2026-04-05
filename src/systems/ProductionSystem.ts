@@ -187,7 +187,7 @@ export function productionSystem(
     if (!hasComponents(world, eid, bits)) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
     const bt = buildingType[eid] as BuildingType;
-    if (bt === BuildingType.EngineeringBay || bt === BuildingType.EvolutionChamber) continue;
+    if (bt === BuildingType.EngineeringBay || bt === BuildingType.EvolutionChamber || bt === BuildingType.Armory) continue;
 
     const hasReactor = addonType[eid] === AddonType.Reactor;
 

@@ -119,11 +119,17 @@ function getWeaponBonus(resources: Record<number, PlayerResources>, attackerFact
   return upgrades[UpgradeType.ZergRanged]; // Hydralisk, Roach, Drone
 }
 
-/** Returns the armor upgrade bonus for a defender based on faction. */
-function getArmorBonus(resources: Record<number, PlayerResources>, defenderFaction: number): number {
+/** Returns the armor upgrade bonus for a defender based on faction and unit type. */
+function getArmorBonus(resources: Record<number, PlayerResources>, defenderFaction: number, uType?: UnitType): number {
   const upgrades = resources[defenderFaction]?.upgrades;
   if (!upgrades) return 0;
-  if (defenderFaction === Faction.Terran) return upgrades[UpgradeType.InfantryArmor];
+  if (defenderFaction === Faction.Terran) {
+    if (uType === UnitType.SiegeTank || uType === UnitType.Hellion ||
+        uType === UnitType.WidowMine || uType === UnitType.Cyclone ||
+        uType === UnitType.Thor || uType === UnitType.Battlecruiser ||
+        uType === UnitType.Viking) return upgrades[UpgradeType.VehicleArmor];
+    return upgrades[UpgradeType.InfantryArmor];
+  }
   return upgrades[UpgradeType.ZergCarapace]; // all Zerg units
 }
 
@@ -348,7 +354,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     }
     const bonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[tgt]);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
-    const armorBonus = getArmorBonus(resources, faction[tgt]);
+    const armorBonus = getArmorBonus(resources, faction[tgt], unitType[tgt] as UnitType);
     const vetBonus = veterancyLevel[eid]; // 0-3 extra damage
     const vetArmor = veterancyLevel[tgt]; // 0-3 extra armor
     const totalArmor = baseArmor[tgt] + armorBonus + vetArmor;
@@ -524,7 +530,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         const distSq = sdx * sdx + sdy * sdy;
         if (distSq <= splashRangeSq) {
           const sBonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[other]);
-          const sArmorBonus = getArmorBonus(resources, faction[other]);
+          const sArmorBonus = getArmorBonus(resources, faction[other], unitType[other] as UnitType);
           const fullDmg = Math.max(0.5, (atkDamage[eid] + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
           // SC2 splash zones: inner 100%, middle 50%, outer 25%
           const splashMult = distSq <= innerSq ? 1.0 : distSq <= middleSq ? 0.5 : 0.25;
@@ -574,7 +580,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
         const dSq = sdx * sdx + sdy * sdy;
         if (dSq <= thorSplashRangeSq) {
           const sBonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[other]);
-          const sArmorBonus = getArmorBonus(resources, faction[other]);
+          const sArmorBonus = getArmorBonus(resources, faction[other], unitType[other] as UnitType);
           const sDmg = Math.max(0.5, (baseDmg + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
           hpCurrent[other] -= sDmg;
           lastCombatTime[other] = gameTime;

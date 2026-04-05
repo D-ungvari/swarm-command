@@ -37,6 +37,11 @@ const UPGRADE_COSTS: Record<number, [UpgradeCost, UpgradeCost, UpgradeCost]> = {
     { minerals: 150, gas: 150, time: 85 },
     { minerals: 200, gas: 200, time: 90 },
   ],
+  [UpgradeType.VehicleArmor]: [
+    { minerals: 100, gas: 100, time: 80 },
+    { minerals: 175, gas: 175, time: 85 },
+    { minerals: 250, gas: 250, time: 90 },
+  ],
 };
 
 /**
@@ -63,7 +68,7 @@ export function getUpgradeCost(type: UpgradeType, currentLevel: number): Upgrade
   return UPGRADE_COSTS[type]?.[currentLevel] ?? null;
 }
 
-const UPGRADE_BUILDINGS = new Set([BuildingType.EngineeringBay, BuildingType.EvolutionChamber]);
+const UPGRADE_BUILDINGS = new Set([BuildingType.EngineeringBay, BuildingType.EvolutionChamber, BuildingType.Armory]);
 
 /**
  * Advances research timers on Engineering Bay and Evolution Chamber buildings.

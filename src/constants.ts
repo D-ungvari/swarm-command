@@ -319,12 +319,12 @@ export const AI_SPAWN_BASE_ROW = 117;
 // ── Colors ──
 export const TERRAN_COLOR = 0x3399ff;
 export const ZERG_COLOR = 0xcc3333;
-export const MINERAL_COLOR = 0x44bbff;
-export const GAS_COLOR = 0x44ff66;
-export const GROUND_COLOR = 0x2a2a1a;
-export const UNBUILDABLE_COLOR = 0x1a1a12;
-export const WATER_COLOR = 0x0a2244;
-export const ROCK_COLOR = 0x666055;
+export const MINERAL_COLOR = 0x55ddff;
+export const GAS_COLOR = 0x66ff88;
+export const GROUND_COLOR = 0x5aa830;
+export const UNBUILDABLE_COLOR = 0x554433;
+export const WATER_COLOR = 0x2288dd;
+export const ROCK_COLOR = 0x998877;
 export const SELECTION_COLOR = 0x00ff00;
 
 // ── Unified Colour Palette ──

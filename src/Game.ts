@@ -53,6 +53,7 @@ import { hasCompletedBuilding } from './ecs/queries';
 import { findPath } from './map/Pathfinder';
 import { InputManager } from './input/InputManager';
 import { TilemapRenderer } from './rendering/TilemapRenderer';
+import { TextureGenerator } from './rendering/TextureGenerator';
 import { UnitRenderer, addCommandPing, setAbilityPendingRange, setAoePreview } from './rendering/UnitRenderer';
 import { SelectionRenderer } from './rendering/SelectionRenderer';
 import { HudRenderer } from './rendering/HudRenderer';
@@ -326,7 +327,9 @@ export class Game {
       );
     }
 
-    this.tilemapRenderer = new TilemapRenderer();
+    const textureGen = new TextureGenerator();
+    textureGen.generateAll();
+    this.tilemapRenderer = new TilemapRenderer(textureGen);
     this.viewport.addChild(this.tilemapRenderer.container);
 
     this.unitRenderer = new UnitRenderer();
@@ -784,6 +787,7 @@ export class Game {
     const intensity = Math.min(1, recentDamage / 10);
     soundManager.setCombatIntensity(intensity);
 
+    this.tilemapRenderer.updateVisibleTiles(this.viewport);
     this.tilemapRenderer.updateWater(this.gameTime);
     this.tilemapRenderer.updateCreep(this.map, this.gameTime);
     // Set ability range info for renderer

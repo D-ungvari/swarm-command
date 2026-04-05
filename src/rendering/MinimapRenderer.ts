@@ -6,6 +6,7 @@ import {
   GROUND_COLOR, WATER_COLOR, UNBUILDABLE_COLOR, TileType,
   activePlayerFaction,
 } from '../constants';
+import { TerrainPalette } from './terrainPalette';
 import {
   POSITION, HEALTH, BUILDING, RESOURCE,
   posX, posY, faction, hpCurrent,
@@ -114,10 +115,10 @@ export class MinimapRenderer {
             color = GAS_COLOR;
             break;
           case TileType.Destructible:
-            color = 0x666055;
+            color = TerrainPalette.rock.body;
             break;
           case TileType.Ramp:
-            color = 0x3a3a28;
+            color = TerrainPalette.ramp.base;
             break;
           default:
             color = GROUND_COLOR;
@@ -127,7 +128,7 @@ export class MinimapRenderer {
         // Brighten high-ground tiles on the minimap
         const elev = this.mapData.elevation[r * MAP_COLS + c];
         if (elev === 1) {
-          color = brightenColor(color, 0x101010);
+          color = brightenColor(color, 0x1a1a1a);
         }
 
         const px = (c / MAP_COLS) * MINIMAP_SIZE;
@@ -164,6 +165,19 @@ export class MinimapRenderer {
     g.clear();
 
     const posBit = POSITION | HEALTH;
+
+    // Draw creep overlay (purple dots for each creep tile)
+    const blockSize = 2;
+    const pxPerBlock = (MINIMAP_SIZE / MAP_COLS) * blockSize;
+    for (let r = 0; r < MAP_ROWS; r += blockSize) {
+      for (let c = 0; c < MAP_COLS; c += blockSize) {
+        if (this.mapData.creepMap[r * MAP_COLS + c] !== 1) continue;
+        const px = (c / MAP_COLS) * MINIMAP_SIZE;
+        const py = (r / MAP_ROWS) * MINIMAP_SIZE;
+        g.rect(px, py, pxPerBlock, pxPerBlock);
+        g.fill({ color: TerrainPalette.creep.base, alpha: 0.5 });
+      }
+    }
 
     // Draw entities
     for (let eid = 1; eid < world.nextEid; eid++) {

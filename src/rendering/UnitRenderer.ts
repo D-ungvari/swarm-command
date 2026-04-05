@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { Faction, UnitType, SiegeMode, ResourceType, BuildState, BuildingType, CommandMode, WorkerState, SELECTION_COLOR, TILE_SIZE, MEDIVAC_HEAL_RANGE, ZERG_COLOR, TERRAN_VISOR, TERRAN_METAL, TERRAN_DARK, TERRAN_HIGHLIGHT, ZERG_ACID, ZERG_EYE, ZERG_FLESH, activePlayerFaction } from '../constants';
+import { TerrainPalette, tileHash } from './terrainPalette';
 import {
   POSITION, RENDERABLE, SELECTABLE, HEALTH, UNIT_TYPE, ATTACK, RESOURCE, BUILDING, WORKER,
   posX, posY, renderWidth, renderHeight, renderTint,
@@ -146,61 +147,87 @@ export class UnitRenderer {
         }
         const rt = resourceType[eid] as ResourceType;
         if (rt === ResourceType.Mineral) {
-          // Subtle blue glow beneath the crystal cluster
-          g.circle(x, y + 2, Math.max(w, h) * 0.6);
-          g.fill({ color: 0x4488ff, alpha: 0.15 });
+          const mp = TerrainPalette.minerals;
+          // Glow aura underneath crystals
+          g.circle(x, y + 2, Math.max(w, h) * 0.85);
+          g.fill({ color: mp.glow, alpha: 0.15 });
 
-          // Crystal cluster: 3 overlapping diamonds
-          // Back-left crystal (slightly smaller)
-          const s1 = 0.7;
-          g.moveTo(x - 4, y - h / 2 * s1 + 1);
-          g.lineTo(x - 4 + w / 2 * s1, y + 1);
-          g.lineTo(x - 4, y + h / 2 * s1 + 1);
-          g.lineTo(x - 4 - w / 2 * s1, y + 1);
+          // Crystal cluster: 3 overlapping diamonds (40% larger)
+          const scale = 1.4;
+          // Back-left crystal
+          const s1 = 0.7 * scale;
+          g.moveTo(x - 5, y - h / 2 * s1 + 1);
+          g.lineTo(x - 5 + w / 2 * s1, y + 1);
+          g.lineTo(x - 5, y + h / 2 * s1 + 1);
+          g.lineTo(x - 5 - w / 2 * s1, y + 1);
           g.closePath();
-          g.fill({ color: darken(tint, 30) });
-          g.stroke({ color: 0x88ddff, width: 0.5, alpha: 0.4 });
+          g.fill({ color: darken(mp.crystal, 30) });
+          g.stroke({ color: mp.highlight, width: 0.6, alpha: 0.5 });
 
-          // Back-right crystal (slightly smaller)
-          const s2 = 0.75;
-          g.moveTo(x + 3, y - h / 2 * s2 + 2);
-          g.lineTo(x + 3 + w / 2 * s2, y + 2);
-          g.lineTo(x + 3, y + h / 2 * s2 + 2);
-          g.lineTo(x + 3 - w / 2 * s2, y + 2);
+          // Back-right crystal
+          const s2 = 0.75 * scale;
+          g.moveTo(x + 4, y - h / 2 * s2 + 2);
+          g.lineTo(x + 4 + w / 2 * s2, y + 2);
+          g.lineTo(x + 4, y + h / 2 * s2 + 2);
+          g.lineTo(x + 4 - w / 2 * s2, y + 2);
           g.closePath();
-          g.fill({ color: darken(tint, 15) });
-          g.stroke({ color: 0x88ddff, width: 0.5, alpha: 0.4 });
+          g.fill({ color: darken(mp.crystal, 15) });
+          g.stroke({ color: mp.highlight, width: 0.6, alpha: 0.5 });
 
           // Front crystal (full size, on top)
-          g.moveTo(x, y - h / 2);
-          g.lineTo(x + w / 2, y);
-          g.lineTo(x, y + h / 2);
-          g.lineTo(x - w / 2, y);
+          const s3 = scale;
+          g.moveTo(x, y - h / 2 * s3);
+          g.lineTo(x + w / 2 * s3, y);
+          g.lineTo(x, y + h / 2 * s3);
+          g.lineTo(x - w / 2 * s3, y);
           g.closePath();
-          g.fill({ color: tint });
-          g.stroke({ color: 0x88ddff, width: 1, alpha: 0.5 });
+          g.fill({ color: mp.crystal });
+          g.stroke({ color: mp.highlight, width: 1.2, alpha: 0.6 });
 
-          // White highlight on top-right edge of front crystal
-          g.moveTo(x + 1, y - h / 2 + 2);
-          g.lineTo(x + w / 2 - 2, y - 1);
-          g.stroke({ color: 0xffffff, width: 1, alpha: 0.5 });
+          // White highlight facet on top-right
+          g.moveTo(x + 1, y - h / 2 * s3 + 2);
+          g.lineTo(x + w / 2 * s3 - 2, y - 1);
+          g.stroke({ color: 0xffffff, width: 1.2, alpha: 0.6 });
+
+          // Sparkle animation (1-2 twinkling dots)
+          const eidHash = tileHash(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE));
+          const sparkleCount = 1 + (eidHash % 2);
+          for (let s = 0; s < sparkleCount; s++) {
+            const sHash = tileHash(eidHash + s * 5, eidHash + s * 11);
+            const sx = x - 6 + (sHash % 12);
+            const sy = y - 5 + ((sHash >> 5) % 10);
+            const sparkleAlpha = Math.max(0, 0.8 * Math.sin(gameTime * 3 + sHash * 0.01));
+            if (sparkleAlpha > 0.05) {
+              g.circle(sx + Math.sin(gameTime * 2 + sHash) * 0.5, sy, 1);
+              g.fill({ color: mp.sparkle, alpha: sparkleAlpha });
+            }
+          }
         } else {
-          // Gas geyser base: pulsing circle
-          const pulse = 0.6 + 0.2 * Math.sin(gameTime * 3);
-          g.circle(x, y, w / 2);
-          g.fill({ color: tint, alpha: pulse });
-          g.stroke({ color: 0x88ff88, width: 1, alpha: 0.4 });
+          const gp = TerrainPalette.gas;
+          // Gas geyser: larger vent ring with bright glow
+          const ventRadius = w / 2 * 1.3;
+          g.circle(x, y, ventRadius);
+          g.stroke({ color: gp.vent, width: 2.5, alpha: 0.6 });
 
-          // Rising gas jets: 2-3 small circles drifting upward
+          // Inner glow — pulsing center
+          const pulse = 0.4 + 0.4 * Math.sin(gameTime * 2);
+          g.circle(x, y, ventRadius * 0.55);
+          g.fill({ color: gp.glow, alpha: 0.6 });
+
+          // Bright pulsing center
+          g.circle(x, y, ventRadius * 0.2);
+          g.fill({ color: gp.center, alpha: pulse });
+
+          // Rising steam jets: 3 small circles drifting upward
           for (let j = 0; j < 3; j++) {
-            const offsetX = Math.sin(gameTime * 2.5 + j * 2.1) * 3;
-            const rise = ((gameTime * 0.8 + j * 0.33) % 1.0); // 0..1 repeating
-            const jetY = y - rise * 14;
-            const jetAlpha = Math.max(0, 0.5 * (1 - rise));
-            const jetR = 1.5 + (1 - rise) * 1.0;
+            const offsetX = Math.sin(gameTime * 2.5 + j * 2.1) * 4;
+            const rise = ((gameTime * 0.8 + j * 0.33) % 1.0);
+            const jetY = y - rise * 16;
+            const jetAlpha = Math.max(0, 0.6 * (1 - rise));
+            const jetR = 2.0 + (1 - rise) * 1.2;
             if (jetAlpha > 0.02) {
               g.circle(x + offsetX, jetY, jetR);
-              g.fill({ color: 0x88ff88, alpha: jetAlpha });
+              g.fill({ color: gp.steam, alpha: jetAlpha });
             }
           }
         }

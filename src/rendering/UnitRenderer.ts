@@ -27,6 +27,7 @@ import {
   causticTarget,
   burrowed, revealed,
   thorMode,
+  morphTarget, morphProgress, morphTimeTotal,
 } from '../ecs/components';
 import { type World, hasComponents, entityExists } from '../ecs/world';
 import { deathEvents } from '../systems/DeathSystem';
@@ -3828,6 +3829,24 @@ export class UnitRenderer {
           g.rect(posX[eid] - rw, posY[eid] - rh, renderWidth[eid], renderHeight[eid]);
         }
         g.fill({ color: 0x000044, alpha: 0.5 });
+      }
+
+      // Morph cocoon: pulsing organic shell when unit is morphing
+      if (morphTarget[eid] !== 0 && morphTimeTotal[eid] > 0) {
+        const mRw = renderWidth[eid] / 2 + 2;
+        const mRh = renderHeight[eid] / 2 + 2;
+        const mPulse = 1 + 0.08 * Math.sin(gameTime * 3 + eid);
+        // Dark cocoon shell
+        g.ellipse(posX[eid], posY[eid], mRw * mPulse, mRh * mPulse);
+        g.fill({ color: 0x443322, alpha: 0.7 });
+        g.ellipse(posX[eid], posY[eid], mRw * mPulse, mRh * mPulse);
+        g.stroke({ color: 0x886644, width: 2, alpha: 0.8 });
+        // Progress ring
+        const mPct = morphTimeTotal[eid] > 0 ? 1 - morphProgress[eid] / morphTimeTotal[eid] : 0;
+        const mAngle = mPct * Math.PI * 2 - Math.PI / 2;
+        const mR = Math.max(mRw, mRh) + 4;
+        g.arc(posX[eid], posY[eid], mR, -Math.PI / 2, mAngle);
+        g.stroke({ color: 0xffaa44, width: 2, alpha: 0.7 });
       }
 
       // Detection reveal: scanning ring around revealed cloaked/burrowed units

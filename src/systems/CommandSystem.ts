@@ -26,6 +26,7 @@ import {
   blindingCloudEndTime,
   parasiticBombEndTime, parasiticBombCasterFaction,
   neuralTarget, neuralEndTime, neuralStunEndTime,
+  morphTarget, morphProgress, morphTimeTotal,
 } from '../ecs/components';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -35,7 +36,7 @@ import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile, markBuildingTiles, clearBuildingTiles } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import {
-  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE, isHatchType, UpgradeType,
+  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE, isHatchType, UpgradeType, getMorphDef,
   STIM_DURATION, STIM_HP_COST, STIM_HP_COST_MARAUDER, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
   INJECT_LARVA_COST, INJECT_LARVA_TIME, LARVA_MAX, LARVA_REGEN_TIME,
@@ -770,6 +771,36 @@ export function commandSystem(
       case CommandType.Produce:
         if (resources) handleProductionCommand(world, cmd, resources);
         break;
+
+      case CommandType.Morph: {
+        // Morph command: data = target UnitType
+        if (!cmd.units || !resources) break;
+        const morphToType = cmd.data as UnitType;
+        const morphDef = getMorphDef(morphToType === undefined ? 0 as UnitType : unitType[cmd.units[0]]);
+        if (!morphDef || morphDef.to !== morphToType) break;
+        const morphFac = faction[cmd.units[0]];
+        // Check tech requirement
+        if (!hasCompletedBuilding(world, morphFac as Faction, morphDef.requires)) break;
+        const res = resources[morphFac];
+        if (!res) break;
+        for (const eid of cmd.units) {
+          if (unitType[eid] !== morphDef.from) continue;
+          if (hpCurrent[eid] <= 0) continue;
+          if (morphTarget[eid] !== 0) continue; // already morphing
+          if (res.minerals < morphDef.minerals || res.gas < morphDef.gas) break;
+          res.minerals -= morphDef.minerals;
+          res.gas -= morphDef.gas;
+          // Begin morph: unit becomes immobile cocoon
+          morphTarget[eid] = morphDef.to;
+          morphProgress[eid] = morphDef.time;
+          morphTimeTotal[eid] = morphDef.time;
+          commandMode[eid] = CommandMode.Idle;
+          movePathIndex[eid] = -1;
+          velX[eid] = 0;
+          velY[eid] = 0;
+        }
+        break;
+      }
 
       case CommandType.AttackMove: {
         const units = cmd.units ?? [];

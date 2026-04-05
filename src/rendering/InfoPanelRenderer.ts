@@ -54,7 +54,12 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
     { name: 'Transfuse', key: 'X', commandType: CommandType.Transfuse },
   ],
   [UnitType.Baneling]: [{ name: 'Burrow', key: 'R', commandType: CommandType.BanelingBurrow }],
-  [UnitType.Roach]: [{ name: 'Burrow', key: 'R', commandType: CommandType.RoachBurrow }],
+  [UnitType.Zergling]: [{ name: 'Morph Baneling', key: 'B', commandType: CommandType.Morph }],
+  [UnitType.Roach]: [
+    { name: 'Burrow', key: 'R', commandType: CommandType.RoachBurrow },
+    { name: 'Morph Ravager', key: 'V', commandType: CommandType.Morph },
+  ],
+  [UnitType.Hydralisk]: [{ name: 'Morph Lurker', key: 'L', commandType: CommandType.Morph }],
   [UnitType.Ravager]: [{ name: 'Bile', key: 'R', commandType: CommandType.CorrosiveBile }],
   [UnitType.Infestor]: [
     { name: 'Fungal', key: 'F', commandType: CommandType.FungalGrowth },

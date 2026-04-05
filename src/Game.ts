@@ -8,7 +8,7 @@ import {
   MINERAL_PER_PATCH, MINERAL_PER_PATCH_RICH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState,
-  Difficulty, UpgradeType, AddonType, TECHLAB_UNITS, isHatchType,
+  Difficulty, UpgradeType, AddonType, TECHLAB_UNITS, isHatchType, getMorphDef,
   GAME_SPEEDS, setActivePlayerFaction,
   SNIPE_RANGE, TRANSFUSE_RANGE, LOCKON_RANGE,
   EMP_RANGE, EMP_RADIUS,
@@ -85,6 +85,7 @@ import { creepSystem, resetCreepSystem } from './systems/CreepSystem';
 import { upgradeSystem, encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from './systems/UpgradeSystem';
 import { fogSystem, resetFogSystem } from './systems/FogSystem';
 import { detectionSystem } from './systems/DetectionSystem';
+import { morphSystem } from './systems/MorphSystem';
 import { FogRenderer } from './rendering/FogRenderer';
 import { WaypointRenderer } from './rendering/WaypointRenderer';
 import { ProjectileRenderer } from './rendering/ProjectileRenderer';
@@ -461,6 +462,15 @@ export class Game {
         case CommandType.FungalGrowth: this.inputProcessor.cancelAllPending(); this.inputProcessor.setFungalPending(true); return;
         default: break;
       }
+      // Morph: determine target unit type from the first unit's type
+      if (commandType === CommandType.Morph && _unitEids.length > 0) {
+        const firstUnitType = unitType[_unitEids[0]];
+        const mdef = getMorphDef(firstUnitType);
+        if (mdef) {
+          this.simulationQueue.push({ type: CommandType.Morph, units: _unitEids, data: mdef.to });
+          return;
+        }
+      }
       this.simulationQueue.push({ type: commandType, units: _unitEids });
     });
 
@@ -715,6 +725,10 @@ export class Game {
     detectionSystem(this.world);
     combatSystem(this.world, dt, this.gameTime, this.map, this.resources);
     abilitySystem(this.world, dt, this.gameTime);
+    morphSystem(this.world, dt,
+      (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y),
+      (eid) => { hpCurrent[eid] = 0; },
+    );
     gatherSystem(this.world, dt, this.map, this.resources);
     const resAfter = res.minerals + res.gas;
     const gathered = resAfter - resBefore;

@@ -136,6 +136,14 @@ export const detectionRange = new Float32Array(MAX_ENTITIES);
 /** 1 = revealed by detection this tick (reset each frame) */
 export const revealed = new Uint8Array(MAX_ENTITIES);
 
+// ── Morph ──
+/** Target unit type to morph into (0 = not morphing) */
+export const morphTarget = new Uint8Array(MAX_ENTITIES);
+/** Morph timer remaining (seconds) */
+export const morphProgress = new Float32Array(MAX_ENTITIES);
+/** Total morph time for progress bar */
+export const morphTimeTotal = new Float32Array(MAX_ENTITIES);
+
 // ── Resource node ──
 /** ResourceType enum: Mineral=1, Gas=2 */
 export const resourceType = new Uint8Array(MAX_ENTITIES);
@@ -383,6 +391,9 @@ export function resetComponents(eid: number): void {
   isDetector[eid] = 0;
   detectionRange[eid] = 0;
   revealed[eid] = 0;
+  morphTarget[eid] = 0;
+  morphProgress[eid] = 0;
+  morphTimeTotal[eid] = 0;
   resourceType[eid] = 0;
   resourceRemaining[eid] = 0;
   workerCountOnResource[eid] = 0;

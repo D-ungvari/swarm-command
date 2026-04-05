@@ -10,6 +10,8 @@ import {
   workerState, workerTargetEid, workerBaseX, workerBaseY,
   resourceRemaining,
   addonType,
+  morphTarget, morphProgress, morphTimeTotal,
+  velX, velY,
 } from '../ecs/components';
 import { findNearestCommandCenter, findNearestMineral } from '../ecs/queries';
 import { isTileVisible } from './FogSystem';
@@ -19,7 +21,7 @@ import {
   MAP_COLS, MAP_ROWS, UpgradeType,
   Difficulty, DIFFICULTY_CONFIGS,
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
-  WorkerState, AddonType, isHatchType,
+  WorkerState, AddonType, isHatchType, getMorphDef, MORPH_DEFS,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import { spatialHash } from '../ecs/SpatialHash';
@@ -310,6 +312,33 @@ function aiQueueUnit(
 
   // Check supply (Overlords provide supply, don't cost it)
   if (uDef.supply > 0 && res.supplyUsed + uDef.supply > res.supplyProvided) return false;
+
+  // Morph units (Baneling, Ravager, Lurker): find a source unit and morph it
+  const morphDef = MORPH_DEFS.find(d => d.to === uType);
+  if (morphDef) {
+    // Check morph cost (morph cost replaces unit cost)
+    if (res.minerals < morphDef.minerals || res.gas < morphDef.gas) return false;
+    // Find a source unit that isn't already morphing
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, POSITION | HEALTH | UNIT_TYPE)) continue;
+      if (faction[eid] !== currentAIFaction) continue;
+      if (unitType[eid] !== morphDef.from) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      if (morphTarget[eid] !== 0) continue;
+      // Begin morph
+      res.minerals -= morphDef.minerals;
+      res.gas -= morphDef.gas;
+      morphTarget[eid] = morphDef.to;
+      morphProgress[eid] = morphDef.time;
+      morphTimeTotal[eid] = morphDef.time;
+      commandMode[eid] = CommandMode.Idle;
+      movePathIndex[eid] = -1;
+      velX[eid] = 0;
+      velY[eid] = 0;
+      return true;
+    }
+    return false; // no source unit available
+  }
 
   // Find a completed production building that can produce this unit
   // Zerg: pick the Hatchery with the most larva (distribute production)

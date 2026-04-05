@@ -41,6 +41,7 @@ export const enum CommandType {
   EMP = 39,
   KD8Charge = 40,
   NeuralParasite = 41,
+  Morph = 42,
 }
 
 export interface GameCommand {

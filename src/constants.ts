@@ -196,6 +196,27 @@ export enum UpgradeType {
   COUNT            = 15,
 }
 
+// ── Morph definitions ──
+export interface MorphDef {
+  from: UnitType;
+  to: UnitType;
+  minerals: number;
+  gas: number;
+  time: number;
+  requires: BuildingType;
+}
+
+export const MORPH_DEFS: MorphDef[] = [
+  { from: UnitType.Zergling,   to: UnitType.Baneling,  minerals: 25,  gas: 25,  time: 14, requires: BuildingType.BanelingNest },
+  { from: UnitType.Roach,      to: UnitType.Ravager,   minerals: 25,  gas: 75,  time: 9,  requires: BuildingType.RoachWarren },
+  { from: UnitType.Hydralisk,  to: UnitType.Lurker,    minerals: 50,  gas: 100, time: 18, requires: BuildingType.LurkerDen },
+];
+
+/** Get morph def for a source unit type, or undefined if no morph available */
+export function getMorphDef(fromType: UnitType): MorphDef | undefined {
+  return MORPH_DEFS.find(d => d.from === fromType);
+}
+
 // ── Ability constants ──
 // Ghost Snipe
 export const SNIPE_DAMAGE = 170;

@@ -7,8 +7,9 @@ import {
   prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   resourceRemaining, resourceType, unitType,
+  posX, posY,
   selected, hpCurrent, hpMax, faction, renderTint, killCount, veterancyLevel,
-  POSITION, SELECTABLE, RENDERABLE, HEALTH,
+  POSITION, SELECTABLE, RENDERABLE, HEALTH, WORKER,
   energy, cloaked, stimEndTime,
   larvaCount, addonType,
   upgradingTo, upgradeProgress, upgradeTimeTotal,
@@ -784,6 +785,27 @@ export class InfoPanelRenderer {
         const larva = larvaCount[eid];
         const larvaText = larva > 0 ? `  Larva: ${larva}/3` : '  Larva: 0/3 (regenerating)';
         this.detailEl.textContent += larvaText;
+      }
+
+      // Base building: show worker saturation
+      if ((bt === BuildingType.CommandCenter || isHatchType(bt)) && bs === BuildState.Complete) {
+        // Count workers within 15 tiles of this base
+        let workerCount = 0;
+        const bx = posX[eid];
+        const by = posY[eid];
+        const TILE = 32;
+        const radiusSq = (15 * TILE) * (15 * TILE);
+        for (let w = 1; w < world.nextEid; w++) {
+          if (!hasComponents(world, w, WORKER | POSITION)) continue;
+          if (faction[w] !== fac) continue;
+          if (hpCurrent[w] <= 0) continue;
+          const dx = posX[w] - bx;
+          const dy = posY[w] - by;
+          if (dx * dx + dy * dy <= radiusSq) workerCount++;
+        }
+        const optimal = 16; // 8 mineral patches × 2 optimal workers
+        const color = workerCount <= optimal ? '#44ff44' : workerCount <= optimal + 4 ? '#ffaa00' : '#ff4444';
+        this.detailEl.innerHTML += `  <span style="color:${color}">Workers: ${workerCount}/${optimal}</span>`;
       }
 
       // Gas building: show gas worker count

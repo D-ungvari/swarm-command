@@ -852,8 +852,11 @@ const TERRAN_BUILDING_SCHEDULE: Array<{ minTime: number; type: number; colOffset
   { minTime: 60,  type: BuildingType.Refinery,        colOffset: 4, rowOffset: -3 },
   { minTime: 90,  type: BuildingType.Barracks,         colOffset: -5, rowOffset: 0 },
   { minTime: 120, type: BuildingType.Factory,          colOffset: 5, rowOffset: 3 },
+  { minTime: 150, type: BuildingType.Armory,            colOffset: 5, rowOffset: -5 },
   { minTime: 180, type: BuildingType.Starport,         colOffset: -5, rowOffset: 3 },
+  { minTime: 200, type: BuildingType.GhostAcademy,     colOffset: -5, rowOffset: -5 },
   { minTime: 240, type: BuildingType.EngineeringBay,   colOffset: 0, rowOffset: -5 },
+  { minTime: 250, type: BuildingType.FusionCore,       colOffset: 0, rowOffset: 5 },
   { minTime: 300, type: BuildingType.Barracks,         colOffset: 5, rowOffset: -3 },
 ];
 let terranBuildingsPlaced: Set<number> = new Set();

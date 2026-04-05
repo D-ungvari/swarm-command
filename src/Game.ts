@@ -1040,6 +1040,8 @@ export class Game {
         this.isTechAvailable(BuildingType.EvolutionChamber),                  // 7: EvoChamber (req SpawningPool)
         this.isTechAvailable(BuildingType.InfestationPit),                    // 8: InfestationPit (req SpawningPool)
         this.isTechAvailable(BuildingType.SpineCrawler),                      // 9: SpineCrawler (req SpawningPool)
+        true,                                                                  // 10: unused
+        true,                                                                  // 11: unused
       ];
     }
     // Existing Terran logic
@@ -1052,7 +1054,9 @@ export class Game {
       this.isTechAvailable(BuildingType.Starport),
       this.isTechAvailable(BuildingType.EngineeringBay),
       this.isTechAvailable(BuildingType.MissileTurret),
-      true, // slot 9 unused for Terran
+      this.isTechAvailable(BuildingType.Armory),           // 9: Armory (req Factory)
+      this.isTechAvailable(BuildingType.GhostAcademy),     // 0: Ghost Academy (req Barracks)
+      this.isTechAvailable(BuildingType.FusionCore),       // click: Fusion Core (req Starport)
     ];
   }
 
@@ -1248,6 +1252,24 @@ export class Game {
           this.placementBuildingType = BuildingType.MissileTurret;
         } else {
           this.buildMenuRenderer.flashLocked(7, this.getRequiresName(BuildingType.MissileTurret));
+        }
+      } else if (input.keysJustPressed.has('Digit9')) {
+        if (this.isTechAvailable(BuildingType.Armory)) {
+          this.placementBuildingType = BuildingType.Armory;
+        } else {
+          this.buildMenuRenderer.flashLocked(8, this.getRequiresName(BuildingType.Armory));
+        }
+      } else if (input.keysJustPressed.has('Digit0')) {
+        if (this.isTechAvailable(BuildingType.GhostAcademy)) {
+          this.placementBuildingType = BuildingType.GhostAcademy;
+        } else {
+          this.buildMenuRenderer.flashLocked(9, this.getRequiresName(BuildingType.GhostAcademy));
+        }
+      } else if (input.keysJustPressed.has('Minus')) {
+        if (this.isTechAvailable(BuildingType.FusionCore)) {
+          this.placementBuildingType = BuildingType.FusionCore;
+        } else {
+          this.buildMenuRenderer.flashLocked(10, this.getRequiresName(BuildingType.FusionCore));
         }
       }
 
@@ -1977,6 +1999,9 @@ export class Game {
 
     // Check tech requirement
     const UNIT_TECH_REQS_MAP: Record<number, number | undefined> = {
+      [UnitType.Ghost]:     BuildingType.GhostAcademy,
+      [UnitType.Thor]:      BuildingType.Armory,
+      [UnitType.Battlecruiser]: BuildingType.FusionCore,
       [UnitType.Zergling]:  BuildingType.SpawningPool,
       [UnitType.Queen]:     BuildingType.SpawningPool,
       [UnitType.Baneling]:  BuildingType.SpawningPool,

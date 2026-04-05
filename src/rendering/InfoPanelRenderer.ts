@@ -75,6 +75,9 @@ const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
 
 /** Units that require a tech building before they can be trained. */
 const UNIT_TECH_REQUIREMENTS: Partial<Record<number, number>> = {
+  [UnitType.Ghost]:     BuildingType.GhostAcademy,
+  [UnitType.Thor]:      BuildingType.Armory,
+  [UnitType.Battlecruiser]: BuildingType.FusionCore,
   [UnitType.Zergling]:  BuildingType.SpawningPool,
   [UnitType.Queen]:     BuildingType.SpawningPool,
   [UnitType.Baneling]:  BuildingType.SpawningPool,     // SC2: morphs from Zergling, simplified here

@@ -685,6 +685,9 @@ export class UnitRenderer {
         else if (bt === BuildingType.Starport) borderColor = 0x5577bb;
         else if (bt === BuildingType.EngineeringBay) borderColor = 0x6688dd;
         else if (bt === BuildingType.MissileTurret) borderColor = 0x7799aa;
+        else if (bt === BuildingType.Armory) borderColor = 0x8a6a4a;
+        else if (bt === BuildingType.GhostAcademy) borderColor = 0x5555aa;
+        else if (bt === BuildingType.FusionCore) borderColor = 0x4477aa;
 
         if (bt === BuildingType.CommandCenter) {
           // Octagonal footprint
@@ -1112,6 +1115,69 @@ export class UnitRenderer {
               g.circle(flashX, flashY, 2 * fa);
               g.fill({ color: 0xffffff, alpha: fa * 0.9 });
             }
+          }
+        } else if (bt === BuildingType.Armory) {
+          // Heavy forge building — anvil silhouette with orange glow
+          // Main body
+          g.rect(x - hw * 0.8, y - hh * 0.6, w * 0.8, h * 0.7);
+          g.fill({ color: 0x4a3a2a, alpha: 0.8 * baseAlpha });
+          g.stroke({ color: 0x8a6a4a, width: 1.5, alpha: 0.7 * baseAlpha });
+          // Chimney
+          g.rect(x + hw * 0.3, y - hh * 0.9, 6, hh * 0.5);
+          g.fill({ color: 0x555555, alpha: 0.7 * baseAlpha });
+          if (bs === BuildState.Complete) {
+            // Forge glow through windows
+            const forgeGlow = 0.4 + 0.3 * Math.sin(gameTime * 2);
+            g.rect(x - hw * 0.4, y - hh * 0.2, 8, 6);
+            g.fill({ color: 0xff8833, alpha: forgeGlow * baseAlpha });
+            g.rect(x + hw * 0.1, y - hh * 0.2, 8, 6);
+            g.fill({ color: 0xff6622, alpha: forgeGlow * baseAlpha });
+            // Smoke
+            const smokeY = y - hh * 0.9 - 4 - ((gameTime * 0.4) % 1) * 10;
+            g.circle(x + hw * 0.33, smokeY, 2 + ((gameTime * 0.4) % 1) * 2);
+            g.fill({ color: 0x888888, alpha: Math.max(0, 0.3 - ((gameTime * 0.4) % 1) * 0.3) * baseAlpha });
+          }
+        } else if (bt === BuildingType.GhostAcademy) {
+          // Covert ops building — dark angular shape with stealth indicator
+          // Angular body (diamond-ish)
+          g.moveTo(x, y - hh * 0.8);
+          g.lineTo(x + hw * 0.9, y);
+          g.lineTo(x, y + hh * 0.8);
+          g.lineTo(x - hw * 0.9, y);
+          g.closePath();
+          g.fill({ color: 0x2a2a3a, alpha: 0.8 * baseAlpha });
+          g.stroke({ color: 0x5555aa, width: 1.5, alpha: 0.6 * baseAlpha });
+          if (bs === BuildState.Complete) {
+            // Pulsing stealth indicator
+            const stealthPulse = 0.3 + 0.3 * Math.sin(gameTime * 2.5);
+            g.circle(x, y, 4);
+            g.fill({ color: 0x8866cc, alpha: stealthPulse * baseAlpha });
+            // Corner dots
+            for (const [dx, dy] of [[0, -hh * 0.5], [hw * 0.5, 0], [0, hh * 0.5], [-hw * 0.5, 0]]) {
+              g.circle(x + dx, y + dy, 1.5);
+              g.fill({ color: 0x6644aa, alpha: 0.5 * baseAlpha });
+            }
+          }
+        } else if (bt === BuildingType.FusionCore) {
+          // High-energy core — circular with glowing energy ring
+          const coreR = Math.min(hw, hh) * 0.7;
+          // Outer ring
+          g.circle(x, y, coreR);
+          g.fill({ color: 0x2a3a4a, alpha: 0.7 * baseAlpha });
+          g.circle(x, y, coreR);
+          g.stroke({ color: 0x4477aa, width: 2, alpha: 0.7 * baseAlpha });
+          if (bs === BuildState.Complete) {
+            // Spinning energy ring
+            const ringAngle = gameTime * 2;
+            const ringR = coreR * 0.75;
+            g.arc(x, y, ringR, ringAngle, ringAngle + Math.PI * 1.2);
+            g.stroke({ color: 0x55ccff, width: 2, alpha: 0.6 * baseAlpha });
+            g.arc(x, y, ringR, ringAngle + Math.PI, ringAngle + Math.PI + Math.PI * 1.2);
+            g.stroke({ color: 0x55ccff, width: 2, alpha: 0.4 * baseAlpha });
+            // Core glow
+            const coreGlow = 0.4 + 0.3 * Math.sin(gameTime * 3);
+            g.circle(x, y, coreR * 0.3);
+            g.fill({ color: 0x88ddff, alpha: coreGlow * baseAlpha });
           }
         }
         } // close Terran buildings else block

@@ -97,6 +97,8 @@ export const enum BuildingType {
   Starport = 25,
   EngineeringBay = 26,
   MissileTurret = 27,
+  Armory = 28,
+  GhostAcademy = 29,
   // Zerg
   Hatchery = 30,
   SpawningPool = 31,
@@ -110,6 +112,8 @@ export const enum BuildingType {
   SporeCrawler = 39,
   // Neutral / Map objects
   Rock = 40,
+  // Terran Advanced
+  FusionCore = 44,
 }
 
 // ── Addon types ──

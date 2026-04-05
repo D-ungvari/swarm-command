@@ -8,7 +8,7 @@ import {
   stimEndTime, hpCurrent, moveSpeed, atkCooldown,
   siegeMode, siegeTransitionEnd,
   workerState, workerTargetEid, resourceType, resourceRemaining,
-  rallyX, rallyY, buildState, buildingType, prodUnitType, prodProgress, prodTimeTotal,
+  rallyX, rallyY, rallyTargetEid, buildState, buildingType, prodUnitType, prodProgress, prodTimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   cloaked, burrowed,
   energy, injectTimer, larvaCount, larvaRegenTimer,
@@ -906,9 +906,11 @@ export function commandSystem(
 
         // Set rally point for selected buildings
         const selectedBuildings = getSelectedBuildings(world);
+        const rallyResource = findResourceAt(world, wx, wy);
         for (const eid of selectedBuildings) {
           rallyX[eid] = wx;
           rallyY[eid] = wy;
+          rallyTargetEid[eid] = rallyResource > 0 ? rallyResource : 0;
         }
 
         if (units.length === 0) break;

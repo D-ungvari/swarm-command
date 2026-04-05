@@ -76,7 +76,7 @@ export class HotkeyPanelRenderer {
   }
 
   update(keysJustPressed: Set<string>): void {
-    if (keysJustPressed.has('F1')) {
+    if (keysJustPressed.has('F11')) {
       this.visible = !this.visible;
       this.panel.style.display = this.visible ? 'flex' : 'none';
     }

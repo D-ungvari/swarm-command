@@ -196,6 +196,10 @@ export class Game {
   private lastTime = 0;
   private gameTime = 0;
   private paused = false;
+  private cameraLocations: Array<{x: number, y: number} | null> = [null, null, null, null];
+  private lastAlertX = -1;
+  private lastAlertY = -1;
+  private lastAlertTime = -1;
 
   // Income rate tracking (minerals and gas per minute)
   private mineralPrev = 0;
@@ -980,6 +984,10 @@ export class Game {
         this.alertRenderer.show('UNDER ATTACK', 3, this.gameTime);
         this.lastUnderAttackAlert = this.gameTime;
       }
+      // Track last alert position for Spacebar camera jump
+      this.lastAlertX = hit.x;
+      this.lastAlertY = hit.y;
+      this.lastAlertTime = this.gameTime;
       // Always place a minimap ping regardless of camera distance
       this.minimapRenderer.showAttackPing(hit.x, hit.y, this.gameTime);
     }
@@ -1013,18 +1021,45 @@ export class Game {
     }
 
     // Spacebar = jump camera to base (disabled during countdown)
+    // Spacebar: jump to last alert (SC2 standard), or fallback to base
     if (this.input.state.keysJustPressed.has('Space') && !this.placementMode && this.scenarioCountdown <= 0) {
+      if (this.lastAlertTime > 0 && this.gameTime - this.lastAlertTime < 15) {
+        this.viewport.moveCenter(this.lastAlertX, this.lastAlertY);
+      } else {
+        const ccPos = tileToWorld(15, 15);
+        this.viewport.moveCenter(ccPos.x, ccPos.y);
+      }
+    }
+    // Home key: always jump to base
+    if (this.input.state.keysJustPressed.has('Home') && this.scenarioCountdown <= 0) {
       const ccPos = tileToWorld(15, 15);
       this.viewport.moveCenter(ccPos.x, ccPos.y);
     }
 
-    // F2 = select all combat units, F3 = select all workers (disabled during countdown)
+    // F1 = select idle workers, F2 = select all combat units, F3 = select all workers
+    if (this.input.state.keysJustPressed.has('F1') && this.scenarioCountdown <= 0) {
+      this.selectIdleWorkers();
+    }
     if (this.input.state.keysJustPressed.has('F2') && this.scenarioCountdown <= 0) {
       this.selectAllCombatUnits();
     }
     if (this.input.state.keysJustPressed.has('F3') && this.scenarioCountdown <= 0) {
       this.selectAllWorkers();
     }
+
+    // Camera save (Ctrl+F5-F8) / recall (F5-F8)
+    const ctrlHeld = this.input.state.ctrlHeld;
+    for (let slot = 0; slot < 4; slot++) {
+      const key = `F${5 + slot}`;
+      if (this.input.state.keysJustPressed.has(key)) {
+        if (ctrlHeld) {
+          this.cameraLocations[slot] = { x: this.viewport.center.x, y: this.viewport.center.y };
+        } else if (this.cameraLocations[slot]) {
+          this.viewport.moveCenter(this.cameraLocations[slot]!.x, this.cameraLocations[slot]!.y);
+        }
+      }
+    }
+
     this.alertRenderer.update(this.gameTime);
 
     // Cursor change based on current mode

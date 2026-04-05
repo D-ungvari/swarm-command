@@ -281,6 +281,8 @@ export const builderEid = new Int16Array(MAX_ENTITIES);
 /** Rally point world position, -1 = no rally */
 export const rallyX = new Float32Array(MAX_ENTITIES);
 export const rallyY = new Float32Array(MAX_ENTITIES);
+/** Entity ID of rally target (resource/unit). 0 = no specific target. */
+export const rallyTargetEid = new Int16Array(MAX_ENTITIES);
 
 // ── Building Upgrade (Hatchery→Lair→Hive) ──
 /** Target BuildingType being upgraded to, 0 = not upgrading */
@@ -468,6 +470,7 @@ export function resetComponents(eid: number): void {
   builderEid[eid] = -1;
   rallyX[eid] = -1;
   rallyY[eid] = -1;
+  rallyTargetEid[eid] = 0;
   upgradingTo[eid] = 0;
   upgradeProgress[eid] = 0;
   upgradeTimeTotal[eid] = 0;

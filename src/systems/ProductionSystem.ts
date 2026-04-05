@@ -5,7 +5,7 @@ import {
   prodUnitType, prodProgress, prodTimeTotal,
   prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
   prodQueue, prodQueueLen, prodQueueProgress, prodQueueTimeTotal, PROD_QUEUE_MAX,
-  posX, posY, faction, rallyX, rallyY, hpCurrent, hpMax,
+  posX, posY, faction, rallyX, rallyY, rallyTargetEid, hpCurrent, hpMax,
   commandMode, setPath, movePathIndex,
   workerState, workerTargetEid, workerBaseX, workerBaseY,
   unitType as unitTypeArr, WORKER,
@@ -106,16 +106,42 @@ export function productionSystem(
     soundManager.playProdComplete();
 
     if (rallyX[eid] >= 0 && newEid > 0) {
-      commandMode[newEid] = CommandMode.Move;
-      const startTile = worldToTile(sx, sy);
-      const endTile = worldToTile(rallyX[eid], rallyY[eid]);
-      const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
-      if (tilePath.length > 0) {
-        const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
-          const wp2 = tileToWorld(c, r);
-          return [wp2.x, wp2.y] as [number, number];
-        });
-        setPath(newEid, worldPath);
+      const isWorker = hasComponents(world, newEid, WORKER);
+      const rallyRes = rallyTargetEid[eid];
+
+      // Smart rally: worker rallied to resource → auto-gather
+      if (isWorker && rallyRes > 0) {
+        workerTargetEid[newEid] = rallyRes;
+        workerState[newEid] = WorkerState.MovingToResource;
+        commandMode[newEid] = CommandMode.Gather;
+        workerBaseX[newEid] = posX[eid];
+        workerBaseY[newEid] = posY[eid];
+        const resTile = worldToTile(posX[rallyRes], posY[rallyRes]);
+        const walkTile = findNearestWalkableTile(map, resTile.col, resTile.row);
+        if (walkTile) {
+          const startTile = worldToTile(sx, sy);
+          const tilePath = findPath(map, startTile.col, startTile.row, walkTile.col, walkTile.row);
+          if (tilePath.length > 0) {
+            const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+              const wp2 = tileToWorld(c, r);
+              return [wp2.x, wp2.y] as [number, number];
+            });
+            setPath(newEid, worldPath);
+          }
+        }
+      } else {
+        // Combat units: attack-move to rally. Workers without resource target: move.
+        commandMode[newEid] = isWorker ? CommandMode.Move : CommandMode.AttackMove;
+        const startTile = worldToTile(sx, sy);
+        const endTile = worldToTile(rallyX[eid], rallyY[eid]);
+        const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
+        if (tilePath.length > 0) {
+          const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
+            const wp2 = tileToWorld(c, r);
+            return [wp2.x, wp2.y] as [number, number];
+          });
+          setPath(newEid, worldPath);
+        }
       }
     }
 

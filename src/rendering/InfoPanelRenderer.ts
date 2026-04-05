@@ -641,8 +641,8 @@ export class InfoPanelRenderer {
         this.detailEl.textContent += larvaText;
       }
 
-      // Refinery: show gas worker count
-      if (bt === BuildingType.Refinery && bs === BuildState.Complete) {
+      // Gas building: show gas worker count
+      if ((bt === BuildingType.Refinery || bt === BuildingType.Extractor) && bs === BuildState.Complete) {
         let gasWorkers = 0;
         for (let w = 1; w < world.nextEid; w++) {
           if (workerTargetEid[w] === eid && hpCurrent[w] > 0) gasWorkers++;

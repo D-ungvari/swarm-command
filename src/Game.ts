@@ -1032,14 +1032,14 @@ export class Game {
     if (this.playerFaction === Faction.Zerg) {
       return [
         true,                                                                  // 1: Hatchery (always)
-        true,                                                                  // 2: SpawningPool (always)
-        this.isTechAvailable(BuildingType.RoachWarren),                       // 3: RoachWarren (req SpawningPool)
-        this.isTechAvailable(BuildingType.HydraliskDen),                      // 4: HydraliskDen (req Hatchery)
-        this.isTechAvailable(BuildingType.Spire),                             // 5: Spire (req Hatchery)
-        this.isTechAvailable(BuildingType.EvolutionChamber),                  // 6: EvoChamber (req SpawningPool)
-        this.isTechAvailable(BuildingType.InfestationPit),                    // 7: InfestationPit (req SpawningPool)
-        this.isTechAvailable(BuildingType.SpineCrawler),                      // 8: SpineCrawler (req SpawningPool)
-        this.isTechAvailable(BuildingType.SporeCrawler),                      // 9: SporeCrawler (req SpawningPool)
+        true,                                                                  // 2: Extractor (always)
+        true,                                                                  // 3: SpawningPool (always)
+        this.isTechAvailable(BuildingType.RoachWarren),                       // 4: RoachWarren (req SpawningPool)
+        this.isTechAvailable(BuildingType.HydraliskDen),                      // 5: HydraliskDen (req Hatchery)
+        this.isTechAvailable(BuildingType.Spire),                             // 6: Spire (req Hatchery)
+        this.isTechAvailable(BuildingType.EvolutionChamber),                  // 7: EvoChamber (req SpawningPool)
+        this.isTechAvailable(BuildingType.InfestationPit),                    // 8: InfestationPit (req SpawningPool)
+        this.isTechAvailable(BuildingType.SpineCrawler),                      // 9: SpineCrawler (req SpawningPool)
       ];
     }
     // Existing Terran logic
@@ -1082,53 +1082,49 @@ export class Game {
 
     if (this.placementMode) {
       if (this.playerFaction === Faction.Zerg) {
-        // Zerg building select: 1=Hatchery, 2=SpawningPool, 3=RoachWarren,
-        // 4=HydraliskDen, 5=Spire, 6=EvolutionChamber, 7=InfestationPit
+        // Zerg building select: 1=Hatchery, 2=Extractor, 3=SpawningPool,
+        // 4=RoachWarren, 5=HydraliskDen, 6=Spire, 7=EvoChamber, 8=InfestationPit, 9=SpineCrawler
         if (input.keysJustPressed.has('Digit1')) {
           this.placementBuildingType = BuildingType.Hatchery;
         } else if (input.keysJustPressed.has('Digit2')) {
-          this.placementBuildingType = BuildingType.SpawningPool;
+          this.placementBuildingType = BuildingType.Extractor;
         } else if (input.keysJustPressed.has('Digit3')) {
+          this.placementBuildingType = BuildingType.SpawningPool;
+        } else if (input.keysJustPressed.has('Digit4')) {
           if (this.isTechAvailable(BuildingType.RoachWarren)) {
             this.placementBuildingType = BuildingType.RoachWarren;
           } else {
-            this.buildMenuRenderer.flashLocked(2, this.getRequiresName(BuildingType.RoachWarren));
+            this.buildMenuRenderer.flashLocked(3, this.getRequiresName(BuildingType.RoachWarren));
           }
-        } else if (input.keysJustPressed.has('Digit4')) {
+        } else if (input.keysJustPressed.has('Digit5')) {
           if (this.isTechAvailable(BuildingType.HydraliskDen)) {
             this.placementBuildingType = BuildingType.HydraliskDen;
           } else {
-            this.buildMenuRenderer.flashLocked(3, this.getRequiresName(BuildingType.HydraliskDen));
+            this.buildMenuRenderer.flashLocked(4, this.getRequiresName(BuildingType.HydraliskDen));
           }
-        } else if (input.keysJustPressed.has('Digit5')) {
+        } else if (input.keysJustPressed.has('Digit6')) {
           if (this.isTechAvailable(BuildingType.Spire)) {
             this.placementBuildingType = BuildingType.Spire;
           } else {
-            this.buildMenuRenderer.flashLocked(4, this.getRequiresName(BuildingType.Spire));
+            this.buildMenuRenderer.flashLocked(5, this.getRequiresName(BuildingType.Spire));
           }
-        } else if (input.keysJustPressed.has('Digit6')) {
+        } else if (input.keysJustPressed.has('Digit7')) {
           if (this.isTechAvailable(BuildingType.EvolutionChamber)) {
             this.placementBuildingType = BuildingType.EvolutionChamber;
           } else {
-            this.buildMenuRenderer.flashLocked(5, this.getRequiresName(BuildingType.EvolutionChamber));
+            this.buildMenuRenderer.flashLocked(6, this.getRequiresName(BuildingType.EvolutionChamber));
           }
-        } else if (input.keysJustPressed.has('Digit7')) {
+        } else if (input.keysJustPressed.has('Digit8')) {
           if (this.isTechAvailable(BuildingType.InfestationPit)) {
             this.placementBuildingType = BuildingType.InfestationPit;
           } else {
-            this.buildMenuRenderer.flashLocked(6, this.getRequiresName(BuildingType.InfestationPit));
+            this.buildMenuRenderer.flashLocked(7, this.getRequiresName(BuildingType.InfestationPit));
           }
-        } else if (input.keysJustPressed.has('Digit8')) {
+        } else if (input.keysJustPressed.has('Digit9')) {
           if (this.isTechAvailable(BuildingType.SpineCrawler)) {
             this.placementBuildingType = BuildingType.SpineCrawler;
           } else {
-            this.buildMenuRenderer.flashLocked(7, this.getRequiresName(BuildingType.SpineCrawler));
-          }
-        } else if (input.keysJustPressed.has('Digit9')) {
-          if (this.isTechAvailable(BuildingType.SporeCrawler)) {
-            this.placementBuildingType = BuildingType.SporeCrawler;
-          } else {
-            this.buildMenuRenderer.flashLocked(8, this.getRequiresName(BuildingType.SporeCrawler));
+            this.buildMenuRenderer.flashLocked(8, this.getRequiresName(BuildingType.SpineCrawler));
           }
         }
         if (input.keysJustPressed.has('Escape')) {
@@ -1140,10 +1136,40 @@ export class Game {
           const def = BUILDING_DEFS[this.placementBuildingType];
           if (!def) return;
           const worldPos = this.viewport.toWorld(input.mouse.x, input.mouse.y);
-          const tile = worldToTile(worldPos.x, worldPos.y);
-          if (isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)) {
-            // Zerg buildings (except Hatchery) require creep
-            if (this.placementBuildingType !== BuildingType.Hatchery) {
+          let tile = worldToTile(worldPos.x, worldPos.y);
+          const isExtractor = this.placementBuildingType === BuildingType.Extractor;
+
+          // Extractor: snap to nearest gas geyser (same as Terran Refinery)
+          if (isExtractor) {
+            let bestDist = Infinity;
+            let bestCol = tile.col;
+            let bestRow = tile.row;
+            for (let dr = -3; dr <= 3; dr++) {
+              for (let dc = -3; dc <= 3; dc++) {
+                const c = tile.col + dc;
+                const r = tile.row + dr;
+                if (c < 0 || c >= this.map.cols || r < 0 || r >= this.map.rows) continue;
+                if (this.map.tiles[r * this.map.cols + c] === TileType.Gas) {
+                  const dist = dc * dc + dr * dr;
+                  if (dist < bestDist) {
+                    bestDist = dist;
+                    bestCol = c;
+                    bestRow = r;
+                  }
+                }
+              }
+            }
+            if (bestDist < Infinity) {
+              tile = { col: bestCol, row: bestRow };
+            }
+          }
+
+          const valid = isExtractor
+            ? isGeyserTile(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)
+            : isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
+          if (valid) {
+            // Zerg buildings (except Hatchery and Extractor) require creep
+            if (this.placementBuildingType !== BuildingType.Hatchery && !isExtractor) {
               const centerIdx = tile.row * this.map.cols + tile.col;
               if (!this.map.creepMap[centerIdx]) {
                 return; // No creep — can't build here
@@ -1240,11 +1266,12 @@ export class Game {
         const worldPos = this.viewport.toWorld(input.mouse.x, input.mouse.y);
         let tile = worldToTile(worldPos.x, worldPos.y);
 
-        // Placement validation: Refinery needs gas geyser, others need normal buildable
-        const isRefinery = this.placementBuildingType === BuildingType.Refinery;
+        // Placement validation: gas buildings need gas geyser, others need normal buildable
+        const isGasBuilding = this.placementBuildingType === BuildingType.Refinery ||
+          this.placementBuildingType === BuildingType.Extractor;
 
         // Snap-to-geyser: find nearest gas tile within 3 tiles of cursor
-        if (isRefinery) {
+        if (isGasBuilding) {
           let bestDist = Infinity;
           let bestCol = tile.col;
           let bestRow = tile.row;
@@ -1268,7 +1295,7 @@ export class Game {
           }
         }
 
-        const valid = isRefinery
+        const valid = isGasBuilding
           ? isGeyserTile(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)
           : isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
 
@@ -1280,12 +1307,6 @@ export class Game {
 
             const bEid = this.spawnBuilding(this.placementBuildingType as BuildingType, this.playerFaction, tile.col, tile.row);
             soundManager.playBuild();
-
-            // For Refinery, store gas resource data on the building entity
-            if (isRefinery) {
-              resourceType[bEid] = ResourceType.Gas;
-              resourceRemaining[bEid] = GAS_PER_GEYSER;
-            }
 
             // Find nearest selected SCV and command it to build
             this.assignBuilderToBuilding(bEid);
@@ -1367,8 +1388,9 @@ export class Game {
 
     const w = def.tileWidth * TILE_SIZE;
     const h = def.tileHeight * TILE_SIZE;
-    const isRefinery = this.placementBuildingType === BuildingType.Refinery;
-    const valid = isRefinery
+    const isGasBuilding = this.placementBuildingType === BuildingType.Refinery ||
+      this.placementBuildingType === BuildingType.Extractor;
+    const valid = isGasBuilding
       ? isGeyserTile(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight)
       : isBuildable(this.map, tile.col, tile.row, def.tileWidth, def.tileHeight);
     const color = valid ? 0x44ff44 : 0xff4444;
@@ -1811,6 +1833,12 @@ export class Game {
     if (type === BuildingType.Hatchery) {
       larvaCount[eid] = 3;
       larvaRegenTimer[eid] = 0;
+    }
+
+    // Gas buildings: store resource data on the building entity
+    if (type === BuildingType.Refinery || type === BuildingType.Extractor) {
+      resourceType[eid] = ResourceType.Gas;
+      resourceRemaining[eid] = GAS_PER_GEYSER;
     }
 
     // Mark tiles as occupied

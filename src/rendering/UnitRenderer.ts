@@ -680,7 +680,7 @@ export class UnitRenderer {
         if (bt === BuildingType.CommandCenter) borderColor = 0x6699cc;
         else if (bt === BuildingType.SupplyDepot) borderColor = 0x4477bb;
         else if (bt === BuildingType.Barracks) borderColor = 0x7755bb;
-        else if (bt === BuildingType.Refinery) borderColor = 0x559955;
+        else if (bt === BuildingType.Refinery || bt === BuildingType.Extractor) borderColor = 0x559955;
         else if (bt === BuildingType.Factory) borderColor = 0x997755;
         else if (bt === BuildingType.Starport) borderColor = 0x5577bb;
         else if (bt === BuildingType.EngineeringBay) borderColor = 0x6688dd;
@@ -905,33 +905,39 @@ export class UnitRenderer {
               }
             }
           }
-        } else if (bt === BuildingType.Refinery) {
+        } else if (bt === BuildingType.Refinery || bt === BuildingType.Extractor) {
           // Two cylindrical tanks (vertical rectangles with rounded tops)
+          // Extractor uses Zerg-tinted greens; Refinery uses Terran grays
+          const isZergGas = bt === BuildingType.Extractor;
+          const tankColor = isZergGas ? 0x335544 : 0x445544;
+          const tankStroke = isZergGas ? 0x55aa66 : 0x668866;
+          const pipeColor = isZergGas ? 0x446655 : 0x556655;
+          const ventColor = isZergGas ? 0x88ff66 : 0x66ff88;
           const tankW = w * 0.22;
           const tankH = h * 0.55;
           // Left tank
           g.rect(x - w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
-          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          g.fill({ color: tankColor, alpha: 0.7 * baseAlpha });
           g.rect(x - w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
-          g.stroke({ color: 0x668866, width: 1, alpha: 0.6 * baseAlpha });
+          g.stroke({ color: tankStroke, width: 1, alpha: 0.6 * baseAlpha });
           g.circle(x - w * 0.25, y - tankH / 2, tankW / 2);
-          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          g.fill({ color: tankColor, alpha: 0.7 * baseAlpha });
           // Right tank
           g.rect(x + w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
-          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          g.fill({ color: tankColor, alpha: 0.7 * baseAlpha });
           g.rect(x + w * 0.25 - tankW / 2, y - tankH / 2, tankW, tankH);
-          g.stroke({ color: 0x668866, width: 1, alpha: 0.6 * baseAlpha });
+          g.stroke({ color: tankStroke, width: 1, alpha: 0.6 * baseAlpha });
           g.circle(x + w * 0.25, y - tankH / 2, tankW / 2);
-          g.fill({ color: 0x445544, alpha: 0.7 * baseAlpha });
+          g.fill({ color: tankColor, alpha: 0.7 * baseAlpha });
           // Connecting pipe between tanks
           g.rect(x - w * 0.12, y - 2, w * 0.24, 4);
-          g.fill({ color: 0x556655, alpha: 0.6 * baseAlpha });
+          g.fill({ color: pipeColor, alpha: 0.6 * baseAlpha });
           // Green gas venting glow on top of each tank
           const ventPulse = 0.3 + 0.2 * Math.sin(gameTime * 3);
           g.circle(x - w * 0.25, y - tankH / 2 - 2, 4);
-          g.fill({ color: 0x66ff88, alpha: ventPulse * baseAlpha });
+          g.fill({ color: ventColor, alpha: ventPulse * baseAlpha });
           g.circle(x + w * 0.25, y - tankH / 2 - 2, 4);
-          g.fill({ color: 0x66ff88, alpha: ventPulse * baseAlpha });
+          g.fill({ color: ventColor, alpha: ventPulse * baseAlpha });
         } else if (bt === BuildingType.Factory) {
           // Smokestack cap (stack body is part of base shape)
           g.rect(x + hw - 20, y - hh - 18, 16, 3);
@@ -3825,10 +3831,10 @@ export class UnitRenderer {
 
       // Worker carrying indicator — resource glow when hauling
       if (hasComponents(world, eid, WORKER) && workerCarrying[eid] > 0) {
-        // Check if carrying gas (target is a Refinery/gas entity)
+        // Check if carrying gas (target is a Refinery/Extractor)
         const tgtEid = targetEntity[eid];
-        const isGas = tgtEid >= 1 && hasComponents(world, tgtEid, BUILDING) &&
-          buildingType[tgtEid] === BuildingType.Refinery;
+        const tgtBt = tgtEid >= 1 && hasComponents(world, tgtEid, BUILDING) ? buildingType[tgtEid] : 0;
+        const isGas = tgtBt === BuildingType.Refinery || tgtBt === BuildingType.Extractor;
         const carryColor = isGas ? 0x66ff88 : 0x55ddff;
         const glowColor = isGas ? 0x22aa44 : 0x2288cc;
 

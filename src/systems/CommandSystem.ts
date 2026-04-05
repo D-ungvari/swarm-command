@@ -837,8 +837,9 @@ export function commandSystem(
           break;
         }
 
-        // Check refinery
-        const refinery = findBuildingAt(world, wx, wy, BuildingType.Refinery);
+        // Check gas building (Refinery or Extractor)
+        let refinery = findBuildingAt(world, wx, wy, BuildingType.Refinery);
+        if (refinery <= 0) refinery = findBuildingAt(world, wx, wy, BuildingType.Extractor);
         if (refinery > 0 && resourceRemaining[refinery] > 0) {
           const workers: number[] = [];
           const nonWorkers: number[] = [];

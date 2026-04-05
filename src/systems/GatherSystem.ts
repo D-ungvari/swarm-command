@@ -57,11 +57,11 @@ export function gatherSystem(
   }
 }
 
-/** Determine if a target entity is a gas source (Refinery building or gas resource with refinery) */
+/** Determine if a target entity is a gas source (Refinery/Extractor building that is complete with gas remaining) */
 function isGasTarget(world: World, target: number): boolean {
-  // Refinery building that is complete and has gas remaining
   if (hasComponents(world, target, BUILDING)) {
-    return buildingType[target] === BuildingType.Refinery &&
+    const bt = buildingType[target];
+    return (bt === BuildingType.Refinery || bt === BuildingType.Extractor) &&
            buildState[target] === BuildState.Complete &&
            resourceRemaining[target] > 0;
   }

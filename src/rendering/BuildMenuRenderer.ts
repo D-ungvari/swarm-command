@@ -122,6 +122,7 @@ export class BuildMenuRenderer {
 
   private static readonly ZERG_BUILDING_TYPES: Array<BuildingType | 0> = [
     BuildingType.Hatchery,
+    BuildingType.Extractor,
     BuildingType.SpawningPool,
     BuildingType.RoachWarren,
     BuildingType.HydraliskDen,
@@ -129,7 +130,6 @@ export class BuildMenuRenderer {
     BuildingType.EvolutionChamber,
     BuildingType.InfestationPit,
     BuildingType.SpineCrawler,
-    BuildingType.SporeCrawler,
   ];
 
   private get buildingTypes(): Array<BuildingType | 0> {

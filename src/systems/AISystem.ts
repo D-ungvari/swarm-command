@@ -97,7 +97,7 @@ const ZERG_LING_BANE_BUST: BuildOrderStep[] = [
   { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
-  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Extractor, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 21, action: { kind: 'queen' }, done: false, timeout: 30 },
@@ -134,13 +134,13 @@ const ZERG_ROACH_RAVAGER_TIMING: BuildOrderStep[] = [
   { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
-  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Extractor, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 21, action: { kind: 'queen' }, done: false, timeout: 30 },
   // Roach Warren early
   { trigger: 'supply', triggerValue: 24, action: { kind: 'building', type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 }, done: false, timeout: 30 },
-  { trigger: 'supply', triggerValue: 26, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 26, action: { kind: 'building', type: BuildingType.Extractor, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 28, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'always', triggerValue: 0, action: { kind: 'set_worker_cap', count: 22 }, done: false },
   // Roach production
@@ -173,14 +173,14 @@ const ZERG_ROACH_HYDRA_PUSH: BuildOrderStep[] = [
   { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
-  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Extractor, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 21, action: { kind: 'queen' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 24, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
   // Tech buildings
   { trigger: 'supply', triggerValue: 28, action: { kind: 'building', type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 }, done: false, timeout: 30 },
-  { trigger: 'supply', triggerValue: 30, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 30, action: { kind: 'building', type: BuildingType.Extractor, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 32, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'time', triggerValue: 180, action: { kind: 'building', type: BuildingType.HydraliskDen, colOffset: 5, rowOffset: 5 }, done: false, timeout: 30 },
   // Worker and army ramp
@@ -222,7 +222,7 @@ const ZERG_MACRO_HATCH_FIRST: BuildOrderStep[] = [
   { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
   { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
-  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Extractor, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
   { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
@@ -240,7 +240,7 @@ const ZERG_MACRO_HATCH_FIRST: BuildOrderStep[] = [
   { trigger: 'supply', triggerValue: 36, action: { kind: 'overlord' }, done: false, timeout: 30 },
   // Tech up
   { trigger: 'time', triggerValue: 180, action: { kind: 'building', type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 }, done: false, timeout: 30 },
-  { trigger: 'time', triggerValue: 200, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'time', triggerValue: 200, action: { kind: 'building', type: BuildingType.Extractor, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
   { trigger: 'time', triggerValue: 210, action: { kind: 'building', type: BuildingType.EvolutionChamber, colOffset: 0, rowOffset: 5 }, done: false, timeout: 30 },
   { trigger: 'time', triggerValue: 230, action: { kind: 'building', type: BuildingType.HydraliskDen, colOffset: 5, rowOffset: 5 }, done: false, timeout: 30 },
   { trigger: 'time', triggerValue: 250, action: { kind: 'upgrade', upgradeType: UpgradeType.ZergRanged }, done: false },
@@ -407,7 +407,7 @@ function assignIdleWorkers(world: World, map: MapData): void {
     if (hpCurrent[w] <= 0) continue;
     if (workerState[w] === WorkerState.Idle) continue;
     const tgt = workerTargetEid[w];
-    if (tgt > 0 && hasComponents(world, tgt, BUILDING) && buildingType[tgt] === BuildingType.Refinery) {
+    if (tgt > 0 && hasComponents(world, tgt, BUILDING) && (buildingType[tgt] === BuildingType.Refinery || buildingType[tgt] === BuildingType.Extractor)) {
       gasWorkerCounts.set(tgt, (gasWorkerCounts.get(tgt) || 0) + 1);
     }
   }
@@ -417,7 +417,7 @@ function assignIdleWorkers(world: World, map: MapData): void {
   for (let b = 1; b < world.nextEid; b++) {
     if (!hasComponents(world, b, BUILDING | POSITION)) continue;
     if (faction[b] !== currentAIFaction) continue;
-    if (buildingType[b] !== BuildingType.Refinery) continue;
+    if (buildingType[b] !== BuildingType.Refinery && buildingType[b] !== BuildingType.Extractor) continue;
     if (buildState[b] !== BuildState.Complete) continue;
     if (hpCurrent[b] <= 0) continue;
     if (resourceRemaining[b] <= 0) continue;
@@ -534,10 +534,10 @@ function aiBuildBuilding(
   if (!bDef) return false;
   if (res.minerals < bDef.costMinerals || res.gas < bDef.costGas) return false;
 
-  // Refinery: snap to nearest gas tile instead of using fixed offset
+  // Gas building: snap to nearest gas tile instead of using fixed offset
   let placeCol = col;
   let placeRow = row;
-  if (bType === BuildingType.Refinery) {
+  if (bType === BuildingType.Refinery || bType === BuildingType.Extractor) {
     let bestDist = Infinity;
     for (let dr = -10; dr <= 10; dr++) {
       for (let dc = -10; dc <= 10; dc++) {
@@ -835,11 +835,11 @@ let defenseAreaClearSince = 0;
 // ─────────────────────────────────────────
 const AI_BUILDING_SCHEDULE: Array<{ minTime: number; type: number; colOffset: number; rowOffset: number }> = [
   { minTime: 0,   type: BuildingType.SpawningPool,     colOffset: -4, rowOffset: 0 },
-  { minTime: 30,  type: BuildingType.Refinery,          colOffset: 4,  rowOffset: -3 },
+  { minTime: 30,  type: BuildingType.Extractor,         colOffset: 4,  rowOffset: -3 },
   { minTime: 90,  type: BuildingType.RoachWarren,       colOffset: 5,  rowOffset: 0 },
   { minTime: 120, type: BuildingType.EvolutionChamber,  colOffset: 0,  rowOffset: 5 },
   { minTime: 180, type: BuildingType.HydraliskDen,      colOffset: 5,  rowOffset: 5 },
-  { minTime: 240, type: BuildingType.Refinery,          colOffset: 7,  rowOffset: -3 },
+  { minTime: 240, type: BuildingType.Extractor,         colOffset: 7,  rowOffset: -3 },
   { minTime: 300, type: BuildingType.Spire,             colOffset: -5, rowOffset: 5 },
   { minTime: 360, type: BuildingType.InfestationPit,    colOffset: -5, rowOffset: -3 },
 ];

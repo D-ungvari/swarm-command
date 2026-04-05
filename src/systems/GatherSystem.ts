@@ -5,13 +5,13 @@ import {
   workerState, workerCarrying, workerTargetEid, workerMineTimer,
   workerBaseX, workerBaseY,
   movePathIndex, setPath,
-  resourceRemaining, hpCurrent, hpMax, resourceType,
+  resourceRemaining, hpCurrent, hpMax,
   buildingType, buildState,
   workerCountOnResource,
 } from '../ecs/components';
 import { findNearestMineral, findLeastSaturatedMineral } from '../ecs/queries';
 import {
-  WorkerState, ResourceType, BuildingType, BuildState, TILE_SIZE,
+  WorkerState, BuildingType, BuildState, TILE_SIZE,
   WORKER_CARRY_MINERALS, WORKER_CARRY_GAS, MINE_DURATION, WORKER_MINE_RANGE,
   REPAIR_RATE, REPAIR_COST_RATIO,
 } from '../constants';
@@ -114,11 +114,14 @@ function tickMovingToResource(world: World, eid: number, map: MapData): void {
   }
 
   // Check if within mining range
+  // Buildings are multi-tile but posX/Y is the top-left tile center, so use a larger range
+  const isBuilding = hasComponents(world, target, BUILDING);
+  const mineRange = isBuilding ? WORKER_MINE_RANGE * 1.5 : WORKER_MINE_RANGE;
   const dx = posX[target] - posX[eid];
   const dy = posY[target] - posY[eid];
   const distSq = dx * dx + dy * dy;
 
-  if (distSq <= WORKER_MINE_RANGE * WORKER_MINE_RANGE) {
+  if (distSq <= mineRange * mineRange) {
     // Start mining — track saturation
     workerState[eid] = WorkerState.Mining;
     workerMineTimer[eid] = MINE_DURATION;
@@ -129,6 +132,8 @@ function tickMovingToResource(world: World, eid: number, map: MapData): void {
     // Not moving and not in range — try to path to resource
     const pathed = pathToResource(eid, target, map);
     if (!pathed) {
+      // Gas workers: don't fall back to minerals — just keep trying next tick
+      if (isBuilding) return;
       // Can't reach this patch (blocked by other workers/terrain) — try a different one
       const alt = findLeastSaturatedMineral(world, posX[eid], posY[eid], 12 * TILE_SIZE);
       if (alt > 0 && alt !== target) {
@@ -228,7 +233,7 @@ function tickReturningToBase(
         workerTargetEid[eid] = -1;
         return;
       }
-      if (resourceType[target] === ResourceType.Gas) {
+      if (isGas) {
         // Gas: always return to same refinery
         workerState[eid] = WorkerState.MovingToResource;
         pathToResource(eid, target, map);

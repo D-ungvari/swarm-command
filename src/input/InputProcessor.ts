@@ -24,6 +24,7 @@ export class InputProcessor {
   private tacticalJumpPending = false;
   private lastRecalledGroup = -1;
   private lastRecalledTime = 0;
+  private pendingDoubleClick = false;
 
   constructor(
     private input: InputManager,
@@ -342,6 +343,7 @@ export class InputProcessor {
       if (evt.type === 'leftdown') {
         dragStartX = evt.x;
         dragStartY = evt.y;
+        if (evt.isDouble) this.pendingDoubleClick = true;
       } else if (evt.type === 'leftup') {
         const dx = evt.x - dragStartX;
         const dy = evt.y - dragStartY;
@@ -500,8 +502,10 @@ export class InputProcessor {
           });
           this.tacticalJumpPending = false;
         } else {
-          // Single click — select
-          const type: CommandType = evt.isDouble
+          // Single click — select (isDouble is on leftdown, not leftup)
+          const isDouble = this.pendingDoubleClick;
+          this.pendingDoubleClick = false;
+          const type: CommandType = isDouble
             ? CommandType.DoubleClickSelect
             : CommandType.Select;
           this.selectionQueue.push({

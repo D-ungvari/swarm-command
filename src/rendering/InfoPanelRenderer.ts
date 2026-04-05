@@ -1223,6 +1223,8 @@ export class InfoPanelRenderer {
         setButtonState(btn, 'disabled');
       } else if (!enabled) {
         setButtonState(btn, 'disabled');
+      } else {
+        setButtonState(btn, 'normal');
       }
       // Prepend icon before label
       const resIconEl = document.createElement('span');

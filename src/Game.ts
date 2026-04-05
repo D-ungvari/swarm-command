@@ -368,7 +368,9 @@ export class Game {
     this.buildMenuRenderer = new BuildMenuRenderer(container);
     this.buildMenuRenderer.setFaction(this.playerFaction);
     this.infoPanelRenderer = new InfoPanelRenderer(container);
+    this.infoPanelRenderer.setFaction(this.playerFaction);
     this.controlGroupRenderer = new ControlGroupRenderer(container);
+    this.controlGroupRenderer.setFaction(this.playerFaction);
     this.controlGroupRenderer.setRecallCallback((group) => {
       this.selectionQueue.push({ type: CommandType.ControlGroupRecall, data: group });
     });
@@ -527,6 +529,7 @@ export class Game {
 
     // Minimap (screen space, bottom-right corner)
     this.minimapRenderer = new MinimapRenderer(this.app.stage, this.viewport, this.map);
+    this.minimapRenderer.setFaction(this.playerFaction);
 
     this.tilemapRenderer.render(this.map);
 

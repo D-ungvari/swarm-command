@@ -1,3 +1,5 @@
+import { colors, fonts } from '../ui/theme';
+
 /**
  * HTML overlay for timed alert notifications (e.g., "ENEMY WAVE INCOMING").
  */
@@ -15,16 +17,17 @@ export class AlertRenderer {
       left: 50%;
       transform: translateX(-50%);
       display: none;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 22px;
+      font-family: ${fonts.family};
+      font-size: ${fonts.sizeXL};
       font-weight: bold;
       letter-spacing: 2px;
-      color: #ff4444;
-      text-shadow: 0 0 10px rgba(255, 50, 50, 0.6);
-      background: rgba(0, 0, 0, 0.5);
+      color: ${colors.error};
+      text-shadow: 0 0 12px rgba(255, 50, 50, 0.7);
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
       padding: 10px 24px;
       border-radius: 4px;
-      border: 1px solid rgba(255, 80, 80, 0.4);
+      border: 1px solid rgba(255, 80, 80, 0.45);
       z-index: 50;
       pointer-events: none;
       user-select: none;

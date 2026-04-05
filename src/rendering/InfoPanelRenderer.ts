@@ -1,5 +1,8 @@
 import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, TECHLAB_UNITS, STIM_DURATION, activePlayerFaction, isHatchType } from '../constants';
 import { CommandType } from '../input/CommandQueue';
+import { createPanelFrame, updatePanelFaction } from '../ui/panelFrame';
+import { createButton, setButtonState, type ButtonState } from '../ui/button';
+import { getFactionPalette, colors, fonts, spacing, TERRAN_PALETTE, type FactionPalette } from '../ui/theme';
 import { hasCompletedBuilding } from '../ecs/queries';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
@@ -199,64 +202,52 @@ export class InfoPanelRenderer {
   private upgradeCallback: ((buildingEid: number, targetType: number) => void) | null = null;
   private abilityCallback: AbilityCallback | null = null;
   private lastButtonConfig = '';
+  private palette: FactionPalette = TERRAN_PALETTE;
 
   constructor(container: HTMLElement) {
-    this.panel = document.createElement('div');
-    this.panel.id = 'info-panel';
-    this.panel.style.cssText = `
-      position: fixed;
-      bottom: 16px;
-      left: 12px;
-      display: none;
-      flex-direction: column;
-      gap: 4px;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 13px;
-      color: #eee;
-      background: rgba(0, 0, 0, 0.75);
-      padding: 8px 12px;
-      border-radius: 4px;
-      border: 1px solid rgba(100, 160, 255, 0.3);
-      z-index: 10;
-      pointer-events: none;
-      user-select: none;
-      min-width: 160px;
-    `;
+    this.panel = createPanelFrame({
+      id: 'info-panel',
+      position: { bottom: '16px', left: '12px' },
+      faction: Faction.Terran,
+      minWidth: '160px',
+    });
 
     // Portrait container (flex row for portrait thumbnails)
     this.portraitContainer = document.createElement('div');
-    this.portraitContainer.style.cssText = 'display: flex; gap: 4px; align-items: center; flex-wrap: wrap;';
+    this.portraitContainer.style.cssText = `display: flex; gap: ${spacing.sm}; align-items: center; flex-wrap: wrap;`;
     this.panel.appendChild(this.portraitContainer);
 
     // Name
     this.nameEl = document.createElement('div');
-    this.nameEl.style.cssText = 'color: #88bbff; font-size: 14px; font-weight: bold;';
+    this.nameEl.style.cssText = `color: ${this.palette.secondary}; font-size: ${fonts.sizeLG}; font-weight: bold;`;
     this.panel.appendChild(this.nameEl);
 
     // Detail line (faction, etc.)
     this.detailEl = document.createElement('div');
-    this.detailEl.style.cssText = 'color: #aaa; font-size: 11px;';
+    this.detailEl.style.cssText = `color: ${this.palette.textDim}; font-size: ${fonts.sizeSM};`;
     this.panel.appendChild(this.detailEl);
 
     // HP bar
     this.barContainer = document.createElement('div');
     this.barContainer.style.cssText = `
-      position: relative;
-      width: 100%;
-      height: 12px;
-      background: #222;
-      border-radius: 2px;
-      overflow: hidden;
-      margin-top: 2px;
+      position: relative; width: 100%; height: 14px;
+      background: rgba(15, 15, 20, 0.8);
+      border: 1px solid ${TERRAN_PALETTE.borderDim};
+      border-radius: 3px; overflow: hidden; margin-top: ${spacing.xs};
     `;
     this.barFill = document.createElement('div');
-    this.barFill.style.cssText = 'height: 100%; background: #44ff44; transition: width 0.1s;';
+    this.barFill.style.cssText = `
+      height: 100%;
+      background: linear-gradient(180deg, ${colors.hpHigh} 0%, ${colors.hpHighGrad} 100%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      transition: width 0.15s ease-out;
+    `;
     this.barLabel = document.createElement('div');
     this.barLabel.style.cssText = `
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
+      position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      font-size: 9px; color: #fff; text-shadow: 0 0 2px #000;
+      font-size: ${fonts.sizeTiny}; color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
     `;
     this.barContainer.appendChild(this.barFill);
     this.barContainer.appendChild(this.barLabel);
@@ -266,31 +257,29 @@ export class InfoPanelRenderer {
     this.statsEl = document.createElement('div');
     this.statsEl.style.cssText = `
       display: none;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 11px;
-      margin-top: 4px;
+      font-family: ${fonts.family};
+      font-size: ${fonts.sizeSM};
+      margin-top: ${spacing.sm};
       line-height: 1.5;
     `;
     this.panel.appendChild(this.statsEl);
 
     // Production progress row (for buildings currently producing)
     this.prodRow = document.createElement('div');
-    this.prodRow.style.cssText = 'display: none; flex-direction: column; gap: 2px; margin-top: 4px;';
+    this.prodRow.style.cssText = `display: none; flex-direction: column; gap: ${spacing.xs}; margin-top: ${spacing.sm};`;
 
     this.prodLabel = document.createElement('div');
-    this.prodLabel.style.cssText = 'font-size: 11px; color: #ffcc44;';
+    this.prodLabel.style.cssText = `font-size: ${fonts.sizeSM}; color: ${colors.supply};`;
     this.prodRow.appendChild(this.prodLabel);
 
     const prodBarContainer = document.createElement('div');
     prodBarContainer.style.cssText = `
-      width: 100%;
-      height: 8px;
-      background: #222;
-      border-radius: 2px;
-      overflow: hidden;
+      width: 100%; height: 8px;
+      background: rgba(15, 15, 20, 0.8);
+      border-radius: 2px; overflow: hidden;
     `;
     this.prodBarFill = document.createElement('div');
-    this.prodBarFill.style.cssText = 'height: 100%; background: #ffaa22; transition: width 0.1s;';
+    this.prodBarFill.style.cssText = `height: 100%; background: ${colors.production}; transition: width 0.15s ease-out;`;
     prodBarContainer.appendChild(this.prodBarFill);
     this.prodRow.appendChild(prodBarContainer);
 
@@ -298,19 +287,19 @@ export class InfoPanelRenderer {
 
     // Reactor Slot 2 production row
     this.prodSlot2Row = document.createElement('div');
-    this.prodSlot2Row.style.cssText = 'display: none; flex-direction: column; gap: 2px; margin-top: 2px;';
+    this.prodSlot2Row.style.cssText = `display: none; flex-direction: column; gap: ${spacing.xs}; margin-top: ${spacing.xs};`;
 
     this.prodSlot2Label = document.createElement('div');
-    this.prodSlot2Label.style.cssText = 'font-size: 11px; color: #ffaa44;';
+    this.prodSlot2Label.style.cssText = `font-size: ${fonts.sizeSM}; color: ${colors.production};`;
     this.prodSlot2Row.appendChild(this.prodSlot2Label);
 
     const prodSlot2BarContainer = document.createElement('div');
     prodSlot2BarContainer.style.cssText = `
-      width: 100%; height: 6px; background: rgba(40, 30, 10, 0.6);
+      width: 100%; height: 6px; background: rgba(15, 15, 20, 0.8);
       border: 1px solid rgba(255, 160, 44, 0.3); border-radius: 2px; overflow: hidden;
     `;
     this.prodSlot2BarFill = document.createElement('div');
-    this.prodSlot2BarFill.style.cssText = 'height: 100%; background: #ff8822; transition: width 0.1s;';
+    this.prodSlot2BarFill.style.cssText = `height: 100%; background: ${colors.production}; transition: width 0.15s ease-out;`;
     prodSlot2BarContainer.appendChild(this.prodSlot2BarFill);
     this.prodSlot2Row.appendChild(prodSlot2BarContainer);
 
@@ -318,27 +307,27 @@ export class InfoPanelRenderer {
 
     // Production buttons row (clickable buttons for available units)
     this.prodButtonsRow = document.createElement('div');
-    this.prodButtonsRow.style.cssText = 'display: none; flex-direction: row; flex-wrap: wrap; gap: 3px; margin-top: 4px; pointer-events: auto; max-width: 340px;';
+    this.prodButtonsRow.style.cssText = `display: none; flex-direction: row; flex-wrap: wrap; gap: 3px; margin-top: ${spacing.sm}; pointer-events: auto; max-width: 340px;`;
     this.panel.appendChild(this.prodButtonsRow);
 
     // Production queue display row
     this.queueRow = document.createElement('div');
-    this.queueRow.style.cssText = 'display: none; flex-direction: row; gap: 3px; margin-top: 4px; align-items: center;';
+    this.queueRow.style.cssText = `display: none; flex-direction: row; gap: 3px; margin-top: ${spacing.sm}; align-items: center;`;
     this.panel.appendChild(this.queueRow);
 
     // Research buttons row (Engineering Bay / Evolution Chamber)
     this.researchButtonsRow = document.createElement('div');
-    this.researchButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto; flex-wrap: wrap;';
+    this.researchButtonsRow.style.cssText = `display: none; flex-direction: row; gap: ${spacing.sm}; margin-top: ${spacing.sm}; pointer-events: auto; flex-wrap: wrap;`;
     this.panel.appendChild(this.researchButtonsRow);
 
     // Addon buttons row (Tech Lab / Reactor for Barracks/Factory/Starport)
     this.addonButtonsRow = document.createElement('div');
-    this.addonButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto; flex-wrap: wrap;';
+    this.addonButtonsRow.style.cssText = `display: none; flex-direction: row; gap: ${spacing.sm}; margin-top: ${spacing.sm}; pointer-events: auto; flex-wrap: wrap;`;
     this.panel.appendChild(this.addonButtonsRow);
 
     // Ability buttons row (subgroup abilities for selected units)
     this.abilityButtonsRow = document.createElement('div');
-    this.abilityButtonsRow.style.cssText = 'display: none; flex-direction: row; gap: 4px; margin-top: 4px; pointer-events: auto;';
+    this.abilityButtonsRow.style.cssText = `display: none; flex-direction: row; gap: ${spacing.sm}; margin-top: ${spacing.sm}; pointer-events: auto;`;
     this.panel.appendChild(this.abilityButtonsRow);
 
     container.appendChild(this.panel);
@@ -366,6 +355,17 @@ export class InfoPanelRenderer {
   /** Wire up a callback for ability button clicks */
   setAbilityCallback(fn: AbilityCallback): void {
     this.abilityCallback = fn;
+  }
+
+  setFaction(f: Faction): void {
+    this.palette = getFactionPalette(f);
+    updatePanelFaction(this.panel, f);
+  }
+
+  private getHpGradient(ratio: number): string {
+    if (ratio > 0.5) return `linear-gradient(180deg, ${colors.hpHigh} 0%, ${colors.hpHighGrad} 100%)`;
+    if (ratio > 0.25) return `linear-gradient(180deg, ${colors.hpMid} 0%, ${colors.hpMidGrad} 100%)`;
+    return `linear-gradient(180deg, ${colors.hpLow} 0%, ${colors.hpLowGrad} 100%)`;
   }
 
   update(world: World, gameTime: number, playerResources?: PlayerResources): void {
@@ -445,8 +445,8 @@ export class InfoPanelRenderer {
           badge.style.cssText = `
             position: absolute; bottom: 1px; right: 1px;
             background: rgba(0,0,0,0.8); color: #fff;
-            font-size: 9px; padding: 0 3px; border-radius: 2px;
-            line-height: 14px; font-family: 'Consolas', monospace;
+            font-size: ${fonts.sizeTiny}; padding: 0 3px; border-radius: 2px;
+            line-height: 14px; font-family: ${fonts.family};
           `;
           badge.textContent = `${count}`;
           wrapper.appendChild(badge);
@@ -455,7 +455,7 @@ export class InfoPanelRenderer {
       }
       if (typeEntries.length > MAX_PORTRAITS) {
         const overflow = document.createElement('div');
-        overflow.style.cssText = 'color: #aaa; font-size: 11px; align-self: center;';
+        overflow.style.cssText = `color: ${this.palette.textDim}; font-size: ${fonts.sizeSM}; align-self: center;`;
         overflow.textContent = `+${typeEntries.length - MAX_PORTRAITS}`;
         this.portraitContainer.appendChild(overflow);
       }
@@ -481,8 +481,8 @@ export class InfoPanelRenderer {
           const name = UNIT_DEFS[ut]?.name ?? 'Unit';
           const count = typeCounts[ut];
           const isActive = idx === (activeIdx % typeKeys.length);
-          return `<span style="color:${isActive ? '#cce0ff' : '#557799'};${isActive ? 'font-weight:bold;' : ''}">${name} \u00d7${count}</span>`;
-        }).join(' <span style="color:#334">|</span> ');
+          return `<span style="color:${isActive ? this.palette.text : this.palette.textMuted};${isActive ? 'font-weight:bold;' : ''}">${name} \u00d7${count}</span>`;
+        }).join(` <span style="color:${this.palette.borderDim}">|</span> `);
         this.detailEl.innerHTML = breadcrumb;
       } else {
         this.detailEl.innerHTML = detailHtml;
@@ -492,7 +492,7 @@ export class InfoPanelRenderer {
       this.barContainer.style.display = 'block';
       const ratio = totalMaxHp > 0 ? Math.max(0, totalHp / totalMaxHp) : 0;
       this.barFill.style.width = `${ratio * 100}%`;
-      this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
+      this.barFill.style.background = this.getHpGradient(ratio);
       this.barLabel.textContent = `${Math.floor(totalHp)}/${Math.floor(totalMaxHp)}`;
 
       this.prodRow.style.display = 'none';
@@ -548,53 +548,26 @@ export class InfoPanelRenderer {
 
           for (const ability of abilities) {
             const iconInfo = ABILITY_ICONS[ability.name] || { symbol: '\u2726', color: '#aaccff' };
-            const btn = document.createElement('div');
-            btn.style.cssText = `
-              display: flex; align-items: center; gap: 5px;
-              padding: 4px 8px;
-              background: rgba(20, 35, 70, 0.7);
-              border: 1px solid rgba(100, 160, 255, 0.4);
-              border-radius: 3px;
-              cursor: pointer; pointer-events: auto;
-              transition: background 0.1s, border-color 0.1s;
-              user-select: none;
-            `;
+            const fac = faction[sel] as Faction;
+            const btn = createButton({
+              label: ability.name,
+              hotkey: ability.key,
+              faction: fac,
+              size: 'lg',
+              onClick: () => {
+                if (this.abilityCallback) this.abilityCallback(ability.commandType, [...unitEids]);
+              },
+            });
+            btn.style.flexDirection = 'row';
+            btn.style.gap = '5px';
 
-            // Hotkey badge
-            const hotkeyEl = document.createElement('span');
-            hotkeyEl.style.cssText = `
-              font-size: 9px; font-family: Consolas, monospace;
-              color: rgba(180,210,255,0.5);
-              background: rgba(0,0,0,0.3);
-              padding: 0 3px; border-radius: 2px;
-              min-width: 12px; text-align: center;
-            `;
-            hotkeyEl.textContent = ability.key;
-            btn.appendChild(hotkeyEl);
-
-            // Icon
+            // Prepend icon before label
             const iconEl = document.createElement('span');
             iconEl.style.cssText = `font-size: 14px; color: ${iconInfo.color}; line-height: 1;`;
             iconEl.textContent = iconInfo.symbol;
-            btn.appendChild(iconEl);
+            const labelEl = btn.querySelector('.btn-label');
+            if (labelEl) btn.insertBefore(iconEl, labelEl);
 
-            // Name
-            const nameEl = document.createElement('span');
-            nameEl.style.cssText = 'font-size: 10px; font-family: Consolas, monospace; color: #cce0ff;';
-            nameEl.textContent = ability.name;
-            btn.appendChild(nameEl);
-
-            btn.addEventListener('mouseenter', () => {
-              btn.style.background = 'rgba(40, 80, 160, 0.6)';
-              btn.style.borderColor = 'rgba(100, 180, 255, 0.7)';
-            });
-            btn.addEventListener('mouseleave', () => {
-              btn.style.background = 'rgba(20, 35, 70, 0.7)';
-              btn.style.borderColor = 'rgba(100, 160, 255, 0.4)';
-            });
-            btn.addEventListener('click', () => {
-              if (this.abilityCallback) this.abilityCallback(ability.commandType, [...unitEids]);
-            });
             this.abilityButtonsRow.appendChild(btn);
           }
         } else {
@@ -617,8 +590,7 @@ export class InfoPanelRenderer {
         }
       }
 
-      // Border stays blue (player's faction)
-      this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
+      this.panel.style.borderColor = this.palette.border;
       return;
     }
 
@@ -637,7 +609,7 @@ export class InfoPanelRenderer {
       const maxHp = hpMax[eid];
       const ratio = maxHp > 0 ? Math.max(0, hp / maxHp) : 0;
       this.barFill.style.width = `${ratio * 100}%`;
-      this.barFill.style.background = rt === ResourceType.Mineral ? '#44bbff' : '#44ff66';
+      this.barFill.style.background = rt === ResourceType.Mineral ? colors.mineral : colors.gas;
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       this.prodRow.style.display = 'none';
       this.prodSlot2Row.style.display = 'none';
@@ -648,7 +620,7 @@ export class InfoPanelRenderer {
       this.statsEl.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Cyan border for resources
-      this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)';
+      this.panel.style.borderColor = 'rgba(80, 200, 255, 0.3)'; // resource-specific, keep
       return;
     }
 
@@ -670,7 +642,7 @@ export class InfoPanelRenderer {
       const maxHp = hpMax[eid];
       const ratio = maxHp > 0 ? Math.max(0, hp / maxHp) : 0;
       this.barFill.style.width = `${ratio * 100}%`;
-      this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
+      this.barFill.style.background = this.getHpGradient(ratio);
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
 
       // Pure research buildings: Engineering Bay, Evolution Chamber, Armory
@@ -804,7 +776,7 @@ export class InfoPanelRenderer {
           if (dx * dx + dy * dy <= radiusSq) workerCount++;
         }
         const optimal = 16; // 8 mineral patches × 2 optimal workers
-        const color = workerCount <= optimal ? '#44ff44' : workerCount <= optimal + 4 ? '#ffaa00' : '#ff4444';
+        const color = workerCount <= optimal ? colors.hpHigh : workerCount <= optimal + 4 ? colors.hpMid : colors.hpLow;
         this.detailEl.innerHTML += `  <span style="color:${color}">Workers: ${workerCount}/${optimal}</span>`;
       }
 
@@ -818,9 +790,7 @@ export class InfoPanelRenderer {
       }
 
       // Faction-colored border for buildings
-      this.panel.style.borderColor = fac === Faction.Zerg
-        ? 'rgba(255, 80, 80, 0.3)'
-        : 'rgba(100, 160, 255, 0.3)';
+      this.panel.style.borderColor = getFactionPalette(fac).border;
       return;
     }
 
@@ -891,7 +861,7 @@ export class InfoPanelRenderer {
         const maxHp = hpMax[eid];
         const ratio = maxHp > 0 ? Math.max(0, hp / maxHp) : 0;
         this.barFill.style.width = `${ratio * 100}%`;
-        this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
+        this.barFill.style.background = this.getHpGradient(ratio);
         this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       }
 
@@ -899,12 +869,12 @@ export class InfoPanelRenderer {
       if (def) {
         const atkSpd = def.attackCooldown > 0 ? (1000 / def.attackCooldown).toFixed(2) : '0';
         this.statsEl.innerHTML =
-          `<span style="color:#88bbff">DMG:</span> <span style="color:#cce0ff">${def.damage}</span>` +
-          `&nbsp;&nbsp;<span style="color:#88bbff">ARM:</span> <span style="color:#cce0ff">${def.baseArmor}</span>` +
-          `&nbsp;&nbsp;<span style="color:#88bbff">SPD:</span> <span style="color:#cce0ff">${atkSpd}/s</span>` +
+          `<span style="color:${this.palette.secondary}">DMG:</span> <span style="color:${this.palette.text}">${def.damage}</span>` +
+          `&nbsp;&nbsp;<span style="color:${this.palette.secondary}">ARM:</span> <span style="color:${this.palette.text}">${def.baseArmor}</span>` +
+          `&nbsp;&nbsp;<span style="color:${this.palette.secondary}">SPD:</span> <span style="color:${this.palette.text}">${atkSpd}/s</span>` +
           `<br>` +
-          `<span style="color:#88bbff">RNG:</span> <span style="color:#cce0ff">${def.range}</span>` +
-          `&nbsp;&nbsp;<span style="color:#88bbff">MOV:</span> <span style="color:#cce0ff">${def.speed}</span>`;
+          `<span style="color:${this.palette.secondary}">RNG:</span> <span style="color:${this.palette.text}">${def.range}</span>` +
+          `&nbsp;&nbsp;<span style="color:${this.palette.secondary}">MOV:</span> <span style="color:${this.palette.text}">${def.speed}</span>`;
         this.statsEl.style.display = 'block';
       } else {
         this.statsEl.style.display = 'none';
@@ -918,9 +888,7 @@ export class InfoPanelRenderer {
       this.abilityButtonsRow.style.display = 'none';
       this.queueRow.style.display = 'none';
       // Faction-colored border for units
-      this.panel.style.borderColor = fac === Faction.Zerg
-        ? 'rgba(255, 80, 80, 0.3)'
-        : 'rgba(100, 160, 255, 0.3)';
+      this.panel.style.borderColor = getFactionPalette(fac).border;
       return;
     }
 
@@ -935,7 +903,7 @@ export class InfoPanelRenderer {
     this.abilityButtonsRow.style.display = 'none';
     this.statsEl.style.display = 'none';
     this.queueRow.style.display = 'none';
-    this.panel.style.borderColor = 'rgba(100, 160, 255, 0.3)';
+    this.panel.style.borderColor = this.palette.border;
   }
 
   private updateProductionButtons(
@@ -960,65 +928,17 @@ export class InfoPanelRenderer {
         const uDef = UNIT_DEFS[uType];
         if (!uDef) continue;
 
-        const btn = document.createElement('div');
-        btn.style.cssText = `
-          width: 46px; height: 54px;
-          border: 1px solid rgba(100, 160, 255, 0.4);
-          border-radius: 3px;
-          cursor: pointer; pointer-events: auto;
-          transition: background 0.1s, border-color 0.1s;
-          background: rgba(10, 18, 30, 0.8);
-          position: relative;
-          display: flex; flex-direction: column; align-items: center;
-          overflow: hidden; box-sizing: border-box;
-          padding-top: 2px;
-        `;
-
         const hotkey = i < hotkeys.length ? hotkeys[i] : '';
-
-        // Hotkey badge (top-left)
-        const hotkeyEl = document.createElement('div');
-        hotkeyEl.style.cssText = 'position: absolute; top: 1px; left: 2px; font-size: 8px; color: rgba(180,210,255,0.6); font-family: Consolas, monospace; z-index: 1;';
-        hotkeyEl.textContent = hotkey;
-        btn.appendChild(hotkeyEl);
-
-        // Supply badge (top-right)
-        if (uDef.supply > 0) {
-          const supEl = document.createElement('div');
-          supEl.style.cssText = 'position: absolute; top: 1px; right: 2px; font-size: 7px; color: rgba(255,220,80,0.6); font-family: Consolas, monospace; z-index: 1;';
-          supEl.textContent = uDef.supply === 0.5 ? '½' : String(uDef.supply);
-          btn.appendChild(supEl);
-        }
-
-        // Portrait (32x32 scaled from 44x44)
-        const portrait = this.portraitRenderer.getPortrait(uType);
-        portrait.style.cssText = 'width: 32px; height: 32px; image-rendering: pixelated; flex-shrink: 0;';
-        btn.appendChild(portrait);
-
-        // Cost line (bottom)
-        const costEl = document.createElement('div');
-        costEl.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; text-align: center; line-height: 1; margin-top: 1px;';
-        if (uDef.costGas > 0) {
-          costEl.innerHTML = `<span style="color:#66ccff">${uDef.costMinerals}</span><span style="color:#555">/</span><span style="color:#66ff88">${uDef.costGas}</span>`;
-        } else {
-          costEl.innerHTML = `<span style="color:#66ccff">${uDef.costMinerals}</span>`;
-        }
-        btn.appendChild(costEl);
-
-        btn.addEventListener('mouseenter', () => {
-          if (!btn.classList.contains('prod-disabled')) {
-            btn.style.background = 'rgba(40, 80, 160, 0.5)';
-            btn.style.borderColor = 'rgba(100, 180, 255, 0.7)';
-          }
+        const btn = createButton({
+          hotkey: hotkey || undefined,
+          portrait: this.portraitRenderer.getPortrait(uType),
+          cost: { minerals: uDef.costMinerals, gas: uDef.costGas },
+          supply: uDef.supply === 0.5 ? '\u00bd' : uDef.supply > 0 ? String(uDef.supply) : undefined,
+          faction: fac,
+          onClick: () => {}, // placeholder — real handler below needs event
         });
-        btn.addEventListener('mouseleave', () => {
-          btn.style.background = btn.classList.contains('prod-disabled')
-            ? 'rgba(10, 14, 20, 0.9)'
-            : 'rgba(10, 18, 30, 0.8)';
-          btn.style.borderColor = btn.classList.contains('prod-disabled')
-            ? 'rgba(60, 60, 60, 0.3)'
-            : 'rgba(100, 160, 255, 0.4)';
-        });
+
+        // Replace click with shift-aware handler
         btn.addEventListener('click', (e) => {
           if (this.productionCallback) {
             const count = e.shiftKey ? 5 : 1;
@@ -1061,39 +981,27 @@ export class InfoPanelRenderer {
       const btn = this.prodButtons[i];
       const hotkey = i < hotkeys.length ? hotkeys[i] : '';
 
-      if (enabled) {
-        btn.classList.remove('prod-disabled');
-        btn.style.borderColor = 'rgba(100, 160, 255, 0.4)';
-        btn.style.cursor = 'pointer';
-        btn.style.background = 'rgba(10, 18, 30, 0.8)';
-        btn.style.opacity = '1';
-      } else {
-        btn.classList.add('prod-disabled');
-        btn.style.borderColor = 'rgba(60, 60, 60, 0.3)';
-        btn.style.cursor = 'default';
-        btn.style.background = 'rgba(10, 14, 20, 0.9)';
-        btn.style.opacity = '0.5';
-      }
-
-      // Update styling without rebuilding DOM (preserves portrait canvas)
       if (!techMet && requiredBuilding !== undefined) {
+        setButtonState(btn, 'error');
         const reqDef = BUILDING_DEFS[requiredBuilding];
-        const reqName = reqDef ? reqDef.name : 'Required';
-        btn.style.opacity = '0.4';
-        btn.title = `Requires: ${reqName}`;
+        btn.title = `Requires: ${reqDef ? reqDef.name : 'Required'}`;
         const canvas = btn.querySelector('canvas');
-        if (canvas) canvas.style.opacity = '0.3';
+        if (canvas) (canvas as HTMLElement).style.opacity = '0.3';
       } else if (!addonMet) {
-        btn.style.opacity = '0.4';
+        setButtonState(btn, 'error');
         btn.title = 'Requires: Tech Lab';
-        // Dim the portrait
         const canvas = btn.querySelector('canvas');
-        if (canvas) canvas.style.opacity = '0.3';
-      } else {
-        btn.style.opacity = enabled ? '1' : '0.5';
+        if (canvas) (canvas as HTMLElement).style.opacity = '0.3';
+      } else if (enabled) {
+        setButtonState(btn, 'normal');
         btn.title = '';
         const canvas = btn.querySelector('canvas');
-        if (canvas) canvas.style.opacity = enabled ? '1' : '0.4';
+        if (canvas) (canvas as HTMLElement).style.opacity = '1';
+      } else {
+        setButtonState(btn, 'disabled');
+        btn.title = '';
+        const canvas = btn.querySelector('canvas');
+        if (canvas) (canvas as HTMLElement).style.opacity = '0.4';
       }
     }
 
@@ -1113,7 +1021,7 @@ export class InfoPanelRenderer {
 
     // Label
     const label = document.createElement('span');
-    label.style.cssText = 'font-size: 9px; color: #888; margin-right: 3px; align-self: center;';
+    label.style.cssText = `font-size: ${fonts.sizeTiny}; color: ${this.palette.textMuted}; margin-right: 3px; align-self: center;`;
     label.textContent = 'Q';
     this.queueRow.appendChild(label);
 
@@ -1124,9 +1032,9 @@ export class InfoPanelRenderer {
       const slot = document.createElement('div');
       slot.style.cssText = `
         width: 26px; height: 26px;
-        border: 1px solid rgba(255, 180, 44, 0.4);
+        border: 1px solid rgba(255, 180, 44, 0.35);
         border-radius: 2px;
-        background: rgba(40, 30, 10, 0.7);
+        background: rgba(20, 15, 5, 0.7);
         display: flex; align-items: center; justify-content: center;
         overflow: hidden;
       `;
@@ -1155,7 +1063,7 @@ export class InfoPanelRenderer {
         const tgtDef = BUILDING_DEFS[upgradingTo[buildingEid]];
         const tgtName = tgtDef ? tgtDef.name : 'Upgrading';
         const badge = document.createElement('div');
-        badge.style.cssText = 'padding: 4px 8px; border: 1px solid rgba(255,160,60,0.4); border-radius: 3px; font-size: 10px; color: #ffcc88; font-family: Consolas, monospace;';
+        badge.style.cssText = `padding: 4px 8px; border: 1px solid rgba(255,160,60,0.4); border-radius: 3px; font-size: ${fonts.sizeXS}; color: ${colors.production}; font-family: ${fonts.family};`;
         badge.textContent = `Upgrading to ${tgtName}: ${Math.round(pct * 100)}%`;
         this.addonButtonsRow.appendChild(badge);
         this.addonButtonsRow.style.display = 'flex';
@@ -1172,36 +1080,27 @@ export class InfoPanelRenderer {
     const techMet = targetDef.requires === null || hasCompletedBuilding(world, fac, targetDef.requires);
 
     this.addonButtonsRow.innerHTML = '';
-    const btn = document.createElement('div');
-    const canAfford = true; // visual only — actual check in callback
-    btn.style.cssText = `
-      padding: 4px 8px;
-      border: 1px solid ${techMet ? 'rgba(100, 160, 255, 0.4)' : 'rgba(60, 60, 60, 0.3)'};
-      border-radius: 3px;
-      cursor: ${techMet ? 'pointer' : 'default'};
-      pointer-events: auto;
-      opacity: ${techMet ? '1' : '0.5'};
-      font-family: Consolas, monospace; font-size: 10px; color: #eee;
-    `;
     const costText = targetDef.costGas > 0
       ? `${targetDef.costMinerals}m ${targetDef.costGas}g`
       : `${targetDef.costMinerals}m`;
-    btn.textContent = `Upgrade to ${targetDef.name} (${costText})`;
-    if (!techMet && targetDef.requires !== null) {
-      const reqDef = BUILDING_DEFS[targetDef.requires];
-      btn.title = `Requires: ${reqDef ? reqDef.name : 'Unknown'}`;
-    }
-    btn.addEventListener('click', () => {
-      if (techMet && this.upgradeCallback) {
-        this.upgradeCallback(buildingEid, targetType);
+    const btn = createButton({
+      label: `Upgrade to ${targetDef.name} (${costText})`,
+      size: 'lg',
+      faction: fac,
+      onClick: () => {
+        if (techMet && this.upgradeCallback) {
+          this.upgradeCallback(buildingEid, targetType);
+        }
+      },
+    });
+    btn.style.width = 'auto';
+    if (!techMet) {
+      setButtonState(btn, 'error');
+      if (targetDef.requires !== null) {
+        const reqDef = BUILDING_DEFS[targetDef.requires];
+        btn.title = `Requires: ${reqDef ? reqDef.name : 'Unknown'}`;
       }
-    });
-    btn.addEventListener('mouseenter', () => {
-      if (techMet) btn.style.background = 'rgba(40, 80, 160, 0.5)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'transparent';
-    });
+    }
     this.addonButtonsRow.appendChild(btn);
     this.addonButtonsRow.style.display = 'flex';
   }
@@ -1226,7 +1125,7 @@ export class InfoPanelRenderer {
       icon.textContent = isTechLab ? '\u2697' : '\u26A1';
       badge.appendChild(icon);
       const text = document.createElement('span');
-      text.style.cssText = `font-size: 10px; color: ${isTechLab ? '#88ccff' : '#ffcc88'}; font-family: Consolas, monospace;`;
+      text.style.cssText = `font-size: ${fonts.sizeXS}; color: ${isTechLab ? '#88ccff' : '#ffcc88'}; font-family: ${fonts.family};`;
       text.textContent = isTechLab ? 'Tech Lab' : 'Reactor';
       badge.appendChild(text);
       this.addonButtonsRow.appendChild(badge);
@@ -1243,44 +1142,23 @@ export class InfoPanelRenderer {
     ];
 
     for (const { label, symbol, color, typeVal } of addons) {
-      const btn = document.createElement('div');
-      btn.style.cssText = `
-        width: 80px; padding: 4px 6px;
-        border: 1px solid rgba(100, 160, 255, 0.4);
-        border-radius: 3px;
-        cursor: pointer; pointer-events: auto;
-        transition: background 0.1s, border-color 0.1s;
-        color: #eee;
-      `;
-      // Icon + name
-      const topRow = document.createElement('div');
-      topRow.style.cssText = 'display: flex; align-items: center; gap: 3px;';
+      const btn = createButton({
+        label,
+        size: 'lg',
+        faction: Faction.Terran,
+        cost: { minerals: 50, gas: 25 },
+        onClick: () => {
+          if (this.addonCallback) {
+            this.addonCallback(buildingEid, typeVal);
+          }
+        },
+      });
+      // Prepend icon
       const iconEl = document.createElement('span');
       iconEl.style.cssText = `font-size: 13px; color: ${color};`;
       iconEl.textContent = symbol;
-      topRow.appendChild(iconEl);
-      const nameEl = document.createElement('span');
-      nameEl.style.cssText = 'font-size: 10px; font-family: Consolas, monospace;';
-      nameEl.textContent = label;
-      topRow.appendChild(nameEl);
-      btn.appendChild(topRow);
-      // Cost
-      const costRow = document.createElement('div');
-      costRow.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; margin-top: 2px;';
-      costRow.innerHTML = '<span style="color:#66ccff">50</span><span style="color:#555">/</span><span style="color:#66ff88">25</span>';
-      btn.appendChild(costRow);
-
-      btn.addEventListener('mouseenter', () => {
-        btn.style.background = 'rgba(40, 80, 160, 0.5)';
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.background = 'transparent';
-      });
-      btn.addEventListener('click', () => {
-        if (this.addonCallback) {
-          this.addonCallback(buildingEid, typeVal);
-        }
-      });
+      const labelEl = btn.querySelector('.btn-label');
+      if (labelEl) btn.insertBefore(iconEl, labelEl);
 
       this.addonButtonsRow.appendChild(btn);
     }
@@ -1334,32 +1212,24 @@ export class InfoPanelRenderer {
         : false;
       const enabled = !maxed && canAfford && !isResearching;
 
-      const btn = document.createElement('div');
-      btn.style.cssText = `
-        width: 80px; padding: 4px 6px;
-        border: 1px solid ${enabled ? 'rgba(100, 160, 255, 0.4)' : 'rgba(80, 80, 80, 0.25)'};
-        border-radius: 3px;
-        cursor: ${enabled ? 'pointer' : 'default'};
-        pointer-events: auto;
-        transition: background 0.1s, border-color 0.1s;
-        color: ${enabled ? '#eee' : '#666'};
-        opacity: ${maxed ? '0.5' : '1'};
-      `;
-      btn.title = maxed ? `${label} (maxed)` : `${label} — ${cost.minerals}m ${cost.gas}g`;
-
-      // Icon + label row
       const iconInfo = UPGRADE_ICONS[type] || { symbol: '\u2B06', color: '#aaa' };
-      const topRow = document.createElement('div');
-      topRow.style.cssText = 'display: flex; align-items: center; gap: 3px;';
-      const icon = document.createElement('span');
-      icon.style.cssText = `font-size: 13px; color: ${iconInfo.color};`;
-      icon.textContent = iconInfo.symbol;
-      topRow.appendChild(icon);
-      const nameEl = document.createElement('span');
-      nameEl.style.cssText = 'font-size: 9px; font-family: Consolas, monospace; color: inherit;';
-      nameEl.textContent = label;
-      topRow.appendChild(nameEl);
-      btn.appendChild(topRow);
+      const btn = createButton({
+        label,
+        size: 'lg',
+        faction: Faction.Terran,
+      });
+      btn.title = maxed ? `${label} (maxed)` : `${label} — ${cost ? `${cost.minerals}m ${cost.gas}g` : ''}`;
+      if (maxed) {
+        setButtonState(btn, 'disabled');
+      } else if (!enabled) {
+        setButtonState(btn, 'disabled');
+      }
+      // Prepend icon before label
+      const resIconEl = document.createElement('span');
+      resIconEl.style.cssText = `font-size: 13px; color: ${iconInfo.color}; line-height: 1;`;
+      resIconEl.textContent = iconInfo.symbol;
+      const resLabelEl = btn.querySelector('.btn-label');
+      if (resLabelEl) btn.insertBefore(resIconEl, resLabelEl);
 
       // Level pips: 3 for leveled upgrades, 1 for boolean research
       const isBoolean = type >= UpgradeType.StimPack;
@@ -1381,25 +1251,17 @@ export class InfoPanelRenderer {
       // Cost line
       if (!maxed && cost) {
         const costRow = document.createElement('div');
-        costRow.style.cssText = 'font-size: 8px; font-family: Consolas, monospace; margin-top: 2px;';
-        costRow.innerHTML = `<span style="color:${enabled ? '#66ccff' : '#446'}">${cost.minerals}</span><span style="color:#555">/</span><span style="color:${enabled ? '#66ff88' : '#464'}">${cost.gas}</span>`;
+        costRow.style.cssText = `font-size: ${fonts.sizeHotkey}; font-family: ${fonts.family}; margin-top: ${spacing.xs};`;
+        costRow.innerHTML = `<span style="color:${enabled ? colors.mineral : '#446'}">${cost.minerals}</span><span style="color:#555">/</span><span style="color:${enabled ? colors.gas : '#464'}">${cost.gas}</span>`;
         btn.appendChild(costRow);
       } else {
-        const maxLabel = document.createElement('div');
-        maxLabel.style.cssText = 'font-size: 8px; color: #888; font-family: Consolas, monospace; margin-top: 2px;';
-        maxLabel.textContent = 'MAX';
-        btn.appendChild(maxLabel);
+        const maxLabelEl = document.createElement('div');
+        maxLabelEl.style.cssText = `font-size: ${fonts.sizeHotkey}; color: ${this.palette.textMuted}; font-family: ${fonts.family}; margin-top: ${spacing.xs};`;
+        maxLabelEl.textContent = 'MAX';
+        btn.appendChild(maxLabelEl);
       }
 
       if (enabled) {
-        btn.addEventListener('mouseenter', () => {
-          btn.style.background = 'rgba(40, 80, 160, 0.5)';
-          btn.style.borderColor = 'rgba(100, 180, 255, 0.6)';
-        });
-        btn.addEventListener('mouseleave', () => {
-          btn.style.background = 'transparent';
-          btn.style.borderColor = 'rgba(100, 160, 255, 0.4)';
-        });
         btn.addEventListener('click', () => {
           if (this.researchCallback) {
             this.researchCallback(buildingEid, type);

@@ -1,3 +1,5 @@
+import { fonts, spacing, TERRAN_PALETTE } from '../ui/theme';
+
 /**
  * HTML-based hotkey reference panel (top-right area, below resource HUD).
  * Toggled by pressing F1 or ?.
@@ -15,14 +17,15 @@ export class HotkeyPanelRenderer {
       right: 12px;
       display: none;
       flex-direction: column;
-      gap: 2px;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 11px;
-      color: #ccc;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 8px 10px;
+      gap: ${spacing.xs};
+      font-family: ${fonts.family};
+      font-size: ${fonts.sizeSM};
+      color: ${TERRAN_PALETTE.textDim};
+      background: linear-gradient(180deg, rgba(12,20,32,0.88) 0%, rgba(6,10,18,0.92) 100%);
+      padding: ${spacing.md} ${spacing.lg};
       border-radius: 4px;
-      border: 1px solid rgba(100, 160, 255, 0.2);
+      border: 1px solid ${TERRAN_PALETTE.borderDim};
+      box-shadow: ${TERRAN_PALETTE.panelBevel}, 0 2px 8px rgba(0,0,0,0.5);
       z-index: 10;
       pointer-events: none;
       user-select: none;
@@ -30,7 +33,7 @@ export class HotkeyPanelRenderer {
     `;
 
     const title = document.createElement('div');
-    title.style.cssText = 'color: #88bbff; font-size: 12px; font-weight: bold; margin-bottom: 2px;';
+    title.style.cssText = `color: ${TERRAN_PALETTE.secondary}; font-size: ${fonts.sizeMD}; font-weight: bold; margin-bottom: ${spacing.xs};`;
     title.textContent = 'Controls';
     this.panel.appendChild(title);
 

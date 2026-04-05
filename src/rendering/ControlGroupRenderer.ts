@@ -5,6 +5,9 @@
  * Click to recall, right-click type badge to remove type, double-click type badge to filter.
  */
 import { UNIT_DEFS } from '../data/units';
+import { getFactionPalette, fonts, spacing, TERRAN_PALETTE, type FactionPalette } from '../ui/theme';
+import { Faction } from '../constants';
+import { hexToCSS } from '../ui/theme';
 
 /** Convert a 0xRRGGBB number to a CSS hex string. */
 function hexColor(n: number): string {
@@ -24,6 +27,7 @@ export class ControlGroupRenderer {
 
   private recallCb: ((group: number) => void) | null = null;
   private removeTypeCb: ((group: number, unitType: number) => void) | null = null;
+  private palette: FactionPalette = TERRAN_PALETTE;
 
   /** Cached group info from last update — needed for tooltip interactions. */
   private lastGroupInfo: Array<ControlGroupSlotInfo> = [];
@@ -46,8 +50,8 @@ export class ControlGroupRenderer {
       slot.style.cssText = `
         min-width: 36px; height: 28px; padding: 0 5px;
         display: flex; align-items: center; justify-content: center;
-        background: rgba(0,0,0,0.5); border: 1px solid rgba(60,100,160,0.3);
-        color: #557799; font-family: monospace; font-size: 10px; border-radius: 3px;
+        background: rgba(0,0,0,0.5); border: 1px solid ${TERRAN_PALETTE.borderDim};
+        color: ${TERRAN_PALETTE.textMuted}; font-family: ${fonts.family}; font-size: ${fonts.sizeXS}; border-radius: 3px;
         cursor: pointer; user-select: none; white-space: nowrap;
         transition: background 0.12s, border-color 0.12s;
       `;
@@ -57,9 +61,10 @@ export class ControlGroupRenderer {
       const tooltip = document.createElement('div');
       tooltip.style.cssText = `
         display: none; position: absolute; top: 30px; left: 0;
-        background: rgba(8,16,32,0.92); border: 1px solid rgba(60,120,200,0.5);
-        border-radius: 4px; padding: 4px 6px; z-index: 20;
-        font-family: monospace; font-size: 10px; white-space: nowrap;
+        background: linear-gradient(180deg, rgba(12,20,32,0.92) 0%, rgba(6,10,18,0.95) 100%);
+        border: 1px solid ${TERRAN_PALETTE.border};
+        border-radius: 4px; padding: ${spacing.sm} ${spacing.md}; z-index: 20;
+        font-family: ${fonts.family}; font-size: ${fonts.sizeXS}; white-space: nowrap;
         box-shadow: 0 4px 12px rgba(0,0,0,0.6);
         pointer-events: auto;
       `;
@@ -155,7 +160,7 @@ export class ControlGroupRenderer {
 
       // Name + count
       const label = document.createElement('span');
-      label.style.cssText = `color: #aaccee; font-size: 10px;`;
+      label.style.cssText = `color: ${this.palette.textDim}; font-size: ${fonts.sizeXS};`;
       const name = def ? def.name : `Type ${entry.ut}`;
       label.textContent = `${name} \u00d7${entry.count}`;
 
@@ -207,13 +212,13 @@ export class ControlGroupRenderer {
     const groupNum = slotIdx + 1;
 
     if (info && info.count > 0) {
-      slot.style.color = isActive ? '#cce0ff' : '#88aacc';
-      slot.style.borderColor = isActive ? 'rgba(100,180,255,0.8)' : 'rgba(60,120,200,0.5)';
-      slot.style.background = isActive ? 'rgba(30,60,120,0.7)' : 'rgba(10,30,60,0.6)';
+      slot.style.color = isActive ? this.palette.text : this.palette.textDim;
+      slot.style.borderColor = isActive ? this.palette.borderHover : this.palette.border;
+      slot.style.background = isActive ? 'rgba(20,40,80,0.7)' : 'rgba(8,16,40,0.6)';
       slot.textContent = `${groupNum}:${info.count}`;
     } else {
-      slot.style.color = '#334';
-      slot.style.borderColor = 'rgba(40,60,80,0.2)';
+      slot.style.color = this.palette.textMuted;
+      slot.style.borderColor = this.palette.borderDim;
       slot.style.background = 'rgba(0,0,0,0.3)';
       slot.textContent = `${groupNum}`;
     }
@@ -224,6 +229,10 @@ export class ControlGroupRenderer {
 
   setDoubleClickTypeCallback(fn: (group: number, unitType: number) => void): void {
     this.dblClickTypeCb = fn;
+  }
+
+  setFaction(f: Faction): void {
+    this.palette = getFactionPalette(f);
   }
 
   update(groupInfo: Array<ControlGroupSlotInfo>, activeGroup: number): void {

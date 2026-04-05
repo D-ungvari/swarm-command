@@ -1,4 +1,6 @@
 import { Faction } from '../constants';
+import { createPanelFrame, updatePanelFaction } from '../ui/panelFrame';
+import { getFactionPalette, colors, fonts, spacing, TERRAN_PALETTE, type FactionPalette } from '../ui/theme';
 
 /**
  * HTML-based resource HUD overlay (top-right corner).
@@ -15,31 +17,25 @@ export class HudRenderer {
   private apmEl: HTMLSpanElement;
   private incomeEl: HTMLDivElement;
   private idleProductionEl: HTMLDivElement;
+  private hud: HTMLDivElement;
+  private currentPalette: FactionPalette = TERRAN_PALETTE;
 
   constructor(container: HTMLElement) {
-    const hud = document.createElement('div');
-    hud.id = 'resource-hud';
-    hud.style.cssText = `
-      position: fixed;
-      top: 8px;
-      right: 12px;
-      display: flex;
-      gap: 16px;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 14px;
-      color: #eee;
-      background: rgba(0, 0, 0, 0.6);
-      padding: 6px 12px;
-      border-radius: 4px;
-      z-index: 10;
-      pointer-events: none;
-      user-select: none;
-    `;
+    const hud = createPanelFrame({
+      id: 'resource-hud',
+      position: { top: '8px', right: '12px' },
+      faction: Faction.Terran,
+    });
+    hud.style.display = 'flex';
+    hud.style.flexDirection = 'row';
+    hud.style.gap = spacing.xl;
+    hud.style.fontSize = fonts.sizeLG;
+    this.hud = hud;
 
     // Minerals
     const mineralDiv = this.makeDiv();
     const mineralIcon = document.createElement('span');
-    mineralIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#44bbff;border-radius:2px;';
+    mineralIcon.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:${colors.mineral};border-radius:3px;border:1px solid rgba(85,221,255,0.3);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);flex-shrink:0;`;
     this.mineralEl = document.createElement('span');
     this.mineralEl.textContent = '0';
     mineralDiv.appendChild(mineralIcon);
@@ -48,7 +44,7 @@ export class HudRenderer {
     // Gas
     const gasDiv = this.makeDiv();
     const gasIcon = document.createElement('span');
-    gasIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#44ff66;border-radius:50%;';
+    gasIcon.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:${colors.gas};border-radius:50%;border:1px solid rgba(102,255,136,0.3);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);flex-shrink:0;`;
     this.gasEl = document.createElement('span');
     this.gasEl.textContent = '0';
     gasDiv.appendChild(gasIcon);
@@ -57,7 +53,7 @@ export class HudRenderer {
     // Supply
     const supplyDiv = this.makeDiv();
     const supplyIcon = document.createElement('span');
-    supplyIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#ffcc44;border-radius:1px;';
+    supplyIcon.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:${colors.supply};border-radius:3px;border:1px solid rgba(255,204,68,0.3);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);flex-shrink:0;`;
     this.supplyEl = document.createElement('span');
     this.supplyEl.textContent = '0/0';
     supplyDiv.appendChild(supplyIcon);
@@ -66,10 +62,10 @@ export class HudRenderer {
     // Workers
     const workerDiv = this.makeDiv();
     const workerIcon = document.createElement('span');
-    workerIcon.style.cssText = 'display:inline-block;width:10px;height:10px;background:#88aacc;border-radius:1px;font-size:8px;line-height:10px;text-align:center;';
+    workerIcon.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:${TERRAN_PALETTE.textDim};border-radius:3px;border:1px solid rgba(136,170,204,0.3);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);flex-shrink:0;font-size:${fonts.sizeHotkey};line-height:14px;text-align:center;`;
     workerIcon.textContent = 'W';
     this.workerEl = document.createElement('span');
-    this.workerEl.style.color = '#88aacc';
+    this.workerEl.style.color = this.currentPalette.textDim;
     this.workerEl.textContent = '0';
     workerDiv.appendChild(workerIcon);
     workerDiv.appendChild(this.workerEl);
@@ -77,29 +73,29 @@ export class HudRenderer {
     // Timer + speed indicator
     const timerDiv = this.makeDiv();
     this.timerEl = document.createElement('span');
-    this.timerEl.style.color = '#888';
+    this.timerEl.style.color = this.currentPalette.textMuted;
     this.timerEl.textContent = '0:00';
     this.speedEl = document.createElement('span');
-    this.speedEl.style.cssText = 'color:#ffcc44;font-size:11px;margin-left:4px;display:none;';
+    this.speedEl.style.cssText = `color:${colors.warning};font-size:${fonts.sizeSM};margin-left:4px;display:none;`;
     timerDiv.appendChild(this.timerEl);
     timerDiv.appendChild(this.speedEl);
 
     // APM
     const apmDiv = this.makeDiv();
     const apmLabel = document.createElement('span');
-    apmLabel.style.color = '#888';
+    apmLabel.style.color = this.currentPalette.textMuted;
     apmLabel.textContent = 'APM:';
     this.apmEl = document.createElement('span');
-    this.apmEl.style.color = '#ffaa44';
+    this.apmEl.style.color = colors.production;
     this.apmEl.textContent = '0';
     apmDiv.appendChild(apmLabel);
     apmDiv.appendChild(this.apmEl);
 
     this.upgradeEl = document.createElement('div');
-    this.upgradeEl.style.cssText = 'color: #88aaff; font-size: 11px; margin-top: 2px;';
+    this.upgradeEl.style.cssText = `color: ${TERRAN_PALETTE.secondary}; font-size: ${fonts.sizeSM}; margin-top: ${spacing.xs};`;
 
     this.incomeEl = document.createElement('div');
-    this.incomeEl.style.cssText = 'color: #888; font-size: 11px; margin-top: 2px; display: none;';
+    this.incomeEl.style.cssText = `color: ${this.currentPalette.textMuted}; font-size: ${fonts.sizeSM}; margin-top: ${spacing.xs}; display: none;`;
 
     hud.appendChild(mineralDiv);
     hud.appendChild(gasDiv);
@@ -110,19 +106,15 @@ export class HudRenderer {
     hud.appendChild(this.upgradeEl);
     hud.appendChild(this.incomeEl);
     this.idleProductionEl = document.createElement('div');
-    this.idleProductionEl.style.cssText = 'color: #ddaa44; font-size: 11px; display: none;';
+    this.idleProductionEl.style.cssText = `color: ${colors.warning}; font-size: ${fonts.sizeSM}; display: none;`;
     this.idleProductionEl.textContent = '\u26A0 Idle Production';
     hud.appendChild(this.idleProductionEl);
     container.appendChild(hud);
   }
 
   setFaction(f: Faction): void {
-    // Zerg: amber mineral color, red supply indicator
-    const isZerg = f === Faction.Zerg;
-    const mineralColor = isZerg ? '#ffaa22' : '#44bbff';
-    const supplyColor = isZerg ? '#ff6644' : '#ffaa44';
-    if (this.mineralEl) this.mineralEl.style.color = mineralColor;
-    if (this.supplyEl) this.supplyEl.style.color = supplyColor;
+    this.currentPalette = getFactionPalette(f);
+    updatePanelFaction(this.hud, f);
   }
 
   private makeDiv(): HTMLDivElement {
@@ -137,9 +129,9 @@ export class HudRenderer {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
-    this.supplyEl.style.color = supplyUsed >= supplyProvided ? '#ff4444' : '#eee';
+    this.supplyEl.style.color = supplyUsed >= supplyProvided ? colors.error : this.currentPalette.text;
     this.workerEl.textContent = String(workerCount);
-    this.workerEl.style.color = isSaturated ? '#ffaa22' : '#88aacc';
+    this.workerEl.style.color = isSaturated ? colors.warning : this.currentPalette.textDim;
 
     // Format game timer as M:SS
     const totalSec = Math.floor(gameTime);

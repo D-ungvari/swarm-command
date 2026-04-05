@@ -1,3 +1,5 @@
+import { colors, fonts, TERRAN_PALETTE } from '../ui/theme';
+
 /**
  * HTML-based mode indicator overlay (top-left of screen).
  * Shows the current input mode: ATTACK MOVE, BUILD MODE, ability names, or hidden for normal.
@@ -13,8 +15,8 @@ export class ModeIndicatorRenderer {
       position: fixed;
       top: 10px;
       left: 12px;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 14px;
+      font-family: ${fonts.family};
+      font-size: ${fonts.sizeLG};
       font-weight: bold;
       letter-spacing: 1px;
       padding: 4px 10px;
@@ -23,6 +25,7 @@ export class ModeIndicatorRenderer {
       pointer-events: none;
       user-select: none;
       display: none;
+      backdrop-filter: blur(2px);
     `;
     container.appendChild(this.el);
   }
@@ -45,7 +48,7 @@ export class ModeIndicatorRenderer {
       bg = 'rgba(100, 20, 60, 0.6)';
     } else if (attackMoveMode) {
       text = 'ATTACK MOVE';
-      color = '#ffcc44';
+      color = colors.warning;
       bg = 'rgba(100, 80, 0, 0.6)';
     } else if (isPatrolPending) {
       text = 'PATROL';
@@ -53,7 +56,7 @@ export class ModeIndicatorRenderer {
       bg = 'rgba(0, 80, 50, 0.6)';
     } else if (placementMode) {
       text = 'BUILD MODE';
-      color = '#88bbff';
+      color = TERRAN_PALETTE.secondary;
       bg = 'rgba(20, 40, 100, 0.6)';
     }
 

@@ -1,5 +1,7 @@
 import { BuildingType, Faction } from '../constants';
 import { BUILDING_DEFS } from '../data/buildings';
+import { createPanelFrame, updatePanelFaction } from '../ui/panelFrame';
+import { getFactionPalette, colors, fonts, spacing, TERRAN_PALETTE, type FactionPalette } from '../ui/theme';
 
 /**
  * HTML-based build menu overlay (bottom-center of screen).
@@ -16,37 +18,25 @@ export class BuildMenuRenderer {
   private tooltipTimeout = 0;
   private wasVisible = false;
   private playerFaction: Faction = Faction.Terran;
+  private palette: FactionPalette = TERRAN_PALETTE;
 
   constructor(container: HTMLElement) {
-    this.panel = document.createElement('div');
-    this.panel.id = 'build-menu';
-    this.panel.style.cssText = `
-      position: fixed;
-      bottom: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: none;
-      gap: 8px;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 13px;
-      color: #eee;
-      background: rgba(0, 0, 0, 0.75);
-      padding: 10px 16px;
-      border-radius: 4px;
-      border: 1px solid rgba(100, 160, 255, 0.3);
-      z-index: 10;
-      pointer-events: none;
-      user-select: none;
-      flex-direction: row;
-    `;
+    this.panel = createPanelFrame({
+      id: 'build-menu',
+      position: { bottom: '16px', centerX: true },
+      faction: Faction.Terran,
+    });
+    this.panel.style.flexDirection = 'row';
+    this.panel.style.gap = spacing.md;
+    this.panel.style.padding = `10px ${spacing.xl}`;
 
     const title = document.createElement('div');
-    title.style.cssText = 'width: 100%; text-align: center; color: #88bbff; margin-bottom: 4px; font-size: 11px; letter-spacing: 1px;';
+    title.style.cssText = `width: 100%; text-align: center; color: ${TERRAN_PALETTE.secondary}; margin-bottom: ${spacing.sm}; font-size: ${fonts.sizeSM}; letter-spacing: 1px;`;
     title.textContent = 'BUILD';
     this.panel.appendChild(title);
 
     const optionsRow = document.createElement('div');
-    optionsRow.style.cssText = 'display: flex; gap: 12px; flex-wrap: wrap;';
+    optionsRow.style.cssText = `display: flex; gap: ${spacing.lg}; flex-wrap: wrap;`;
     this.panel.appendChild(optionsRow);
 
     const entries: Array<{ key: string; type: BuildingType }> = [
@@ -68,10 +58,11 @@ export class BuildMenuRenderer {
       const def = BUILDING_DEFS[entry.type];
       const opt = document.createElement('div');
       opt.style.cssText = `
-        padding: 4px 8px;
-        border: 1px solid rgba(100, 160, 255, 0.2);
+        padding: ${spacing.sm} ${spacing.md};
+        border: 1px solid ${TERRAN_PALETTE.borderDim};
         border-radius: 3px;
         white-space: nowrap;
+        transition: background 0.12s, border-color 0.12s, color 0.12s;
       `;
       const costText = def.costGas > 0
         ? `${def.costMinerals}m ${def.costGas}g`
@@ -95,10 +86,10 @@ export class BuildMenuRenderer {
       transform: translateX(-50%);
       display: none;
       background: rgba(80, 0, 0, 0.85);
-      color: #ff8888;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 12px;
-      padding: 5px 12px;
+      color: ${colors.error};
+      font-family: ${fonts.family};
+      font-size: ${fonts.sizeMD};
+      padding: 5px ${spacing.lg};
       border-radius: 4px;
       border: 1px solid rgba(200, 60, 60, 0.5);
       z-index: 11;
@@ -149,6 +140,8 @@ export class BuildMenuRenderer {
 
   setFaction(f: Faction): void {
     this.playerFaction = f;
+    this.palette = getFactionPalette(f);
+    updatePanelFaction(this.panel, f);
     const types = this.buildingTypes;
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];
     this.prereqNames = [];
@@ -206,29 +199,26 @@ export class BuildMenuRenderer {
       const prereq = this.prereqNames[i] ?? '';
 
       if (!techOk && prereq) {
-        this.options[i].innerHTML = `${mainText}<br><span style="color:#aa4444;font-size:9px;letter-spacing:0">Req: ${prereq}</span>`;
+        this.options[i].innerHTML = `${mainText}<br><span style="color:${colors.error};font-size:${fonts.sizeTiny};letter-spacing:0">Req: ${prereq}</span>`;
       } else {
         this.options[i].textContent = mainText;
       }
 
       if (isFlashing) {
-        this.options[i].style.color = '#ff6666';
+        this.options[i].style.color = colors.error;
         this.options[i].style.borderColor = 'rgba(255, 60, 60, 0.9)';
         this.options[i].style.background = 'rgba(80, 0, 0, 0.4)';
       } else if (isActive) {
-        this.options[i].style.color = '#fff';
-        this.options[i].style.borderColor = 'rgba(100, 180, 255, 0.8)';
+        this.options[i].style.color = this.palette.text;
+        this.options[i].style.borderColor = this.palette.borderHover;
         this.options[i].style.background = 'rgba(40, 80, 160, 0.5)';
       } else if (!techOk) {
-        // Tech requirement not met — grayed out with red tint
-        this.options[i].style.color = '#555';
+        this.options[i].style.color = this.palette.textMuted;
         this.options[i].style.borderColor = 'rgba(100, 50, 50, 0.3)';
         this.options[i].style.background = 'transparent';
       } else {
-        this.options[i].style.color = canAfford ? '#eee' : '#666';
-        this.options[i].style.borderColor = canAfford
-          ? 'rgba(100, 160, 255, 0.4)'
-          : 'rgba(100, 100, 100, 0.2)';
+        this.options[i].style.color = canAfford ? this.palette.text : this.palette.textMuted;
+        this.options[i].style.borderColor = canAfford ? this.palette.border : this.palette.borderDim;
         this.options[i].style.background = 'transparent';
       }
     }

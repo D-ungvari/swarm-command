@@ -7,6 +7,7 @@ import {
   activePlayerFaction,
 } from '../constants';
 import { TerrainPalette } from './terrainPalette';
+import { getFactionPalette, TERRAN_PALETTE, type FactionPalette } from '../ui/theme';
 import {
   POSITION, HEALTH, BUILDING, RESOURCE,
   posX, posY, faction, hpCurrent,
@@ -43,6 +44,7 @@ export class MinimapRenderer {
   private screenWidth: number;
   private screenHeight: number;
   private attackPings: AttackPing[] = [];
+  private palette: FactionPalette = TERRAN_PALETTE;
 
   constructor(stage: Container, viewport: Viewport, mapData: MapData) {
     this.viewport = viewport;
@@ -83,14 +85,17 @@ export class MinimapRenderer {
     const g = this.backgroundGraphics;
     g.clear();
 
-    // Dark background with styled border
-    g.rect(-5, -5, MINIMAP_SIZE + 10, MINIMAP_SIZE + 10);
-    g.fill({ color: 0x000000, alpha: 0.75 });
-    g.rect(-5, -5, MINIMAP_SIZE + 10, MINIMAP_SIZE + 10);
-    g.stroke({ color: 0x334466, width: 1.5, alpha: 0.6 });
-    // Inner border highlight
-    g.rect(-1, -1, MINIMAP_SIZE + 2, MINIMAP_SIZE + 2);
-    g.stroke({ color: 0x223344, width: 0.5, alpha: 0.4 });
+    // Dark background with faction-colored frame
+    g.rect(-6, -6, MINIMAP_SIZE + 12, MINIMAP_SIZE + 12);
+    g.fill({ color: 0x000000, alpha: 0.82 });
+    g.rect(-6, -6, MINIMAP_SIZE + 12, MINIMAP_SIZE + 12);
+    g.stroke({ color: this.palette.primaryHex, width: 2.0, alpha: 0.4 });
+    // Top edge highlight (bevel simulation)
+    g.moveTo(-4, -4); g.lineTo(MINIMAP_SIZE + 4, -4);
+    g.stroke({ color: this.palette.primaryHex, width: 1.0, alpha: 0.15 });
+    // Inner border
+    g.rect(-2, -2, MINIMAP_SIZE + 4, MINIMAP_SIZE + 4);
+    g.stroke({ color: 0x1a2a3a, width: 0.5, alpha: 0.5 });
 
     // Draw terrain tiles at reduced resolution
     // Group tiles into 2x2 blocks for performance (128 tiles -> 64 blocks -> fits in 160px)
@@ -137,6 +142,11 @@ export class MinimapRenderer {
         g.fill({ color });
       }
     }
+  }
+
+  setFaction(f: Faction): void {
+    this.palette = getFactionPalette(f);
+    this.drawBackground();
   }
 
   /**

@@ -417,9 +417,14 @@ function claimNewUnits(world: World): void {
     }
 
     const armySet = currentAIFaction === Faction.Terran ? terranArmyEids : armyEids;
+    // Check if already in any roster
+    let inExpansionDefense = false;
+    for (const [, defenders] of expansionDefenseEids) {
+      if (defenders.has(eid)) { inExpansionDefense = true; break; }
+    }
     if (armySet.has(eid) || harassEids.has(eid) || scoutEids.has(eid)
         || defenseEids.has(eid) || harassSquad1.has(eid) || harassSquad2.has(eid)
-        || vanguardEids.has(eid) || terranArmyEids.has(eid)) continue;
+        || vanguardEids.has(eid) || terranArmyEids.has(eid) || inExpansionDefense) continue;
 
     armySet.add(eid);
   }
@@ -892,6 +897,7 @@ let isStaging = false;
 let stagingX = 0;
 let stagingY = 0;
 let stagingStartTime = 0;
+let expansionDefenseEids: Map<number, Set<number>> = new Map();
 
 // ─────────────────────────────────────────
 // B.4 — Expanded AI Base (Living Base)
@@ -993,6 +999,7 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   stagingX = 0;
   stagingY = 0;
   stagingStartTime = 0;
+  expansionDefenseEids = new Map();
   aiBuildingsPlaced = new Set();
   terranBuildingsPlaced = new Set();
   harassSquad1 = new Set();
@@ -1437,6 +1444,65 @@ function checkCriticalBuildings(
     if (exists) continue;
 
     aiBuildBuilding(world, crit.type, hatchTile.col + crit.colOffset, hatchTile.row + crit.rowOffset, map, resources, spawnBuildingFn);
+  }
+}
+
+/** Station 3-4 defenders at each expansion Hatchery */
+function defendExpansions(world: World, map: MapData): void {
+  if (armyEids.size < 10) return; // don't weaken main army
+
+  for (let i = 0; i < expansionCount && i < EXPANSION_LOCATIONS.length; i++) {
+    const loc = EXPANSION_LOCATIONS[i];
+    // Check if expansion Hatchery still alive
+    let hatchAlive = false;
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
+      if (faction[eid] !== currentAIFaction) continue;
+      if (!isHatchType(buildingType[eid])) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      const dx = posX[eid] / TILE_SIZE - loc.col;
+      const dy = posY[eid] / TILE_SIZE - loc.row;
+      if (dx * dx + dy * dy < 16) { hatchAlive = true; break; }
+    }
+
+    if (!hatchAlive) {
+      // Expansion dead: return defenders to army
+      const defenders = expansionDefenseEids.get(i);
+      if (defenders) {
+        for (const eid of defenders) {
+          if (entityExists(world, eid) && hpCurrent[eid] > 0) armyEids.add(eid);
+        }
+        expansionDefenseEids.delete(i);
+      }
+      continue;
+    }
+
+    // Ensure 3-4 defenders stationed
+    if (!expansionDefenseEids.has(i)) expansionDefenseEids.set(i, new Set());
+    const defenders = expansionDefenseEids.get(i)!;
+    const targetDefenders = 3;
+    if (defenders.size >= targetDefenders) continue;
+
+    const needed = targetDefenders - defenders.size;
+    let assigned = 0;
+    for (const eid of armyEids) {
+      if (assigned >= needed) break;
+      if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+      defenders.add(eid);
+      armyEids.delete(eid);
+      // Send to expansion
+      commandMode[eid] = CommandMode.AttackMove;
+      const startTile = worldToTile(posX[eid], posY[eid]);
+      const tilePath = findPath(map, startTile.col, startTile.row, loc.col, loc.row);
+      if (tilePath.length > 0) {
+        const wp: Array<[number, number]> = tilePath.map(([c, r]) => {
+          const p = tileToWorld(c, r);
+          return [p.x, p.y] as [number, number];
+        });
+        setPath(eid, wp);
+      }
+      assigned++;
+    }
   }
 }
 
@@ -1924,6 +1990,9 @@ export function aiSystem(
 
   attemptAIUpgrade(resources, waveCount, diffConfig.upgradeStartWave);
   attemptAIUnitResearch(resources, cachedGameTime);
+
+  // Defend expansions with stationed guards
+  defendExpansions(world, map);
 }
 
 // ─────────────────────────────────────────
@@ -2311,6 +2380,12 @@ function pruneDeadUnits(world: World): void {
   for (const eid of queenEids) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) queenEids.delete(eid);
   }
+  // Prune expansion defenders
+  for (const [, defenders] of expansionDefenseEids) {
+    for (const eid of defenders) {
+      if (!entityExists(world, eid) || hpCurrent[eid] <= 0) defenders.delete(eid);
+    }
+  }
   if (isAttacking && armyEids.size === 0) {
     isAttacking = false;
     attackEndTime = lastDecisionTime;
@@ -2341,6 +2416,11 @@ function attemptExpansion(
   const loc = EXPANSION_LOCATIONS[expansionCount];
   res.minerals -= 300;
   spawnBuilding(BuildingType.Hatchery, currentAIFaction, loc.col, loc.row);
+  // Build a Spine Crawler at the expansion for defense
+  if (res.minerals >= 100) {
+    res.minerals -= 100;
+    spawnBuilding(BuildingType.SpineCrawler, currentAIFaction, loc.col + 2, loc.row + 2);
+  }
   expansionCount++;
   hasExpanded = true;
   return true;

@@ -4,7 +4,7 @@ import {
   posX, posY, renderWidth, renderHeight, faction, hpCurrent, atkRange,
   resourceRemaining, resourceType, workerCountOnResource,
   buildingType, buildState,
-  atkDamage, targetEntity, pendingDamage,
+  atkDamage, atkMinRange, targetEntity, pendingDamage,
   cloaked,
   isAir, canTargetGround, canTargetAir,
 } from './components';
@@ -386,6 +386,8 @@ export function findBestTarget(world: World, eid: number, range: number): number
     const dy = posY[other] - posY[eid];
     const distSq = dx * dx + dy * dy;
     if (distSq > rangeSq) continue;
+    // Skip targets inside minimum range (e.g., sieged tank can't fire at close targets)
+    if (atkMinRange[eid] > 0 && distSq < atkMinRange[eid] * atkMinRange[eid]) continue;
 
     // Priority scoring
     let score: number;

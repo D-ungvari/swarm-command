@@ -882,7 +882,23 @@ export class Game {
       this.gasPrev = res.gas;
       this.lastIncomeCheck = this.gameTime;
     }
-    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated, this.mineralIncomeRate, this.gasIncomeRate);
+    // Idle production check: any player production building with empty queue + resources available
+    let hasIdleProduction = false;
+    if (res.minerals >= 50 && res.supplyUsed < res.supplyProvided) {
+      for (let eid = 1; eid < this.world.nextEid; eid++) {
+        if (!hasComponents(this.world, eid, BUILDING)) continue;
+        if (buildState[eid] !== BuildState.Complete) continue;
+        if (faction[eid] !== this.playerFaction) continue;
+        if (hpCurrent[eid] <= 0) continue;
+        const bDef = BUILDING_DEFS[buildingType[eid]];
+        if (!bDef || bDef.produces.length === 0) continue;
+        if (prodUnitType[eid] === 0 && prodQueueLen[eid] === 0) {
+          hasIdleProduction = true;
+          break;
+        }
+      }
+    }
+    this.hudRenderer.update(res.minerals, res.gas, res.supplyUsed, res.supplyProvided, this.gameTime, workerCount, res.upgrades, this.stats.getCurrentAPM(this.gameTime), GAME_SPEEDS[this.gameSpeedIndex], isSaturated, this.mineralIncomeRate, this.gasIncomeRate, hasIdleProduction);
     this.buildMenuRenderer.update(this.placementMode, res.minerals, res.gas, this.placementBuildingType, this.getTechAvailability());
     this.infoPanelRenderer.update(this.world, this.gameTime, res);
     this.controlGroupRenderer.update(getControlGroupInfo(this.world), getLastActiveGroup());

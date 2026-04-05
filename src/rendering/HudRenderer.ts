@@ -14,6 +14,7 @@ export class HudRenderer {
   private upgradeEl: HTMLDivElement;
   private apmEl: HTMLSpanElement;
   private incomeEl: HTMLDivElement;
+  private idleProductionEl: HTMLDivElement;
 
   constructor(container: HTMLElement) {
     const hud = document.createElement('div');
@@ -108,6 +109,10 @@ export class HudRenderer {
     hud.appendChild(apmDiv);
     hud.appendChild(this.upgradeEl);
     hud.appendChild(this.incomeEl);
+    this.idleProductionEl = document.createElement('div');
+    this.idleProductionEl.style.cssText = 'color: #ddaa44; font-size: 11px; display: none;';
+    this.idleProductionEl.textContent = '\u26A0 Idle Production';
+    hud.appendChild(this.idleProductionEl);
     container.appendChild(hud);
   }
 
@@ -128,7 +133,7 @@ export class HudRenderer {
     return div;
   }
 
-  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number, speed?: number, isSaturated?: boolean, mineralIncome?: number, gasIncome?: number): void {
+  update(minerals: number, gas: number, supplyUsed: number, supplyProvided: number, gameTime: number, workerCount: number, upgrades?: Uint8Array, apm?: number, speed?: number, isSaturated?: boolean, mineralIncome?: number, gasIncome?: number, hasIdleProduction?: boolean): void {
     this.mineralEl.textContent = String(Math.floor(minerals));
     this.gasEl.textContent = String(Math.floor(gas));
     this.supplyEl.textContent = `${supplyUsed}/${supplyProvided}`;
@@ -180,5 +185,8 @@ export class HudRenderer {
     } else {
       this.upgradeEl.style.display = 'none';
     }
+
+    // Idle production indicator
+    this.idleProductionEl.style.display = hasIdleProduction ? 'block' : 'none';
   }
 }

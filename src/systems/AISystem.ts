@@ -33,52 +33,252 @@ import { rng } from '../utils/SeededRng';
 // ─────────────────────────────────────────
 // Build Order types
 // ─────────────────────────────────────────
+interface CompositionTarget {
+  units: Array<{ type: UnitType; ratio: number; minCount?: number }>;
+  targetArmySize: number;
+}
+
 type BuildOrderAction =
-  | { kind: 'unit'; type: number; faction: 'ai' }
+  | { kind: 'unit'; type: number; count?: number }
+  | { kind: 'worker' }
+  | { kind: 'overlord' }
+  | { kind: 'queen' }
+  | { kind: 'building'; type: number; colOffset: number; rowOffset: number }
   | { kind: 'attack' }
   | { kind: 'expand' }
-  | { kind: 'upgrade'; upgradeType: number };
+  | { kind: 'upgrade'; upgradeType: number }
+  | { kind: 'set_worker_cap'; count: number }
+  | { kind: 'set_composition'; comp: CompositionTarget };
 
 interface BuildOrderStep {
-  trigger: 'supply' | 'time' | 'unit_count' | 'always';
+  trigger: 'supply' | 'time' | 'unit_count' | 'worker_count' | 'building_done' | 'minerals_above' | 'always';
   triggerValue: number;
+  triggerBuildingType?: number;
   action: BuildOrderAction;
   done: boolean;
+  timeout?: number;
+  startedAt?: number;
 }
 
 // ─────────────────────────────────────────
-// Predefined Zerg Build Orders
+// Predefined Zerg Build Orders (5 SC2-style profiles)
 // ─────────────────────────────────────────
-const ZERG_12_POOL: BuildOrderStep[] = [
-  { trigger: 'supply', triggerValue: 12, action: { kind: 'unit', type: UnitType.Zergling, faction: 'ai' }, done: false },
-  { trigger: 'supply', triggerValue: 14, action: { kind: 'unit', type: UnitType.Zergling, faction: 'ai' }, done: false },
-  { trigger: 'supply', triggerValue: 16, action: { kind: 'attack' }, done: false },
-  { trigger: 'unit_count', triggerValue: 8, action: { kind: 'unit', type: UnitType.Zergling, faction: 'ai' }, done: false },
+
+// Profile 1: 12-Pool Zergling Rush — all-in early aggression (~2:00 attack)
+const ZERG_12_POOL_RUSH: BuildOrderStep[] = [
+  // Opening: Pool-first, minimal eco
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 12, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_worker_cap', count: 14 }, done: false },
+  // Pool finishes → 6 Zerglings
+  { trigger: 'time', triggerValue: 50, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  // Queen for defense/inject
+  { trigger: 'supply', triggerValue: 16, action: { kind: 'queen' }, done: false, timeout: 30 },
+  // Set rush composition and attack
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_composition', comp: {
+    units: [{ type: UnitType.Zergling, ratio: 1.0 }],
+    targetArmySize: 12,
+  }}, done: false },
+  { trigger: 'unit_count', triggerValue: 6, action: { kind: 'attack' }, done: false, timeout: 60 },
+  // Continue ling production after initial attack
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false },
 ];
 
-const ZERG_ROACH_PUSH: BuildOrderStep[] = [
-  { trigger: 'supply', triggerValue: 18, action: { kind: 'unit', type: UnitType.Roach, faction: 'ai' }, done: false },
-  { trigger: 'supply', triggerValue: 22, action: { kind: 'unit', type: UnitType.Roach, faction: 'ai' }, done: false },
-  { trigger: 'supply', triggerValue: 26, action: { kind: 'unit', type: UnitType.Ravager, faction: 'ai' }, done: false },
-  { trigger: 'time', triggerValue: 300, action: { kind: 'attack' }, done: false },
+// Profile 2: Ling-Bane Bust — break walls/bio at ~4:00
+const ZERG_LING_BANE_BUST: BuildOrderStep[] = [
+  // Standard opening: Hatch first
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 21, action: { kind: 'queen' }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_worker_cap', count: 24 }, done: false },
+  // Mass Zerglings
+  { trigger: 'supply', triggerValue: 24, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 28, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  // Morph Banelings
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Baneling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Baneling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Baneling, count: 2 }, done: false, timeout: 20 },
+  // Set composition and bust
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_composition', comp: {
+    units: [
+      { type: UnitType.Zergling, ratio: 0.6, minCount: 8 },
+      { type: UnitType.Baneling, ratio: 0.4, minCount: 4 },
+    ],
+    targetArmySize: 20,
+  }}, done: false },
+  { trigger: 'unit_count', triggerValue: 12, action: { kind: 'attack' }, done: false, timeout: 90 },
+  // Continue production after attack
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false },
 ];
 
-const ZERG_LAIR_MACRO: BuildOrderStep[] = [
-  { trigger: 'time', triggerValue: 120, action: { kind: 'unit', type: UnitType.Hydralisk, faction: 'ai' }, done: false },
-  { trigger: 'time', triggerValue: 200, action: { kind: 'unit', type: UnitType.Mutalisk, faction: 'ai' }, done: false },
-  { trigger: 'unit_count', triggerValue: 12, action: { kind: 'attack' }, done: false },
-  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Hydralisk, faction: 'ai' }, done: false },
+// Profile 3: Roach-Ravager Timing — bile siege positions at ~5:00-5:30
+const ZERG_ROACH_RAVAGER_TIMING: BuildOrderStep[] = [
+  // Standard opening
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 21, action: { kind: 'queen' }, done: false, timeout: 30 },
+  // Roach Warren early
+  { trigger: 'supply', triggerValue: 24, action: { kind: 'building', type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 26, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 28, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_worker_cap', count: 22 }, done: false },
+  // Roach production
+  { trigger: 'time', triggerValue: 120, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 25 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 25 },
+  { trigger: 'supply', triggerValue: 36, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  // Ravagers
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Ravager, count: 2 }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Ravager, count: 2 }, done: false, timeout: 30 },
+  // Set composition and attack
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_composition', comp: {
+    units: [
+      { type: UnitType.Roach, ratio: 0.65, minCount: 6 },
+      { type: UnitType.Ravager, ratio: 0.35, minCount: 3 },
+    ],
+    targetArmySize: 26,
+  }}, done: false },
+  { trigger: 'unit_count', triggerValue: 8, action: { kind: 'attack' }, done: false, timeout: 90 },
+  // Continue production
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false },
+];
+
+// Profile 4: Roach-Hydra Push — standard mid-game army (~6:30-7:00 attack)
+const ZERG_ROACH_HYDRA_PUSH: BuildOrderStep[] = [
+  // Standard opening
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 21, action: { kind: 'queen' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 24, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  // Tech buildings
+  { trigger: 'supply', triggerValue: 28, action: { kind: 'building', type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 30, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 32, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'time', triggerValue: 180, action: { kind: 'building', type: BuildingType.HydraliskDen, colOffset: 5, rowOffset: 5 }, done: false, timeout: 30 },
+  // Worker and army ramp
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_worker_cap', count: 32 }, done: false },
+  // Roach production
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 25 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 25 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 25 },
+  { trigger: 'supply', triggerValue: 44, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  // Upgrade
+  { trigger: 'time', triggerValue: 240, action: { kind: 'building', type: BuildingType.EvolutionChamber, colOffset: 0, rowOffset: 5 }, done: false, timeout: 30 },
+  { trigger: 'time', triggerValue: 260, action: { kind: 'upgrade', upgradeType: UpgradeType.ZergRanged }, done: false },
+  // Hydra production
+  { trigger: 'time', triggerValue: 240, action: { kind: 'unit', type: UnitType.Hydralisk, count: 2 }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Hydralisk, count: 2 }, done: false, timeout: 25 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Hydralisk, count: 2 }, done: false, timeout: 25 },
+  { trigger: 'supply', triggerValue: 56, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 64, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  // Set composition and attack
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_composition', comp: {
+    units: [
+      { type: UnitType.Roach, ratio: 0.5, minCount: 6 },
+      { type: UnitType.Hydralisk, ratio: 0.4, minCount: 4 },
+      { type: UnitType.Zergling, ratio: 0.1, minCount: 2 },
+    ],
+    targetArmySize: 40,
+  }}, done: false },
+  { trigger: 'unit_count', triggerValue: 14, action: { kind: 'attack' }, done: false, timeout: 120 },
+  // Continue production
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false },
+];
+
+// Profile 5: Macro Hatch First — greedy economy, massive late-game army (~8:00+ attack)
+const ZERG_MACRO_HATCH_FIRST: BuildOrderStep[] = [
+  // Greedy opening: Hatch before Pool
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 13, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 16, action: { kind: 'expand' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 17, action: { kind: 'building', type: BuildingType.SpawningPool, colOffset: -4, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 19, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 20, action: { kind: 'queen' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 21, action: { kind: 'queen' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 24, action: { kind: 'unit', type: UnitType.Zergling, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 28, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  // 3rd base
+  { trigger: 'supply', triggerValue: 30, action: { kind: 'expand' }, done: false, timeout: 45 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_worker_cap', count: 44 }, done: false },
+  // More workers to saturate 3 bases
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'worker' }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 36, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  // Tech up
+  { trigger: 'time', triggerValue: 180, action: { kind: 'building', type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 }, done: false, timeout: 30 },
+  { trigger: 'time', triggerValue: 200, action: { kind: 'building', type: BuildingType.Refinery, colOffset: 7, rowOffset: -3 }, done: false, timeout: 30 },
+  { trigger: 'time', triggerValue: 210, action: { kind: 'building', type: BuildingType.EvolutionChamber, colOffset: 0, rowOffset: 5 }, done: false, timeout: 30 },
+  { trigger: 'time', triggerValue: 230, action: { kind: 'building', type: BuildingType.HydraliskDen, colOffset: 5, rowOffset: 5 }, done: false, timeout: 30 },
+  { trigger: 'time', triggerValue: 250, action: { kind: 'upgrade', upgradeType: UpgradeType.ZergRanged }, done: false },
+  // Army production
+  { trigger: 'supply', triggerValue: 44, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Hydralisk, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Hydralisk, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'supply', triggerValue: 56, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Roach, count: 2 }, done: false, timeout: 20 },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Mutalisk, count: 2 }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 64, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  { trigger: 'supply', triggerValue: 72, action: { kind: 'overlord' }, done: false, timeout: 30 },
+  // Set late-game composition and attack
+  { trigger: 'always', triggerValue: 0, action: { kind: 'set_composition', comp: {
+    units: [
+      { type: UnitType.Roach, ratio: 0.3, minCount: 6 },
+      { type: UnitType.Hydralisk, ratio: 0.3, minCount: 6 },
+      { type: UnitType.Mutalisk, ratio: 0.2, minCount: 2 },
+      { type: UnitType.Zergling, ratio: 0.2, minCount: 4 },
+    ],
+    targetArmySize: 60,
+  }}, done: false },
+  { trigger: 'unit_count', triggerValue: 20, action: { kind: 'attack' }, done: false, timeout: 150 },
+  // Continue macro
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Hydralisk, count: 2 }, done: false },
 ];
 
 // ─────────────────────────────────────────
 // Predefined Terran Build Orders
 // ─────────────────────────────────────────
 const TERRAN_BIO: BuildOrderStep[] = [
-  { trigger: 'supply', triggerValue: 10, action: { kind: 'unit', type: UnitType.Marine, faction: 'ai' }, done: false },
-  { trigger: 'supply', triggerValue: 14, action: { kind: 'unit', type: UnitType.Marine, faction: 'ai' }, done: false },
-  { trigger: 'supply', triggerValue: 18, action: { kind: 'unit', type: UnitType.Marauder, faction: 'ai' }, done: false },
+  { trigger: 'supply', triggerValue: 10, action: { kind: 'unit', type: UnitType.Marine }, done: false },
+  { trigger: 'supply', triggerValue: 14, action: { kind: 'unit', type: UnitType.Marine }, done: false },
+  { trigger: 'supply', triggerValue: 18, action: { kind: 'unit', type: UnitType.Marauder }, done: false },
   { trigger: 'time', triggerValue: 240, action: { kind: 'attack' }, done: false },
-  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Marine, faction: 'ai' }, done: false },
+  { trigger: 'always', triggerValue: 0, action: { kind: 'unit', type: UnitType.Marine }, done: false },
 ];
 
 // ─────────────────────────────────────────
@@ -111,7 +311,9 @@ function aiQueueUnit(
   if (uDef.supply > 0 && res.supplyUsed + uDef.supply > res.supplyProvided) return false;
 
   // Find a completed production building that can produce this unit
+  // Zerg: pick the Hatchery with the most larva (distribute production)
   let prodBuilding = 0;
+  let bestLarva = -1;
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
     if (faction[eid] !== currentAIFaction) continue;
@@ -125,11 +327,18 @@ function aiQueueUnit(
     const totalQueued = (prodUnitType[eid] !== 0 ? 1 : 0) + prodQueueLen[eid];
     if (totalQueued >= PROD_QUEUE_MAX) continue;
 
-    // Zerg: check larva
-    if (buildingType[eid] === BuildingType.Hatchery && larvaCount[eid] <= 0) continue;
-
-    prodBuilding = eid;
-    break;
+    // Zerg: check larva — pick building with most larva
+    if (buildingType[eid] === BuildingType.Hatchery) {
+      if (larvaCount[eid] <= 0) continue;
+      if (larvaCount[eid] > bestLarva) {
+        bestLarva = larvaCount[eid];
+        prodBuilding = eid;
+      }
+    } else {
+      // Non-Zerg buildings (Barracks etc.): first found
+      prodBuilding = eid;
+      break;
+    }
   }
 
   if (prodBuilding === 0) return false;
@@ -170,6 +379,12 @@ function claimNewUnits(world: World): void {
     if (faction[eid] !== currentAIFaction) continue;
     if (hpCurrent[eid] <= 0) continue;
     if (unitType[eid] === UnitType.Overlord) continue;
+
+    // Queens go to dedicated roster (stay home for inject)
+    if (unitType[eid] === UnitType.Queen) {
+      if (!queenEids.has(eid)) queenEids.add(eid);
+      continue;
+    }
 
     const armySet = currentAIFaction === Faction.Terran ? terranArmyEids : armyEids;
     if (armySet.has(eid) || harassEids.has(eid) || scoutEids.has(eid)
@@ -361,10 +576,15 @@ function runMacroManagement(
   // 1. Assign idle workers to mine
   assignIdleWorkers(world, map);
 
-  // 2. Build supply when near cap (within 4 supply)
-  if (res.supplyProvided - res.supplyUsed < 4 && res.supplyProvided < 200) {
+  // 2. Build supply when near cap (within 6 supply)
+  const supplyGap = res.supplyProvided - res.supplyUsed;
+  if (supplyGap < 6 && res.supplyProvided < 200) {
     if (currentAIFaction === Faction.Zerg) {
       aiQueueUnit(world, UnitType.Overlord, resources);
+      // Emergency: queue a second Overlord if critically low
+      if (supplyGap <= 2) {
+        aiQueueUnit(world, UnitType.Overlord, resources);
+      }
     } else {
       // Terran: build Supply Depot
       const cc = findTerranCC(world);
@@ -380,7 +600,7 @@ function runMacroManagement(
   // 3. Keep making workers until saturated (max ~16 per base)
   const workerCount = countAIWorkers(world);
   const baseCount = countAIBases(world);
-  if (workerCount < baseCount * 16 && res.minerals >= 50) {
+  if (workerCount < workerCap && res.minerals >= 50) {
     if (currentAIFaction === Faction.Zerg) {
       aiQueueUnit(world, UnitType.Drone, resources);
     } else {
@@ -416,14 +636,15 @@ const EMERGENCY_SPAWN_COUNT = 2;
 // The budget refills per decision tick based on difficulty.
 // This makes Easy feel slow/deliberate, Brutal feel overwhelming.
 const APM_BUDGETS: Record<Difficulty, number> = {
-  [Difficulty.Easy]:   30,    // ~30 APM — beginner, can barely macro
-  [Difficulty.Normal]: 80,    // ~80 APM — casual player, decent macro
-  [Difficulty.Hard]:   180,   // ~180 APM — good player, macro + some micro
-  [Difficulty.Brutal]: 400,   // ~400 APM — pro-level, full micro + macro
+  [Difficulty.Easy]:   20,    // ~20 APM — slow macro, minimal micro
+  [Difficulty.Normal]: 60,    // ~60 APM — decent macro, some micro
+  [Difficulty.Hard]:   150,   // ~150 APM — good macro + active micro
+  [Difficulty.Brutal]: 350,   // ~350 APM — full macro + aggressive micro
 };
 
 // Action costs (in APM points per action)
-const APM_COST_SPAWN = 2;        // spawning a unit
+const APM_COST_SPAWN = 2;        // spawning a unit (legacy — used by Terran AI)
+const APM_COST_MACRO = 1;        // macro actions: production, supply, workers (muscle memory)
 const APM_COST_MOVE_CMD = 1;     // issuing a move/attack-move command
 const APM_COST_MICRO = 3;        // kiting, splitting, pulling back wounded
 const APM_COST_ABILITY = 2;      // using an ability (inject, etc.)
@@ -437,7 +658,7 @@ function refillAPM(elapsed: number): void {
   const maxApm = APM_BUDGETS[currentDifficulty];
   // Convert APM (per minute) to points per elapsed seconds
   const pointsPerSecond = maxApm / 60;
-  apmBudget = Math.min(maxApm / 4, apmBudget + pointsPerSecond * elapsed);
+  apmBudget = Math.min(maxApm / 2, apmBudget + pointsPerSecond * elapsed);
 }
 
 function spendAPM(cost: number): boolean {
@@ -453,13 +674,13 @@ function spendAPM(cost: number): boolean {
 // Tuning constants
 // ─────────────────────────────────────────
 const INITIAL_DELAYS: Record<Difficulty, number> = {
-  [Difficulty.Easy]: 20,
-  [Difficulty.Normal]: 10,
-  [Difficulty.Hard]: 5,
-  [Difficulty.Brutal]: 0,
+  [Difficulty.Easy]: 30,     // Give beginners more time
+  [Difficulty.Normal]: 10,   // Standard
+  [Difficulty.Hard]: 3,      // Aggressive start
+  [Difficulty.Brutal]: 0,    // Immediate
 };
 const DECISION_INTERVAL = 15;
-const MAX_SPAWNS_PER_DECISION = 3;
+const MAX_SPAWNS_PER_DECISION = 6;
 
 const FIRST_WAVE_SIZES: Record<Difficulty, number> = {
   [Difficulty.Easy]: 6,
@@ -605,22 +826,24 @@ const armyEids = new Set<number>();
 const harassEids = new Set<number>();
 const scoutEids = new Set<number>();
 let defenseEids: Set<number> = new Set();
+let queenEids: Set<number> = new Set();
 let lastDefenseTime = 0;
 let defenseAreaClearSince = 0;
 
 // ─────────────────────────────────────────
 // B.4 — Expanded AI Base (Living Base)
 // ─────────────────────────────────────────
-const AI_BUILDING_SCHEDULE: Array<{ minWave: number; type: number; colOffset: number; rowOffset: number }> = [
-  { minWave: 0, type: BuildingType.Refinery, colOffset: 4, rowOffset: -3 },
-  { minWave: 1, type: BuildingType.RoachWarren, colOffset: 5, rowOffset: 0 },
-  { minWave: 2, type: BuildingType.EvolutionChamber, colOffset: 0, rowOffset: 5 },
-  { minWave: 3, type: BuildingType.SpawningPool, colOffset: -5, rowOffset: 0 },
-  { minWave: 5, type: BuildingType.HydraliskDen, colOffset: 5, rowOffset: 5 },
-  { minWave: 7, type: BuildingType.Spire, colOffset: -5, rowOffset: 5 },
+const AI_BUILDING_SCHEDULE: Array<{ minTime: number; type: number; colOffset: number; rowOffset: number }> = [
+  { minTime: 0,   type: BuildingType.SpawningPool,     colOffset: -4, rowOffset: 0 },
+  { minTime: 30,  type: BuildingType.Refinery,          colOffset: 4,  rowOffset: -3 },
+  { minTime: 90,  type: BuildingType.RoachWarren,       colOffset: 5,  rowOffset: 0 },
+  { minTime: 120, type: BuildingType.EvolutionChamber,  colOffset: 0,  rowOffset: 5 },
+  { minTime: 180, type: BuildingType.HydraliskDen,      colOffset: 5,  rowOffset: 5 },
+  { minTime: 240, type: BuildingType.Refinery,          colOffset: 7,  rowOffset: -3 },
+  { minTime: 300, type: BuildingType.Spire,             colOffset: -5, rowOffset: 5 },
+  { minTime: 360, type: BuildingType.InfestationPit,    colOffset: -5, rowOffset: -3 },
 ];
 let aiBuildingsPlaced: Set<number> = new Set();
-let lastBuildingWaveCheck = -1; // track wave count at last check
 
 // ─────────────────────────────────────────
 // B.4b — Terran AI Building Schedule (time-gated)
@@ -653,8 +876,18 @@ const VANGUARD_SIZE = 4;
 const VANGUARD_TILE = { col: 64, row: 64 }; // map center
 
 let hasExpanded = false;
+let expansionCount = 0;
 let currentMap: MapData | null = null;
 let cachedResources: Record<number, PlayerResources> | null = null;
+let cachedGameTime = 0;
+
+// ─────────────────────────────────────────
+// Build Order driven state
+// ─────────────────────────────────────────
+let workerCap = 16;
+let activeComposition: CompositionTarget | null = null;
+let shouldAttackWhenReady = false;
+let activeProfileName = '';
 
 export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Faction = Faction.Zerg): void {
   currentDifficulty = difficulty;
@@ -678,12 +911,13 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   lastAIUpgradeWave = 0;
   nextAIUpgradeType = 3;
   hasExpanded = false;
+  expansionCount = 0;
   defenseEids = new Set();
+  queenEids = new Set();
   lastDefenseTime = 0;
   defenseAreaClearSince = 0;
   aiBuildingsPlaced = new Set();
   terranBuildingsPlaced = new Set();
-  lastBuildingWaveCheck = -1;
   harassSquad1 = new Set();
   harassSquad2 = new Set();
   vanguardEids = new Set();
@@ -696,6 +930,10 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   lastTechSwitchTime = 0;
   currentStrategy = 'standard';
   strategySetTime = 0;
+  workerCap = 16;
+  activeComposition = null;
+  shouldAttackWhenReady = false;
+  activeProfileName = '';
 
   // Select build order
   activeBuildOrder = null;
@@ -703,26 +941,43 @@ export function initAI(difficulty: Difficulty = Difficulty.Normal, aiFaction: Fa
   if (currentAIFaction === Faction.Zerg) {
     const roll = rng.next();
     if (currentDifficulty === Difficulty.Easy) {
-      activeBuildOrder = [...ZERG_LAIR_MACRO];
+      // Easy: slow, macro builds — give player time
+      activeBuildOrder = roll < 0.6
+        ? [...ZERG_MACRO_HATCH_FIRST]
+        : roll < 0.8 ? [...ZERG_ROACH_HYDRA_PUSH]
+        : [...ZERG_ROACH_RAVAGER_TIMING];
+      activeProfileName = roll < 0.6 ? 'macro' : roll < 0.8 ? 'roach-hydra' : 'roach-ravager';
     } else if (currentDifficulty === Difficulty.Hard || currentDifficulty === Difficulty.Brutal) {
-      activeBuildOrder = roll < 0.5 ? [...ZERG_12_POOL] : [...ZERG_ROACH_PUSH];
+      // Hard/Brutal: aggressive profiles
+      activeBuildOrder = roll < 0.25
+        ? [...ZERG_12_POOL_RUSH]
+        : roll < 0.55 ? [...ZERG_LING_BANE_BUST]
+        : roll < 0.80 ? [...ZERG_ROACH_RAVAGER_TIMING]
+        : [...ZERG_ROACH_HYDRA_PUSH];
+      activeProfileName = roll < 0.25 ? 'rush' : roll < 0.55 ? 'ling-bane' : roll < 0.80 ? 'roach-ravager' : 'roach-hydra';
     } else {
-      activeBuildOrder = roll < 0.33 ? [...ZERG_12_POOL]
-        : roll < 0.66 ? [...ZERG_ROACH_PUSH]
-        : [...ZERG_LAIR_MACRO];
+      // Normal: balanced mix
+      activeBuildOrder = roll < 0.10
+        ? [...ZERG_12_POOL_RUSH]
+        : roll < 0.30 ? [...ZERG_LING_BANE_BUST]
+        : roll < 0.50 ? [...ZERG_ROACH_RAVAGER_TIMING]
+        : roll < 0.75 ? [...ZERG_ROACH_HYDRA_PUSH]
+        : [...ZERG_MACRO_HATCH_FIRST];
+      activeProfileName = roll < 0.10 ? 'rush' : roll < 0.30 ? 'ling-bane' : roll < 0.50 ? 'roach-ravager' : roll < 0.75 ? 'roach-hydra' : 'macro';
     }
-    activeBuildOrder = activeBuildOrder.map(s => ({ ...s, done: false }));
+    activeBuildOrder = activeBuildOrder.map(s => ({ ...s, done: false, startedAt: undefined }));
     buildOrderIndex = 0;
   }
   if (currentAIFaction === Faction.Terran) {
-    activeBuildOrder = [...TERRAN_BIO].map(s => ({ ...s, done: false }));
+    activeBuildOrder = [...TERRAN_BIO].map(s => ({ ...s, done: false, startedAt: undefined }));
     buildOrderIndex = 0;
+    activeProfileName = 'terran-bio';
   }
 }
 
 export function getAIState() {
   const res = cachedResources?.[currentAIFaction];
-  return { aiMinerals: res?.minerals ?? 0, aiGas: res?.gas ?? 0, waveCount, isAttacking, armySize: armyEids.size, defenseSize: defenseEids.size, apmBudget: Math.round(apmBudget), strategy: currentStrategy };
+  return { aiMinerals: res?.minerals ?? 0, aiGas: res?.gas ?? 0, waveCount, isAttacking, armySize: armyEids.size, defenseSize: defenseEids.size, apmBudget: Math.round(apmBudget), strategy: currentStrategy, profile: activeProfileName };
 }
 
 export function setAIMinerals(m: number, g: number = 0): void {
@@ -740,6 +995,8 @@ function executeBuildOrder(
   world: World,
   resources: Record<number, PlayerResources>,
   gameTime: number,
+  spawnBuildingFn: SpawnBuildingFn,
+  map: MapData,
 ): void {
   if (!activeBuildOrder || buildOrderIndex >= activeBuildOrder.length) return;
   if (world.nextEid >= MAX_ENTITIES - 50) return; // entity cap safety
@@ -747,58 +1004,165 @@ function executeBuildOrder(
   const res = resources[currentAIFaction];
   if (!res) return;
 
-  const step = activeBuildOrder[buildOrderIndex];
-  if (!step || step.done) { buildOrderIndex++; return; }
+  // Process multiple steps per tick (instant actions like set_worker_cap shouldn't stall)
+  let stepsThisTick = 0;
+  const MAX_STEPS_PER_TICK = 4;
 
-  // Check trigger
-  let triggered = false;
-  switch (step.trigger) {
-    case 'supply':
-      triggered = res.supplyUsed >= step.triggerValue;
-      break;
-    case 'time':
-      triggered = gameTime >= step.triggerValue;
-      break;
-    case 'unit_count':
-      triggered = armyEids.size >= step.triggerValue;
-      break;
-    case 'always':
-      triggered = true;
-      break;
-  }
+  while (buildOrderIndex < activeBuildOrder.length && stepsThisTick < MAX_STEPS_PER_TICK) {
+    const step = activeBuildOrder[buildOrderIndex];
+    if (!step) break;
+    if (step.done) { buildOrderIndex++; continue; }
 
-  if (!triggered) return;
-
-  // Execute action
-  switch (step.action.kind) {
-    case 'unit': {
-      const def = UNIT_DEFS[step.action.type];
-      if (!def) { step.done = true; buildOrderIndex++; return; }
-      // aiQueueUnit handles resource check, deduction, and production queue
-      if (!aiQueueUnit(world, step.action.type, resources)) return; // wait for resources/larva
-      step.done = true;
-      if (step.trigger !== 'always') buildOrderIndex++;
-      break;
+    // Check trigger
+    let triggered = false;
+    switch (step.trigger) {
+      case 'supply':
+        triggered = res.supplyUsed >= step.triggerValue;
+        break;
+      case 'time':
+        triggered = gameTime >= step.triggerValue;
+        break;
+      case 'unit_count':
+        triggered = armyEids.size >= step.triggerValue;
+        break;
+      case 'worker_count':
+        triggered = countAIWorkers(world) >= step.triggerValue;
+        break;
+      case 'building_done': {
+        // Check if a building of the specified type is complete
+        let found = false;
+        if (step.triggerBuildingType !== undefined) {
+          for (let eid = 1; eid < world.nextEid; eid++) {
+            if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
+            if (faction[eid] !== currentAIFaction) continue;
+            if (buildingType[eid] !== step.triggerBuildingType) continue;
+            if (buildState[eid] !== BuildState.Complete) continue;
+            if (hpCurrent[eid] <= 0) continue;
+            found = true;
+            break;
+          }
+        }
+        triggered = found;
+        break;
+      }
+      case 'minerals_above':
+        triggered = res.minerals >= step.triggerValue;
+        break;
+      case 'always':
+        triggered = true;
+        break;
     }
-    case 'attack':
-      if (currentMap) {
-        const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
-        decideAttack(world, currentMap, gameTime, diffConfig);
+
+    if (!triggered) break; // Wait for trigger
+
+    // Timeout: skip stuck steps
+    if (step.timeout) {
+      if (!step.startedAt) {
+        step.startedAt = gameTime;
+      } else if (gameTime - step.startedAt > step.timeout) {
+        step.done = true;
+        buildOrderIndex++;
+        stepsThisTick++;
+        continue;
       }
-      step.done = true;
-      buildOrderIndex++;
-      break;
-    case 'upgrade':
-      if (res.upgrades[step.action.upgradeType] < 3) {
-        res.upgrades[step.action.upgradeType]++;
+    }
+
+    // Execute action
+    let completed = false;
+    switch (step.action.kind) {
+      case 'unit': {
+        const def = UNIT_DEFS[step.action.type];
+        if (!def) { completed = true; break; }
+        const count = step.action.count ?? 1;
+        // Queue as many as possible (up to count)
+        let queued = 0;
+        for (let i = 0; i < count; i++) {
+          if (aiQueueUnit(world, step.action.type, resources)) queued++;
+          else break;
+        }
+        // Complete if we queued at least one (don't stall on multi-queue)
+        if (queued > 0) completed = true;
+        break;
       }
+      case 'worker': {
+        const workerType = currentAIFaction === Faction.Zerg ? UnitType.Drone : UnitType.SCV;
+        if (countAIWorkers(world) >= workerCap) {
+          completed = true; // Already at cap, skip
+        } else {
+          completed = aiQueueUnit(world, workerType, resources);
+        }
+        break;
+      }
+      case 'overlord': {
+        completed = aiQueueUnit(world, UnitType.Overlord, resources);
+        break;
+      }
+      case 'queen': {
+        completed = aiQueueUnit(world, UnitType.Queen, resources);
+        break;
+      }
+      case 'building': {
+        const hatch = currentAIFaction === Faction.Zerg ? findZergHatchery(world) : findTerranCC(world);
+        if (hatch > 0) {
+          const hatchTile = worldToTile(posX[hatch], posY[hatch]);
+          const col = hatchTile.col + step.action.colOffset;
+          const row = hatchTile.row + step.action.rowOffset;
+          completed = aiBuildBuilding(world, step.action.type, col, row, map, resources, spawnBuildingFn);
+          if (completed) {
+            // Mark in aiBuildingsPlaced to avoid duplicate from schedule
+            for (let i = 0; i < AI_BUILDING_SCHEDULE.length; i++) {
+              if (AI_BUILDING_SCHEDULE[i].type === step.action.type && !aiBuildingsPlaced.has(i)) {
+                aiBuildingsPlaced.add(i);
+                break;
+              }
+            }
+          }
+        }
+        break;
+      }
+      case 'attack':
+        shouldAttackWhenReady = true;
+        if (currentMap) {
+          const diffConfig = DIFFICULTY_CONFIGS[currentDifficulty];
+          decideAttack(world, currentMap, gameTime, diffConfig);
+        }
+        completed = true;
+        break;
+      case 'upgrade':
+        if (res.upgrades[step.action.upgradeType] < 3) {
+          res.upgrades[step.action.upgradeType]++;
+        }
+        completed = true;
+        break;
+      case 'expand':
+        if (attemptExpansion(resources, spawnBuildingFn)) {
+          completed = true;
+        }
+        break;
+      case 'set_worker_cap':
+        workerCap = step.action.count;
+        completed = true;
+        break;
+      case 'set_composition':
+        activeComposition = step.action.comp;
+        completed = true;
+        break;
+    }
+
+    if (completed) {
       step.done = true;
-      buildOrderIndex++;
-      break;
-    case 'expand':
-      step.done = true;
-      buildOrderIndex++;
-      break;
+      // 'always' trigger on terminal step = infinite loop (continuous production)
+      if (step.trigger === 'always' && buildOrderIndex === activeBuildOrder.length - 1) {
+        // Reset the last step so it repeats
+        step.done = false;
+        step.startedAt = undefined;
+      } else {
+        buildOrderIndex++;
+      }
+      stepsThisTick++;
+    } else {
+      break; // Can't complete this step yet, wait
+    }
   }
 }
 
@@ -929,10 +1293,9 @@ function checkAIBuildingSchedule(
   map: MapData,
   resources: Record<number, PlayerResources>,
   spawnBuildingFn: SpawnBuildingFn,
-  _gameTime: number,
+  gameTime: number,
 ): void {
-  if (waveCount === lastBuildingWaveCheck) return;
-  lastBuildingWaveCheck = waveCount;
+  if (world.nextEid >= MAX_ENTITIES - 50) return;
 
   // Find the AI Hatchery to offset from
   const hatch = findZergHatchery(world);
@@ -942,12 +1305,12 @@ function checkAIBuildingSchedule(
   for (let i = 0; i < AI_BUILDING_SCHEDULE.length; i++) {
     if (aiBuildingsPlaced.has(i)) continue;
     const entry = AI_BUILDING_SCHEDULE[i];
-    if (waveCount >= entry.minWave) {
+    if (gameTime >= entry.minTime) {
       const col = hatchTile.col + entry.colOffset;
       const row = hatchTile.row + entry.rowOffset;
-      // Deduct resources for the building (Zerg buildings self-build)
-      aiBuildBuilding(world, entry.type, col, row, map, resources, spawnBuildingFn);
-      aiBuildingsPlaced.add(i);
+      if (aiBuildBuilding(world, entry.type, col, row, map, resources, spawnBuildingFn)) {
+        aiBuildingsPlaced.add(i);
+      }
     }
   }
 }
@@ -1109,30 +1472,55 @@ function estimateThreatLevel(world: World): number {
 // ─────────────────────────────────────────
 // B.7 — AI Ability Usage
 // ─────────────────────────────────────────
-function runAIAbilities(world: World, gameTime: number): void {
-  for (const eid of armyEids) {
-    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
-    const ut = unitType[eid];
+function manageQueens(world: World, gameTime: number, map: MapData): void {
+  if (currentAIFaction !== Faction.Zerg) return;
+  if (world.nextEid >= MAX_ENTITIES - 50) return;
 
-    // Queen: inject nearest Hatchery when energy >= INJECT_LARVA_COST
-    if (ut === UnitType.Queen && energy[eid] >= INJECT_LARVA_COST) {
-      if (!spendAPM(APM_COST_ABILITY)) continue; // APM-gated
-      let nearestHatch = 0, bestDist = Infinity;
-      for (let h = 1; h < world.nextEid; h++) {
-        if (!hasComponents(world, h, BUILDING)) continue;
-        if (faction[h] !== currentAIFaction) continue;
-        if (buildingType[h] !== BuildingType.Hatchery) continue;
-        if (buildState[h] !== BuildState.Complete) continue;
-        if (injectTimer[h] > 0) continue;
-        const d = (posX[h] - posX[eid]) ** 2 + (posY[h] - posY[eid]) ** 2;
-        if (d < bestDist) { bestDist = d; nearestHatch = h; }
-      }
-      if (nearestHatch > 0) {
+  // Auto-produce Queens: 1 per base
+  const baseCount = countAIBases(world);
+  if (queenEids.size < baseCount && cachedResources) {
+    aiQueueUnit(world, UnitType.Queen, cachedResources);
+  }
+
+  // Inject and position Queens near Hatcheries
+  for (const eid of queenEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+
+    // Find nearest Hatchery that needs inject
+    let nearestHatch = 0;
+    let bestDist = Infinity;
+    for (let h = 1; h < world.nextEid; h++) {
+      if (!hasComponents(world, h, BUILDING)) continue;
+      if (faction[h] !== currentAIFaction) continue;
+      if (buildingType[h] !== BuildingType.Hatchery) continue;
+      if (buildState[h] !== BuildState.Complete) continue;
+      if (hpCurrent[h] <= 0) continue;
+      const d = (posX[h] - posX[eid]) ** 2 + (posY[h] - posY[eid]) ** 2;
+      if (d < bestDist) { bestDist = d; nearestHatch = h; }
+    }
+    if (nearestHatch === 0) continue;
+
+    // Inject if energy available and Hatchery not already injected
+    if (energy[eid] >= INJECT_LARVA_COST && injectTimer[nearestHatch] <= 0) {
+      if (spendAPM(APM_COST_MACRO)) {
         energy[eid] -= INJECT_LARVA_COST;
         injectTimer[nearestHatch] = gameTime + INJECT_LARVA_TIME;
       }
     }
+
+    // Path Queen home if too far from any Hatchery (> 8 tiles)
+    const homeDist = 8 * TILE_SIZE;
+    if (bestDist > homeDist * homeDist && movePathIndex[eid] < 0) {
+      commandMode[eid] = CommandMode.Move;
+      pathTo(eid, posX[nearestHatch], posY[nearestHatch], map);
+    }
   }
+}
+
+function runAIAbilities(world: World, _gameTime: number): void {
+  // Queen inject is now handled by manageQueens()
+  // This function remains for future non-Queen army abilities
+  void world;
 }
 
 // ─────────────────────────────────────────
@@ -1157,7 +1545,7 @@ function runTerranAI(
   if (terranElapsed > 0) refillAPM(terranElapsed);
 
   // Build order execution (runs first, takes priority)
-  executeBuildOrder(world, resources, gameTime);
+  executeBuildOrder(world, resources, gameTime, spawnBuildingFn, map);
 
   // Base defense check (B.1)
   checkBaseUnderAttack(world, gameTime, map, resources);
@@ -1256,6 +1644,7 @@ export function aiSystem(
 ): void {
   currentMap = map;
   cachedResources = resources;
+  cachedGameTime = gameTime;
 
   if (currentAIFaction === Faction.Terran) {
     runTerranAI(world, _dt, gameTime, map, resources, spawnBuildingFn);
@@ -1295,13 +1684,21 @@ export function aiSystem(
     attemptExpansion(resources, spawnBuildingFn);
   }
 
-  // Build order execution (runs first, takes priority)
-  executeBuildOrder(world, resources, gameTime);
+  // Emergency Overlord: prevent supply-lock outside build order
+  const aiRes = resources[currentAIFaction];
+  if (currentAIFaction === Faction.Zerg && aiRes) {
+    if (aiRes.supplyProvided - aiRes.supplyUsed <= 2 && aiRes.supplyProvided < 200) {
+      aiQueueUnit(world, UnitType.Overlord, resources);
+    }
+  }
 
-  // Spawn units (APM-gated)
-  const spawnsThisTick = Math.min(MAX_SPAWNS_PER_DECISION, 1 + Math.floor(waveCount / 2));
+  // Build order execution (runs first, takes priority)
+  executeBuildOrder(world, resources, gameTime, spawnBuildingFn, map);
+
+  // Spawn units (APM-gated, macro cost)
+  const spawnsThisTick = Math.min(MAX_SPAWNS_PER_DECISION, 2 + Math.floor(waveCount / 2));
   for (let i = 0; i < spawnsThisTick; i++) {
-    if (!spendAPM(APM_COST_SPAWN)) break;
+    if (!spendAPM(APM_COST_MACRO)) break;
     trySpawnUnit(world, resources);
   }
 
@@ -1357,6 +1754,9 @@ export function aiSystem(
   if (isAttacking || defenseEids.size > 0) {
     runCombatAwareness(world, map, gameTime);
   }
+
+  // Queen management (inject, positioning, auto-produce)
+  manageQueens(world, gameTime, map);
 
   // B.7 — AI ability usage (APM-gated)
   runAIAbilities(world, gameTime);
@@ -1745,6 +2145,10 @@ function pruneDeadUnits(world: World): void {
   for (const eid of vanguardEids) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) vanguardEids.delete(eid);
   }
+  // Prune queens
+  for (const eid of queenEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) queenEids.delete(eid);
+  }
   if (isAttacking && armyEids.size === 0) {
     isAttacking = false;
     attackEndTime = lastDecisionTime;
@@ -1757,23 +2161,27 @@ function pruneDeadUnits(world: World): void {
 // ─────────────────────────────────────────
 // Expansion logic
 // ─────────────────────────────────────────
+const EXPANSION_LOCATIONS = [
+  { col: 100, row: 110 },  // natural
+  { col: 15, row: 100 },   // 3rd base
+  { col: 80, row: 80 },    // 4th base
+];
+
 function attemptExpansion(
   resources: Record<number, PlayerResources>,
   spawnBuilding: SpawnBuildingFn,
-): void {
-  if (hasExpanded) return;
+): boolean {
+  if (expansionCount >= EXPANSION_LOCATIONS.length) return false;
 
   const res = resources[currentAIFaction];
-  if (!res || res.minerals < 300) return;
+  if (!res || res.minerals < 300) return false;
 
+  const loc = EXPANSION_LOCATIONS[expansionCount];
   res.minerals -= 300;
+  spawnBuilding(BuildingType.Hatchery, currentAIFaction, loc.col, loc.row);
+  expansionCount++;
   hasExpanded = true;
-
-  // Expansion at bottom-left area (col 15, row 100) — flanking base opposite player
-  const expansionCol = 15;
-  const expansionRow = 100;
-
-  spawnBuilding(BuildingType.Hatchery, currentAIFaction, expansionCol, expansionRow);
+  return true;
 }
 
 function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount: number, upgradeStartWave: number): void {
@@ -1809,9 +2217,10 @@ const enum AIPhase {
 }
 
 function getPhase(): AIPhase {
-  if (waveCount <= 1) return AIPhase.EarlyGame;
-  if (waveCount <= 4) return AIPhase.MidGame;
-  return AIPhase.LateGame;
+  const gt = cachedGameTime;
+  if (gt < 180) return AIPhase.EarlyGame;      // First 3 minutes
+  if (gt < 420) return AIPhase.MidGame;         // 3-7 minutes
+  return AIPhase.LateGame;                       // 7+ minutes
 }
 
 const EARLY_GAME_UNITS = [
@@ -1852,10 +2261,71 @@ function findZergHatchery(world: World): number {
   return 0;
 }
 
+function countArmyComposition(world: World): Map<UnitType, number> {
+  const counts = new Map<UnitType, number>();
+  for (const eid of armyEids) {
+    if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
+    const ut = unitType[eid] as UnitType;
+    counts.set(ut, (counts.get(ut) || 0) + 1);
+  }
+  return counts;
+}
+
+function findMostNeededUnit(
+  target: CompositionTarget,
+  current: Map<UnitType, number>,
+  resources: Record<number, PlayerResources>,
+): UnitType | null {
+  let bestType: UnitType | null = null;
+  let bestDeficit = -Infinity;
+  const res = resources[currentAIFaction];
+  if (!res) return null;
+
+  for (const entry of target.units) {
+    const have = current.get(entry.type) || 0;
+    const want = Math.max(entry.minCount || 0, Math.round(target.targetArmySize * entry.ratio));
+    const deficit = want - have;
+    if (deficit <= bestDeficit) continue;
+
+    // Check affordability
+    const def = UNIT_DEFS[entry.type];
+    if (!def) continue;
+    if (res.minerals >= def.costMinerals && res.gas >= def.costGas) {
+      bestDeficit = deficit;
+      bestType = entry.type;
+    }
+  }
+  return bestType;
+}
+
+function isArmyReady(world: World, threshold: number = 0.7): boolean {
+  if (!activeComposition) return armyEids.size >= 4; // fallback
+  const current = countArmyComposition(world);
+  let totalHave = 0;
+  let totalWant = 0;
+  for (const entry of activeComposition.units) {
+    const have = current.get(entry.type) || 0;
+    const want = Math.max(entry.minCount || 0, Math.round(activeComposition.targetArmySize * entry.ratio));
+    totalHave += Math.min(have, want);
+    totalWant += want;
+  }
+  return totalWant > 0 && (totalHave / totalWant) >= threshold;
+}
+
 function trySpawnUnit(world: World, resources: Record<number, PlayerResources>): void {
   if (world.nextEid >= MAX_ENTITIES - 50) return;
 
-  // Iteration 4: Strategy-driven composition takes priority, then reactive, then phase
+  // Composition targeting: build toward the active composition target
+  if (activeComposition) {
+    const current = countArmyComposition(world);
+    const needed = findMostNeededUnit(activeComposition, current, resources);
+    if (needed) {
+      aiQueueUnit(world, needed, resources);
+      return;
+    }
+  }
+
+  // Fallback: Strategy-driven composition, then reactive, then phase weights
   const stratWeights = getStrategyWeights();
   const options = stratWeights ?? getReactiveWeights();
   const totalWeight = options.reduce((s, o) => s + o.weight, 0);
@@ -1865,18 +2335,6 @@ function trySpawnUnit(world: World, resources: Record<number, PlayerResources>):
   for (const opt of options) {
     roll -= opt.weight;
     if (roll <= 0) { chosen = opt; break; }
-  }
-
-  // Personality style override
-  if (personality.preferredStyle === 'rush' && waveCount <= 2) {
-    // Rush style: always Zerglings early
-    chosen = EARLY_GAME_UNITS[0];
-  } else if (personality.preferredStyle === 'heavy' && waveCount >= 2) {
-    // Heavy style: prefer Roaches and Hydralisks
-    const heavyOptions = options.filter(o => o.type === UnitType.Roach || o.type === UnitType.Hydralisk);
-    if (heavyOptions.length > 0) {
-      chosen = heavyOptions[rng.nextInt(heavyOptions.length)];
-    }
   }
 
   // aiQueueUnit handles resource check, deduction, larva, and production queue
@@ -1892,29 +2350,40 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
 
   if (attackEndTime > 0 && gameTime - attackEndTime < diffConfig.waveIntervalBase) return;
 
-  // B.8 — Escalating Late Game: increase max army size after wave 8
-  const effectiveMaxWaveSize = waveCount >= 8 ? Math.floor(MAX_WAVE_SIZE * 1.5) : MAX_WAVE_SIZE;
-  const armySizeCap = Math.floor(effectiveMaxWaveSize * diffConfig.armySizeCapMultiplier);
-  const threshold = Math.min(
-    Math.floor((FIRST_WAVE_SIZES[currentDifficulty] + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
-    armySizeCap,
-  );
-
   // B.5 — Reactive Intel-Driven Response
   const threat = estimateThreatLevel(world);
   if (threat > 1.5) {
     // Defensive: don't attack, hold army near base
+    shouldAttackWhenReady = false;
     return;
   }
 
-  // Iteration 4: Timing attack strategy forces earlier attacks
-  const timingBonus = currentStrategy === 'timing-attack' ? 0.6 : 1.0;
-  const economyPunishBonus = currentStrategy === 'economy-punish' ? 0.7 : 1.0;
-  const adjustedThreshold = Math.floor(threshold * timingBonus * economyPunishBonus);
+  // Composition-based readiness check (primary attack decision)
+  if (shouldAttackWhenReady && isArmyReady(world, 0.7)) {
+    // Build order triggered attack and army is 70%+ ready — go!
+    shouldAttackWhenReady = false;
+  } else if (shouldAttackWhenReady) {
+    // Build order wants attack but army not ready yet — wait
+    return;
+  } else {
+    // Autonomous attack logic (after build order exhausted)
+    const effectiveMaxWaveSize = waveCount >= 8 ? Math.floor(MAX_WAVE_SIZE * 1.5) : MAX_WAVE_SIZE;
+    const armySizeCap = Math.floor(effectiveMaxWaveSize * diffConfig.armySizeCapMultiplier);
+    const threshold = Math.min(
+      Math.floor((FIRST_WAVE_SIZES[currentDifficulty] + waveCount * WAVE_SIZE_GROWTH) * personality.aggressionMult),
+      armySizeCap,
+    );
 
-  // Opportunistic attack if threat is very low, even below threshold
-  const shouldAttack = armyEids.size >= adjustedThreshold || (threat < 0.7 && armyEids.size >= Math.floor(adjustedThreshold * 0.5));
-  if (!shouldAttack) return;
+    const timingBonus = currentStrategy === 'timing-attack' ? 0.6 : 1.0;
+    const economyPunishBonus = currentStrategy === 'economy-punish' ? 0.7 : 1.0;
+    const adjustedThreshold = Math.floor(threshold * timingBonus * economyPunishBonus);
+
+    // Check composition readiness OR raw army size
+    const compositionReady = isArmyReady(world, 0.7);
+    const sizeReady = armyEids.size >= adjustedThreshold;
+    const opportunistic = threat < 0.7 && armyEids.size >= Math.floor(adjustedThreshold * 0.5);
+    if (!compositionReady && !sizeReady && !opportunistic) return;
+  }
 
   // APM-gated: committing to an attack wave costs action points
   if (!spendAPM(APM_COST_ATTACK_DECISION)) return;
@@ -1926,6 +2395,11 @@ function decideAttack(world: World, map: MapData, gameTime: number, diffConfig: 
   isAttacking = true;
   retreating = false;
   waveCount++;
+
+  // Grow composition target for escalating waves
+  if (activeComposition) {
+    activeComposition.targetArmySize = Math.min(activeComposition.targetArmySize + 8, 60);
+  }
 
   const target = findAttackTarget(world);
 
@@ -2029,9 +2503,6 @@ function sendUnitsToAttack(
   const spacing = TILE_SIZE * 0.8;
   let i = 0;
 
-  // Route through map center (64,64) so the army is visible crossing the map (B.9)
-  const midpoint = tileToWorld(64, 64);
-
   for (const eid of units) {
     if (!entityExists(world, eid) || hpCurrent[eid] <= 0) continue;
 
@@ -2041,43 +2512,13 @@ function sendUnitsToAttack(
     const offsetY = (row - Math.floor(units.size / cols - 1) / 2) * spacing;
     i++;
 
-    const destX = targetX + offsetX;
-    const destY = targetY + offsetY;
     commandMode[eid] = CommandMode.AttackMove;
 
-    // Build a 2-waypoint path: unit -> midpoint -> target (via optional angle waypoint)
-    const startTile = worldToTile(posX[eid], posY[eid]);
-    const midTile = worldToTile(midpoint.x, midpoint.y);
-
-    // Path to midpoint first
-    const pathToMid = findPath(map, startTile.col, startTile.row, midTile.col, midTile.row);
-
-    if (pathToMid.length > 0) {
-      const worldPath: Array<[number, number]> = pathToMid.map(([c, r]) => {
-        const wp = tileToWorld(c, r);
-        return [wp.x, wp.y] as [number, number];
-      });
-
-      // Then path from midpoint to final destination (via waypoint if given)
-      const finalX = waypoint ? waypoint.x + offsetX : destX;
-      const finalY = waypoint ? waypoint.y + offsetY : destY;
-      const finalTile = worldToTile(finalX, finalY);
-      const pathToTarget = findPath(map, midTile.col, midTile.row, finalTile.col, finalTile.row);
-
-      if (pathToTarget.length > 0) {
-        worldPath.push(...pathToTarget.map(([c, r]) => {
-          const wp = tileToWorld(c, r);
-          return [wp.x, wp.y] as [number, number];
-        }));
-      }
-      setPath(eid, worldPath);
+    if (waypoint) {
+      // Route through waypoint then to target
+      pathTo(eid, waypoint.x + offsetX, waypoint.y + offsetY, map);
     } else {
-      // Fallback: direct path if midpoint is unreachable
-      if (waypoint) {
-        pathTo(eid, waypoint.x + offsetX, waypoint.y + offsetY, map);
-      } else {
-        pathTo(eid, destX, destY, map);
-      }
+      pathTo(eid, targetX + offsetX, targetY + offsetY, map);
     }
   }
 }
@@ -2472,6 +2913,43 @@ function updateStrategy(world: World, gameTime: number): void {
   if (currentStrategy !== oldStrategy) {
     lastTechSwitchTime = gameTime;
     strategySetTime = gameTime;
+
+    // Update composition target for counter-strategies
+    switch (currentStrategy) {
+      case 'anti-bio':
+        activeComposition = {
+          units: [
+            { type: UnitType.Baneling, ratio: 0.4, minCount: 4 },
+            { type: UnitType.Hydralisk, ratio: 0.3, minCount: 3 },
+            { type: UnitType.Roach, ratio: 0.2, minCount: 2 },
+            { type: UnitType.Zergling, ratio: 0.1 },
+          ],
+          targetArmySize: activeComposition?.targetArmySize ?? 30,
+        };
+        break;
+      case 'anti-mech':
+        activeComposition = {
+          units: [
+            { type: UnitType.Zergling, ratio: 0.35, minCount: 6 },
+            { type: UnitType.Hydralisk, ratio: 0.3, minCount: 3 },
+            { type: UnitType.Ravager, ratio: 0.2, minCount: 2 },
+            { type: UnitType.Roach, ratio: 0.15 },
+          ],
+          targetArmySize: activeComposition?.targetArmySize ?? 30,
+        };
+        break;
+      case 'timing-attack':
+        activeComposition = {
+          units: [
+            { type: UnitType.Zergling, ratio: 0.5, minCount: 6 },
+            { type: UnitType.Roach, ratio: 0.3, minCount: 3 },
+            { type: UnitType.Baneling, ratio: 0.2, minCount: 2 },
+          ],
+          targetArmySize: activeComposition?.targetArmySize ?? 20,
+        };
+        break;
+      // standard and economy-punish keep the build order's composition
+    }
   }
 }
 

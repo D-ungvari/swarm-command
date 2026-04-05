@@ -303,10 +303,10 @@ export interface DifficultyConfig {
 }
 
 export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
-  [Difficulty.Easy]:   { incomeMultiplier: 0.7,  upgradeStartWave: 99, waveIntervalBase: 45, armySizeCapMultiplier: 0.7 },
-  [Difficulty.Normal]: { incomeMultiplier: 1.33, upgradeStartWave: 5,  waveIntervalBase: 30, armySizeCapMultiplier: 1.0 },
-  [Difficulty.Hard]:   { incomeMultiplier: 1.68, upgradeStartWave: 3,  waveIntervalBase: 20, armySizeCapMultiplier: 1.3 },
-  [Difficulty.Brutal]: { incomeMultiplier: 2.34, upgradeStartWave: 1,  waveIntervalBase: 15, armySizeCapMultiplier: 1.6 },
+  [Difficulty.Easy]:   { incomeMultiplier: 0.5,  upgradeStartWave: 99, waveIntervalBase: 45, armySizeCapMultiplier: 0.7 },
+  [Difficulty.Normal]: { incomeMultiplier: 1.0,  upgradeStartWave: 5,  waveIntervalBase: 25, armySizeCapMultiplier: 1.0 },
+  [Difficulty.Hard]:   { incomeMultiplier: 1.5,  upgradeStartWave: 3,  waveIntervalBase: 18, armySizeCapMultiplier: 1.3 },
+  [Difficulty.Brutal]: { incomeMultiplier: 2.0,  upgradeStartWave: 1,  waveIntervalBase: 12, armySizeCapMultiplier: 1.6 },
 };
 
 // ── AI constants ──

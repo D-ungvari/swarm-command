@@ -12,6 +12,22 @@
 | 100 | Multi-SCV speed build | feat | MED | Additional SCVs can assist construction, each adding repair-rate progress. Max 3 SCVs per building. Costs additional minerals proportional to repair rate. |
 | 101 | Viper Abduct polish | feat | LOW | Abduct pulls target unit to Viper's location. Animation: tentacle lash, target slides to Viper. Range 9. Cost 75 energy. |
 | 102 | Shift-queue abilities | feat | LOW | Hold Shift while issuing commands to queue them. Units execute queued commands in order. Works for move, attack-move, patrol, abilities. |
+| 103 | Stat & behavior fixes (siege cooldown, min range, multi-hit, fungal root, widow friendly fire) | fix | CRITICAL | **ULTRAPLANNED** → `.sdlc/plans/sc2-skirmish-audit.md` (Task 1). 8 verified combat inaccuracies. |
+| 104 | Zerg Extractor building | feat | CRITICAL | **ULTRAPLANNED** → Task 2. Player-as-Zerg has no gas building. |
+| 105 | Tech gate buildings (Armory, Ghost Academy, Fusion Core) | feat | CRITICAL | **ULTRAPLANNED** ��� Task 3. BC/Ghost/Thor producible without tech requirement. |
+| 106 | TechLab unit gating + Reactor dual production | feat | CRITICAL | **ULTRAPLANNED** → Task 4. Depends on #105. Replaces/refines backlog #98. |
+| 107 | Lair/Hive tech progression | feat | CRITICAL | **ULTRAPLANNED** → Task 5. All Zerg tech available immediately. |
+| 108 | Zerg tech buildings (Baneling Nest, Ultralisk Cavern, Lurker Den) | feat | HIGH | **ULTRAPLANNED** → Task 6. Depends on #107. |
+| 109 | Unit-specific research system (Stim, Combat Shield, Met Boost, etc.) | feat | HIGH | **ULTRAPLANNED** → Task 7. Depends on #106, #108. |
+| 110 | Detection system | feat | CRITICAL | **ULTRAPLANNED** → Task 8. Cloaked/burrowed units have zero counter. |
+| 111 | Elevation combat penalty (high ground miss chance) | feat | MED | **ULTRAPLANNED** → Task 9. |
+| 112 | Morph mechanics (Baneling/Ravager/Lurker from base units) | feat | MED | **ULTRAPLANNED** → Task 10. Depends on #108. |
+| 113 | Medivac transport + boost | feat | HIGH | **ULTRAPLANNED** → Task 11. Core Terran mechanic. |
+| 114 | Unit ability additions (BC Tactical Jump, Reaper cliff jump) | feat | MED | **ULTRAPLANNED** → Task 12. |
+| 115 | Vehicle/Ship Armor upgrade | feat | MED | **ULTRAPLANNED** → Task 13. Depends on #105. |
+| 116 | Missing Terran units (Banshee, Liberator, Raven) | feat | MED | **ULTRAPLANNED** → Task 14. Depends on #105, #106, #110. |
+| 117 | Missing Zerg units (Overseer, Brood Lord, Swarm Host) | feat | MED | **ULTRAPLANNED** → Task 15. Depends on #107, #108, #110. |
+| 118 | Polish pass (mineral variety, building burn, veterancy toggle) | fix | LOW | **ULTRAPLANNED** → Task 16. |
 | 93 | Recreate iconic SC2 LotV ladder map | feat | MED | Faithful recreation of a famous competitive map. |
 | 94 | Advanced AI Commander — Zerg AI Overhaul | feat | HIGH | **ULTRAPLANNED** → `.sdlc/plans/enemy-ai-overhaul.md` (7 tasks). Build order engine with 5 SC2-style Zerg profiles, production/economy fix, composition targeting, attack intelligence, Queen inject management, time-gated building schedule, difficulty rebalance. |
 |    | ↳ T1: Build Order Engine + 5 Zerg Profiles | feat | — | Replace 3-step build orders with 15-25 step SC2-style sequences |

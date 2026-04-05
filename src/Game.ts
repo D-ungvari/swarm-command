@@ -5,7 +5,7 @@ import {
   EDGE_SCROLL_ZONE, EDGE_SCROLL_SPEED,
   MIN_ZOOM, MAX_ZOOM,
   MS_PER_TICK, Faction, UnitType, ResourceType, BuildingType, BuildState,
-  MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
+  MINERAL_PER_PATCH, MINERAL_PER_PATCH_RICH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState,
   Difficulty, UpgradeType, AddonType, TECHLAB_UNITS, isHatchType,
@@ -731,7 +731,7 @@ export class Game {
       }
     }
 
-    deathSystem(this.world, this.gameTime, this.map, this.resources);
+    deathSystem(this.world, this.gameTime, this.map, this.resources, dt);
     if (!this.scenarioManager?.getScenario()?.setup.disableAI) {
       aiSystem(this.world, dt, this.gameTime, this.map,
         (type, fac, x, y) => this.spawnUnitAt(type, fac, x, y), this.resources,
@@ -1777,6 +1777,7 @@ export class Game {
 
   private spawnResourceNodes(): void {
     const tiles = getResourceTiles(this.map);
+    let mineralIdx = 0;
     for (const t of tiles) {
       const eid = addEntity(this.world);
       addResourceComponents(this.world, eid);
@@ -1787,9 +1788,12 @@ export class Game {
 
       if (t.type === TileType.Minerals) {
         resourceType[eid] = ResourceType.Mineral;
-        resourceRemaining[eid] = MINERAL_PER_PATCH;
-        hpCurrent[eid] = MINERAL_PER_PATCH;
-        hpMax[eid] = MINERAL_PER_PATCH;
+        // SC2: 4 rich (1800) + 4 normal (1500) per base, repeating
+        const amount = (mineralIdx % 8) < 4 ? MINERAL_PER_PATCH_RICH : MINERAL_PER_PATCH;
+        mineralIdx++;
+        resourceRemaining[eid] = amount;
+        hpCurrent[eid] = amount;
+        hpMax[eid] = amount;
         renderWidth[eid] = TILE_SIZE - 6;
         renderHeight[eid] = TILE_SIZE - 10;
         renderTint[eid] = MINERAL_COLOR;

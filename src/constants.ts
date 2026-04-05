@@ -258,6 +258,7 @@ export const BUILDING_COLOR = 0x3377bb;
 
 // ── Economy constants ──
 export const MINERAL_PER_PATCH = 1500;
+export const MINERAL_PER_PATCH_RICH = 1800;
 export const GAS_PER_GEYSER = 2500;
 export const WORKER_CARRY_MINERALS = 5;
 export const WORKER_CARRY_GAS = 4;
@@ -307,6 +308,9 @@ export const NEURAL_PARASITE_DURATION = 7;  // seconds
 export const NEURAL_PARASITE_COST = 100;    // energy cost
 
 // ── Game speed ──
+/** Veterancy system toggle — set false to disable kill-based stat bonuses */
+export let veterancyEnabled = false;
+
 export const GAME_SPEEDS = [0.5, 1.0, 1.5, 2.0] as const;
 export type GameSpeed = typeof GAME_SPEEDS[number];
 

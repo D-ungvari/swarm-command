@@ -1,7 +1,7 @@
 import { type World, hasComponents, entityExists, removeEntity } from '../ecs/world';
 import {
   POSITION, HEALTH, BUILDING, UNIT_TYPE,
-  posX, posY, faction, hpCurrent,
+  posX, posY, faction, hpCurrent, hpMax,
   resetComponents, unitType,
   buildingType, buildState, builderEid, supplyProvided, supplyCost,
   commandMode, workerState, workerTargetEid,
@@ -9,7 +9,7 @@ import {
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
 import { clearBuildingTiles, worldToTile } from '../map/MapData';
-import { BuildingType, CommandMode, WorkerState, Faction } from '../constants';
+import { BuildingType, BuildState, CommandMode, WorkerState, Faction } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { soundManager } from '../audio/SoundManager';
@@ -41,10 +41,24 @@ export function deathSystem(
   gameTime: number,
   map?: MapData,
   resources?: Record<number, PlayerResources>,
+  dt: number = 0,
 ): void {
   // Clean up old death events
   while (deathEvents.length > 0 && gameTime - deathEvents[0].time > DEATH_EVENT_LIFETIME) {
     deathEvents.shift();
+  }
+
+  // Terran building burn: completed buildings below 33% HP lose 2 HP/s
+  if (dt > 0) {
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, BUILDING | HEALTH)) continue;
+      if (faction[eid] !== Faction.Terran) continue;
+      if (buildState[eid] !== BuildState.Complete) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      if (hpMax[eid] > 0 && hpCurrent[eid] < hpMax[eid] * 0.33) {
+        hpCurrent[eid] -= 2 * dt;
+      }
+    }
   }
 
   const bits = POSITION | HEALTH;

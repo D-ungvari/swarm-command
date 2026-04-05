@@ -15,7 +15,7 @@ import {
   neuralStunEndTime,
 } from '../ecs/components';
 import { findBestTarget } from '../ecs/queries';
-import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, ArmorClass, UpgradeType } from '../constants';
+import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, ArmorClass, UpgradeType, veterancyEnabled } from '../constants';
 import { getBonusDamage } from '../combat/damageCalc';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
@@ -71,6 +71,7 @@ const FLASH_DURATION = 0.12; // seconds
 
 /** Recompute veterancy level from kill count (called after each kill) */
 function updateVeterancy(eid: number): void {
+  if (!veterancyEnabled) return;
   const kills = killCount[eid];
   if (kills >= 20) veterancyLevel[eid] = 3;      // Hero
   else if (kills >= 10) veterancyLevel[eid] = 2;  // Elite
@@ -355,8 +356,8 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     const bonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[tgt]);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
     const armorBonus = getArmorBonus(resources, faction[tgt], unitType[tgt] as UnitType);
-    const vetBonus = veterancyLevel[eid]; // 0-3 extra damage
-    const vetArmor = veterancyLevel[tgt]; // 0-3 extra armor
+    const vetBonus = veterancyEnabled ? veterancyLevel[eid] : 0; // 0-3 extra damage
+    const vetArmor = veterancyEnabled ? veterancyLevel[tgt] : 0; // 0-3 extra armor
     const totalArmor = baseArmor[tgt] + armorBonus + vetArmor;
     // Multi-hit: split damage evenly, apply armor per hit
     const perHitDmg = baseDmg / hits;

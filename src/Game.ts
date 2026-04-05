@@ -2119,7 +2119,10 @@ export class Game {
     if (res.minerals < uDef.costMinerals || res.gas < uDef.costGas) return;
 
     // Check supply
-    if (uDef.supply > 0 && res.supplyUsed + uDef.supply > res.supplyProvided) return;
+    if (uDef.supply > 0 && res.supplyUsed + uDef.supply > res.supplyProvided) {
+      this.alertRenderer.show('SUPPLY BLOCKED', 2, this.gameTime);
+      return;
+    }
 
     // Deduct cost
     res.minerals -= uDef.costMinerals;

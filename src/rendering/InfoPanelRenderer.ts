@@ -997,9 +997,12 @@ export class InfoPanelRenderer {
             ? 'rgba(60, 60, 60, 0.3)'
             : 'rgba(100, 160, 255, 0.4)';
         });
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
           if (this.productionCallback) {
-            this.productionCallback(buildingEid, uType);
+            const count = e.shiftKey ? 5 : 1;
+            for (let q = 0; q < count; q++) {
+              this.productionCallback(buildingEid, uType);
+            }
           }
         });
 

@@ -5,17 +5,19 @@ import {
   buildState, buildProgress, buildTimeTotal, builderEid,
   buildingType, hpCurrent, hpMax,
   supplyProvided as supplyProvidedArr,
-  commandMode, workerState, workerTargetEid,
-  movePathIndex,
+  commandMode, workerState, workerTargetEid, workerBaseX, workerBaseY,
+  movePathIndex, setPath,
   atkDamage, atkRange, atkCooldown, atkLastTime, atkSplash,
   canTargetGround, canTargetAir, targetEntity,
   isDetector, detectionRange,
 } from '../ecs/components';
 import { BUILDING_DEFS } from '../data/buildings';
-import { BuildState, BuildingType, CommandMode, WorkerState, WORKER_MINE_RANGE, Faction, TILE_SIZE } from '../constants';
+import { BuildState, BuildingType, CommandMode, WorkerState, WORKER_MINE_RANGE, Faction, TILE_SIZE, isHatchType } from '../constants';
 import type { PlayerResources } from '../types';
 import { markCreepDirty } from './CreepSystem';
 import { worldToTile, tileToWorld, findNearestWalkableTile, type MapData } from '../map/MapData';
+import { findNearestMineral } from '../ecs/queries';
+import { findPath } from '../map/Pathfinder';
 
 /**
  * Handles building construction progress.
@@ -123,6 +125,44 @@ export function buildSystem(
         }
       }
       builderEid[eid] = -1;
+
+      // Auto-gather: when a base building completes, assign nearby idle workers to mine
+      if (map && (bt === BuildingType.CommandCenter || isHatchType(bt))) {
+        const bx = posX[eid];
+        const by = posY[eid];
+        const baseFac = faction[eid];
+        const radiusSq = (15 * TILE_SIZE) * (15 * TILE_SIZE);
+        const mineral = findNearestMineral(world, bx, by);
+        if (mineral > 0) {
+          for (let w = 1; w < world.nextEid; w++) {
+            if (!hasComponents(world, w, WORKER | POSITION)) continue;
+            if (faction[w] !== baseFac) continue;
+            if (hpCurrent[w] <= 0) continue;
+            if (workerState[w] !== WorkerState.Idle || commandMode[w] !== CommandMode.Idle) continue;
+            const dx = posX[w] - bx;
+            const dy = posY[w] - by;
+            if (dx * dx + dy * dy > radiusSq) continue;
+            workerTargetEid[w] = mineral;
+            workerState[w] = WorkerState.MovingToResource;
+            commandMode[w] = CommandMode.Gather;
+            workerBaseX[w] = bx;
+            workerBaseY[w] = by;
+            const resTile = worldToTile(posX[mineral], posY[mineral]);
+            const walkTile = findNearestWalkableTile(map, resTile.col, resTile.row);
+            if (walkTile) {
+              const startTile = worldToTile(posX[w], posY[w]);
+              const tilePath = findPath(map, startTile.col, startTile.row, walkTile.col, walkTile.row);
+              if (tilePath.length > 0) {
+                const wp: Array<[number, number]> = tilePath.map(([c, r]) => {
+                  const p = tileToWorld(c, r);
+                  return [p.x, p.y] as [number, number];
+                });
+                setPath(w, wp);
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

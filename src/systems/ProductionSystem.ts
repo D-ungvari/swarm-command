@@ -5,14 +5,15 @@ import {
   prodUnitType, prodProgress, prodTimeTotal,
   prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
-  posX, posY, faction, rallyX, rallyY,
+  posX, posY, faction, rallyX, rallyY, hpCurrent, hpMax,
   commandMode, setPath, movePathIndex,
   workerState, workerTargetEid, workerBaseX, workerBaseY,
   unitType as unitTypeArr, WORKER,
   larvaCount, larvaRegenTimer, injectTimer,
   addonType,
+  upgradingTo, upgradeProgress, upgradeTimeTotal,
 } from '../ecs/components';
-import { BuildState, BuildingType, CommandMode, UnitType, WorkerState, LARVA_MAX, LARVA_INJECT_MAX, LARVA_REGEN_TIME, INJECT_LARVA_BONUS, AddonType } from '../constants';
+import { BuildState, BuildingType, CommandMode, UnitType, WorkerState, LARVA_MAX, LARVA_INJECT_MAX, LARVA_REGEN_TIME, INJECT_LARVA_BONUS, AddonType, isHatchType } from '../constants';
 import type { PlayerResources } from '../types';
 import type { MapData } from '../map/MapData';
 import { findNearestWalkableTile, worldToTile, tileToWorld } from '../map/MapData';
@@ -38,10 +39,10 @@ export function productionSystem(
 ): void {
   const bits = BUILDING | POSITION;
 
-  // ── Larva regeneration (Zerg Hatcheries) ──
+  // ── Larva regeneration (Zerg Hatchery/Lair/Hive) ──
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, BUILDING)) continue;
-    if (buildingType[eid] !== BuildingType.Hatchery) continue;
+    if (!isHatchType(buildingType[eid])) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
 
     // Inject larva completion
@@ -57,6 +58,28 @@ export function productionSystem(
         larvaCount[eid]++;
         larvaRegenTimer[eid] = larvaCount[eid] < LARVA_MAX ? LARVA_REGEN_TIME : 0;
       }
+    }
+  }
+
+  // ── Building upgrade tick (Hatchery→Lair→Hive) ──
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, BUILDING)) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    if (upgradingTo[eid] === 0) continue;
+
+    upgradeProgress[eid] -= dt;
+    if (upgradeProgress[eid] <= 0) {
+      // Upgrade complete: transform building
+      const targetType = upgradingTo[eid] as BuildingType;
+      const targetDef = BUILDING_DEFS[targetType];
+      buildingType[eid] = targetType;
+      if (targetDef) {
+        hpMax[eid] = targetDef.hp;
+        hpCurrent[eid] = targetDef.hp;
+      }
+      upgradingTo[eid] = 0;
+      upgradeProgress[eid] = 0;
+      upgradeTimeTotal[eid] = 0;
     }
   }
 
@@ -134,8 +157,8 @@ export function productionSystem(
       return null;
     }
 
-    // Zerg larva check
-    if (buildingType[eid] === BuildingType.Hatchery) {
+    // Zerg larva check (Hatchery/Lair/Hive)
+    if (isHatchType(buildingType[eid])) {
       if (larvaCount[eid] <= 0) return null;
       larvaCount[eid]--;
       if (larvaRegenTimer[eid] <= 0 && larvaCount[eid] < LARVA_MAX) {

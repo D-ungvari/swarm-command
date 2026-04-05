@@ -1,7 +1,7 @@
 import { type World, hasComponents } from '../ecs/world';
 import { POSITION, BUILDING } from '../ecs/components';
 import { posX, posY, faction, buildingType, buildState } from '../ecs/components';
-import { Faction, BuildState, BuildingType } from '../constants';
+import { Faction, BuildState, BuildingType, isHatchType } from '../constants';
 import { worldToTile, type MapData } from '../map/MapData';
 
 // Creep spreads outward from Zerg buildings up to this tile radius
@@ -11,7 +11,7 @@ const CREEP_SPREAD_INTERVAL = 5;
 
 // Buildings that generate creep
 const CREEP_BUILDINGS = new Set<BuildingType>([
-  BuildingType.Hatchery,
+  BuildingType.Hatchery, BuildingType.Lair, BuildingType.Hive,
   BuildingType.SpawningPool,
   BuildingType.EvolutionChamber,
   BuildingType.RoachWarren,

@@ -3,7 +3,7 @@ import {
   POSITION, HEALTH, BUILDING, UNIT_TYPE,
   faction, hpCurrent, buildingType, buildState, unitType,
 } from '../ecs/components';
-import { Faction, BuildingType, BuildState, activePlayerFaction } from '../constants';
+import { Faction, BuildingType, BuildState, activePlayerFaction, isHatchType } from '../constants';
 import { getAIState } from '../systems/AISystem';
 import type { GameStatsSnapshot } from '../stats/GameStats';
 
@@ -116,8 +116,6 @@ export class GameOverRenderer {
     if (gameTime < 45) return; // Don't check too early
 
     // Check defeat: player has no main base building
-    const playerMainBuilding = activePlayerFaction === Faction.Zerg
-      ? BuildingType.Hatchery : BuildingType.CommandCenter;
     const enemyFaction = activePlayerFaction === Faction.Zerg ? Faction.Terran : Faction.Zerg;
     let playerHasBase = false;
     let enemyBuildingCount = 0;
@@ -128,9 +126,11 @@ export class GameOverRenderer {
       // Check for player's main base building
       if (hasComponents(world, eid, BUILDING) &&
           faction[eid] === activePlayerFaction &&
-          buildingType[eid] === playerMainBuilding &&
           buildState[eid] === BuildState.Complete) {
-        playerHasBase = true;
+        const isBase = activePlayerFaction === Faction.Zerg
+          ? isHatchType(buildingType[eid])
+          : buildingType[eid] === BuildingType.CommandCenter;
+        if (isBase) playerHasBase = true;
       }
 
       // Count enemy buildings with hp > 0

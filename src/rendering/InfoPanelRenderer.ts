@@ -1,4 +1,4 @@
-import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, TECHLAB_UNITS, STIM_DURATION, activePlayerFaction } from '../constants';
+import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, TECHLAB_UNITS, STIM_DURATION, activePlayerFaction, isHatchType } from '../constants';
 import { CommandType } from '../input/CommandQueue';
 import { hasCompletedBuilding } from '../ecs/queries';
 import {
@@ -11,6 +11,7 @@ import {
   POSITION, SELECTABLE, RENDERABLE, HEALTH,
   energy, cloaked, stimEndTime,
   larvaCount, addonType,
+  upgradingTo, upgradeProgress, upgradeTimeTotal,
   workerTargetEid,
 } from '../ecs/components';
 import { type World, hasComponents } from '../ecs/world';
@@ -133,6 +134,7 @@ export class InfoPanelRenderer {
   private productionCallback: ProductionCallback | null = null;
   private researchCallback: ResearchCallback | null = null;
   private addonCallback: AddonCallback | null = null;
+  private upgradeCallback: ((buildingEid: number, targetType: number) => void) | null = null;
   private abilityCallback: AbilityCallback | null = null;
   private lastButtonConfig = '';
 
@@ -293,6 +295,10 @@ export class InfoPanelRenderer {
   /** Wire up a callback for addon build button clicks */
   setAddonCallback(fn: AddonCallback): void {
     this.addonCallback = fn;
+  }
+
+  setUpgradeCallback(fn: (buildingEid: number, targetType: number) => void): void {
+    this.upgradeCallback = fn;
   }
 
   /** Wire up a callback for ability button clicks */
@@ -668,6 +674,8 @@ export class InfoPanelRenderer {
 
           if (isAddonBuilding) {
             this.updateAddonButtons(eid);
+          } else if (isHatchType(bt)) {
+            this.updateUpgradeButton(eid, bt, world, fac);
           } else {
             this.addonButtonsRow.style.display = 'none';
           }
@@ -679,8 +687,8 @@ export class InfoPanelRenderer {
           this.addonButtonsRow.style.display = 'none';
         }
       }
-      // Hatchery: show larva count
-      if (bt === BuildingType.Hatchery) {
+      // Hatchery/Lair/Hive: show larva count
+      if (isHatchType(bt)) {
         const larva = larvaCount[eid];
         const larvaText = larva > 0 ? `  Larva: ${larva}/3` : '  Larva: 0/3 (regenerating)';
         this.detailEl.textContent += larvaText;
@@ -1012,6 +1020,73 @@ export class InfoPanelRenderer {
 
       this.queueRow.appendChild(slot);
     }
+  }
+
+  /** Show upgrade button for Hatchery→Lair or Lair→Hive. */
+  private updateUpgradeButton(buildingEid: number, bt: number, world: World, fac: Faction): void {
+    // Determine upgrade target
+    let targetType: BuildingType | 0 = 0;
+    if (bt === BuildingType.Hatchery) targetType = BuildingType.Lair;
+    else if (bt === BuildingType.Lair) targetType = BuildingType.Hive;
+
+    if (targetType === 0 || upgradingTo[buildingEid] !== 0) {
+      // Hive can't upgrade further, or already upgrading — show progress
+      if (upgradingTo[buildingEid] !== 0) {
+        this.addonButtonsRow.innerHTML = '';
+        const pct = upgradeTimeTotal[buildingEid] > 0
+          ? Math.min(1, 1 - upgradeProgress[buildingEid] / upgradeTimeTotal[buildingEid]) : 0;
+        const tgtDef = BUILDING_DEFS[upgradingTo[buildingEid]];
+        const tgtName = tgtDef ? tgtDef.name : 'Upgrading';
+        const badge = document.createElement('div');
+        badge.style.cssText = 'padding: 4px 8px; border: 1px solid rgba(255,160,60,0.4); border-radius: 3px; font-size: 10px; color: #ffcc88; font-family: Consolas, monospace;';
+        badge.textContent = `Upgrading to ${tgtName}: ${Math.round(pct * 100)}%`;
+        this.addonButtonsRow.appendChild(badge);
+        this.addonButtonsRow.style.display = 'flex';
+      } else {
+        this.addonButtonsRow.style.display = 'none';
+      }
+      return;
+    }
+
+    const targetDef = BUILDING_DEFS[targetType];
+    if (!targetDef) { this.addonButtonsRow.style.display = 'none'; return; }
+
+    // Check tech requirement
+    const techMet = targetDef.requires === null || hasCompletedBuilding(world, fac, targetDef.requires);
+
+    this.addonButtonsRow.innerHTML = '';
+    const btn = document.createElement('div');
+    const canAfford = true; // visual only — actual check in callback
+    btn.style.cssText = `
+      padding: 4px 8px;
+      border: 1px solid ${techMet ? 'rgba(100, 160, 255, 0.4)' : 'rgba(60, 60, 60, 0.3)'};
+      border-radius: 3px;
+      cursor: ${techMet ? 'pointer' : 'default'};
+      pointer-events: auto;
+      opacity: ${techMet ? '1' : '0.5'};
+      font-family: Consolas, monospace; font-size: 10px; color: #eee;
+    `;
+    const costText = targetDef.costGas > 0
+      ? `${targetDef.costMinerals}m ${targetDef.costGas}g`
+      : `${targetDef.costMinerals}m`;
+    btn.textContent = `Upgrade to ${targetDef.name} (${costText})`;
+    if (!techMet && targetDef.requires !== null) {
+      const reqDef = BUILDING_DEFS[targetDef.requires];
+      btn.title = `Requires: ${reqDef ? reqDef.name : 'Unknown'}`;
+    }
+    btn.addEventListener('click', () => {
+      if (techMet && this.upgradeCallback) {
+        this.upgradeCallback(buildingEid, targetType);
+      }
+    });
+    btn.addEventListener('mouseenter', () => {
+      if (techMet) btn.style.background = 'rgba(40, 80, 160, 0.5)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'transparent';
+    });
+    this.addonButtonsRow.appendChild(btn);
+    this.addonButtonsRow.style.display = 'flex';
   }
 
   /** Render addon buttons (Tech Lab / Reactor) for Barracks/Factory/Starport. */

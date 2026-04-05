@@ -19,7 +19,7 @@ import {
   MAP_COLS, MAP_ROWS, UpgradeType,
   Difficulty, DIFFICULTY_CONFIGS,
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
-  WorkerState, AddonType,
+  WorkerState, AddonType, isHatchType,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import { spatialHash } from '../ecs/SpatialHash';
@@ -329,7 +329,7 @@ function aiQueueUnit(
     if (totalQueued >= PROD_QUEUE_MAX) continue;
 
     // Zerg: check larva — pick building with most larva
-    if (buildingType[eid] === BuildingType.Hatchery) {
+    if (isHatchType(buildingType[eid])) {
       if (larvaCount[eid] <= 0) continue;
       if (larvaCount[eid] > bestLarva) {
         bestLarva = larvaCount[eid];
@@ -351,7 +351,7 @@ function aiQueueUnit(
   // Queue production
   if (prodUnitType[prodBuilding] === 0) {
     // Consume larva for Zerg
-    if (buildingType[prodBuilding] === BuildingType.Hatchery) {
+    if (isHatchType(buildingType[prodBuilding])) {
       larvaCount[prodBuilding]--;
       if (larvaRegenTimer[prodBuilding] <= 0 && larvaCount[prodBuilding] < 3) {
         larvaRegenTimer[prodBuilding] = 11;
@@ -435,11 +435,13 @@ function assignIdleWorkers(world: World, map: MapData): void {
     // Find nearest base for return trips
     let baseEid = 0;
     let baseDist = Infinity;
-    const baseType = currentAIFaction === Faction.Zerg ? BuildingType.Hatchery : BuildingType.CommandCenter;
     for (let b = 1; b < world.nextEid; b++) {
       if (!hasComponents(world, b, BUILDING | POSITION)) continue;
       if (faction[b] !== currentAIFaction) continue;
-      if (buildingType[b] !== baseType) continue;
+      const isBase = currentAIFaction === Faction.Zerg
+        ? isHatchType(buildingType[b])
+        : buildingType[b] === BuildingType.CommandCenter;
+      if (!isBase) continue;
       if (buildState[b] !== BuildState.Complete) continue;
       if (hpCurrent[b] <= 0) continue;
       const dx = posX[b] - posX[eid];
@@ -496,11 +498,13 @@ function countAIWorkers(world: World): number {
 
 function countAIBases(world: World): number {
   let count = 0;
-  const baseType = currentAIFaction === Faction.Zerg ? BuildingType.Hatchery : BuildingType.CommandCenter;
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, BUILDING | POSITION)) continue;
     if (faction[eid] !== currentAIFaction) continue;
-    if (buildingType[eid] !== baseType) continue;
+    const isBase = currentAIFaction === Faction.Zerg
+      ? isHatchType(buildingType[eid])
+      : buildingType[eid] === BuildingType.CommandCenter;
+    if (!isBase) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
     if (hpCurrent[eid] <= 0) continue;
     count++;
@@ -1521,7 +1525,7 @@ function manageQueens(world: World, gameTime: number, map: MapData): void {
     for (let h = 1; h < world.nextEid; h++) {
       if (!hasComponents(world, h, BUILDING)) continue;
       if (faction[h] !== currentAIFaction) continue;
-      if (buildingType[h] !== BuildingType.Hatchery) continue;
+      if (!isHatchType(buildingType[h])) continue;
       if (buildState[h] !== BuildState.Complete) continue;
       if (hpCurrent[h] <= 0) continue;
       const d = (posX[h] - posX[eid]) ** 2 + (posY[h] - posY[eid]) ** 2;
@@ -2282,7 +2286,7 @@ function findZergHatchery(world: World): number {
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (faction[eid] !== Faction.Zerg) continue;
-    if (buildingType[eid] !== BuildingType.Hatchery) continue;
+    if (!isHatchType(buildingType[eid])) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
     if (hpCurrent[eid] <= 0) continue;
     return eid;

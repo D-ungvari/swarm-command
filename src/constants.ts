@@ -110,10 +110,18 @@ export const enum BuildingType {
   InfestationPit = 37,
   SpineCrawler = 38,
   SporeCrawler = 39,
+  // Zerg Advanced (upgrade-in-place from Hatchery)
+  Lair = 41,
+  Hive = 42,
   // Neutral / Map objects
   Rock = 40,
   // Terran Advanced
   FusionCore = 44,
+}
+
+/** Returns true if the building type is Hatchery, Lair, or Hive (Zerg base building) */
+export function isHatchType(bt: number): boolean {
+  return bt === BuildingType.Hatchery || bt === BuildingType.Lair || bt === BuildingType.Hive;
 }
 
 /** Units that require a TechLab addon on the producing building */

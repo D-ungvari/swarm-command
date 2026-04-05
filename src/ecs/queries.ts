@@ -248,7 +248,9 @@ export function hasCompletedBuilding(world: World, fac: Faction, bType: Building
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (faction[eid] !== fac) continue;
-    if (buildingType[eid] !== bType) continue;
+    const bt = buildingType[eid];
+    // Hive satisfies Lair requirements (Zerg tech chain)
+    if (bt !== bType && !(bType === BuildingType.Lair && bt === BuildingType.Hive)) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
     if (hpCurrent[eid] <= 0) continue;
     return true;

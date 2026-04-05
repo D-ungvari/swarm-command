@@ -8,7 +8,7 @@ import {
   MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState,
-  Difficulty, UpgradeType, AddonType, TECHLAB_UNITS,
+  Difficulty, UpgradeType, AddonType, TECHLAB_UNITS, isHatchType,
   GAME_SPEEDS, setActivePlayerFaction,
   SNIPE_RANGE, TRANSFUSE_RANGE, LOCKON_RANGE,
   EMP_RANGE, EMP_RADIUS,
@@ -41,6 +41,7 @@ import {
   isAir, canTargetGround, canTargetAir,
   larvaCount, larvaRegenTimer,
   addonType, workerCountOnResource, RESOURCE,
+  upgradingTo, upgradeProgress, upgradeTimeTotal,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
 import { BUILDING_DEFS } from './data/buildings';
@@ -429,6 +430,22 @@ export class Game {
       res.minerals -= 50;
       res.gas -= 25;
       addonType[buildingEid] = addonTypeVal; // 1=TechLab, 2=Reactor
+    });
+
+    // Wire up building upgrade callback (Hatchery→Lair→Hive)
+    this.infoPanelRenderer.setUpgradeCallback((buildingEid, targetType) => {
+      const res = this.resources[this.playerFaction];
+      const def = BUILDING_DEFS[targetType];
+      if (!def) return;
+      if (res.minerals < def.costMinerals || res.gas < def.costGas) return;
+      if (upgradingTo[buildingEid] !== 0) return; // already upgrading
+      // Check tech requirement (Lair needs SpawningPool, Hive needs InfestationPit)
+      if (def.requires !== null && !hasCompletedBuilding(this.world, this.playerFaction, def.requires)) return;
+      res.minerals -= def.costMinerals;
+      res.gas -= def.costGas;
+      upgradingTo[buildingEid] = targetType;
+      upgradeProgress[buildingEid] = def.buildTime;
+      upgradeTimeTotal[buildingEid] = def.buildTime;
     });
 
     // Wire up ability button callback (subgroup abilities like Stim, Siege, Cloak, etc.)
@@ -1852,8 +1869,8 @@ export class Game {
 
     faction[eid] = fac;
 
-    // Zerg Hatcheries start with full larva
-    if (type === BuildingType.Hatchery) {
+    // Zerg Hatchery/Lair/Hive start with full larva
+    if (isHatchType(type)) {
       larvaCount[eid] = 3;
       larvaRegenTimer[eid] = 0;
     }
@@ -2025,15 +2042,15 @@ export class Game {
     // TechLab gating: advanced units require TechLab addon on the producing building
     if (TECHLAB_UNITS.has(uType) && addonType[buildingEid] !== AddonType.TechLab) return;
 
-    // Zerg Hatchery: consume larva when starting production
-    if (buildingType[buildingEid] === BuildingType.Hatchery) {
+    // Zerg Hatchery/Lair/Hive: consume larva when starting production
+    if (isHatchType(buildingType[buildingEid])) {
       if (larvaCount[buildingEid] <= 0) return;
     }
 
     // If nothing is currently producing, start immediately
     if (prodUnitType[buildingEid] === 0) {
       // Consume larva for Zerg
-      if (buildingType[buildingEid] === BuildingType.Hatchery) {
+      if (isHatchType(buildingType[buildingEid])) {
         larvaCount[buildingEid]--;
         if (larvaRegenTimer[buildingEid] <= 0 && larvaCount[buildingEid] < 3) {
           larvaRegenTimer[buildingEid] = 11; // LARVA_REGEN_TIME

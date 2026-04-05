@@ -280,7 +280,8 @@ export class UnitRenderer {
           continue;
         }
 
-        const isZergBuilding = bt === BuildingType.Hatchery || bt === BuildingType.SpawningPool
+        const isZergBuilding = bt === BuildingType.Hatchery || bt === BuildingType.Lair || bt === BuildingType.Hive
+          || bt === BuildingType.SpawningPool
           || bt === BuildingType.EvolutionChamber || bt === BuildingType.RoachWarren
           || bt === BuildingType.HydraliskDen || bt === BuildingType.Spire
           || bt === BuildingType.InfestationPit
@@ -302,22 +303,30 @@ export class UnitRenderer {
           g.ellipse(x, y, w / 2, h / 2);
           g.fill({ color: tint, alpha: baseAlpha });
 
-          if (bt === BuildingType.Hatchery) {
-            // Hatchery: large organic shape with breathing veins
+          if (bt === BuildingType.Hatchery || bt === BuildingType.Lair || bt === BuildingType.Hive) {
+            // Hatchery/Lair/Hive: large organic shape with breathing veins
+            // Lair: deeper reds + extra spines; Hive: purple tint + larger core
+            const isLair = bt === BuildingType.Lair;
+            const isHive = bt === BuildingType.Hive;
+            const outerColor = isHive ? 0x884488 : isLair ? 0xcc4444 : 0xaa4444;
+            const innerColor = isHive ? 0xaa66aa : isLair ? 0xdd5555 : 0xcc5555;
+            const coreColor = isHive ? 0xcc44cc : isLair ? 0xff5522 : 0xff4422;
+            const coreFill = isHive ? 0xdd66dd : isLair ? 0xff7744 : 0xff6644;
+
             g.ellipse(x, y, w / 2, h / 2);
-            g.stroke({ color: 0xaa4444, width: 2, alpha: 0.7 * baseAlpha });
+            g.stroke({ color: outerColor, width: 2, alpha: 0.7 * baseAlpha });
 
             // Inner membrane ring — breathes
             const breathe = 1 + 0.05 * Math.sin(gameTime * 1.5);
             g.ellipse(x, y, w * 0.3 * breathe, h * 0.3 * breathe);
-            g.stroke({ color: 0xcc5555, width: 1.5, alpha: 0.5 * baseAlpha });
+            g.stroke({ color: innerColor, width: 1.5, alpha: 0.5 * baseAlpha });
 
             // Pulsing core with glow halo
             const pulse = 0.4 + 0.3 * Math.sin(gameTime * 2);
-            g.circle(x, y, 10);
-            g.fill({ color: 0xff4422, alpha: pulse * 0.2 * baseAlpha });
-            g.circle(x, y, 6);
-            g.fill({ color: 0xff6644, alpha: pulse * baseAlpha });
+            g.circle(x, y, isHive ? 14 : isLair ? 12 : 10);
+            g.fill({ color: coreColor, alpha: pulse * 0.2 * baseAlpha });
+            g.circle(x, y, isHive ? 8 : isLair ? 7 : 6);
+            g.fill({ color: coreFill, alpha: pulse * baseAlpha });
 
             // Pulsing organic veins radiating outward
             for (let v = 0; v < 8; v++) {

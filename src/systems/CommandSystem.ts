@@ -35,7 +35,7 @@ import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile, markBuildingTiles, clearBuildingTiles } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import {
-  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE,
+  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE, isHatchType,
   STIM_DURATION, STIM_HP_COST, STIM_HP_COST_MARAUDER, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
   INJECT_LARVA_COST, INJECT_LARVA_TIME, LARVA_MAX, LARVA_REGEN_TIME,
@@ -182,7 +182,7 @@ export function commandSystem(
           for (let eid = 1; eid < world.nextEid; eid++) {
             if (!hasComponents(world, eid, BUILDING)) continue;
             if (faction[eid] !== myFac) continue;
-            if (buildingType[eid] !== BuildingType.Hatchery) continue;
+            if (!isHatchType(buildingType[eid])) continue;
             if (buildState[eid] !== BuildState.Complete) continue;
             if (injectTimer[eid] > 0) continue;
             const d = (posX[eid] - posX[qEid]) ** 2 + (posY[eid] - posY[qEid]) ** 2;
@@ -1191,13 +1191,13 @@ function handleProductionCommand(
     res.minerals -= uDef.costMinerals;
     res.gas -= uDef.costGas;
 
-    // Zerg Hatchery: check larva availability
-    if (buildingType[eid] === BuildingType.Hatchery && larvaCount[eid] <= 0) continue;
+    // Zerg Hatchery/Lair/Hive: check larva availability
+    if (isHatchType(buildingType[eid]) && larvaCount[eid] <= 0) continue;
 
     // If nothing is currently producing, start immediately
     if (prodUnitType[eid] === 0) {
       // Consume larva for Zerg
-      if (buildingType[eid] === BuildingType.Hatchery) {
+      if (isHatchType(buildingType[eid])) {
         larvaCount[eid]--;
         if (larvaRegenTimer[eid] <= 0 && larvaCount[eid] < LARVA_MAX) {
           larvaRegenTimer[eid] = LARVA_REGEN_TIME;

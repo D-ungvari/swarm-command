@@ -29,7 +29,7 @@ import {
   REAPER_REGEN_RATE, REAPER_REGEN_TIMEOUT,
   QUEEN_ENERGY_MAX, QUEEN_ENERGY_REGEN,
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
-  BuildingType, BuildState,
+  BuildingType, BuildState, isHatchType,
   CAUSTIC_SPRAY_DPS, CAUSTIC_SPRAY_RANGE,
   LOCKON_TOTAL_DAMAGE, LOCKON_DURATION, LOCKON_BREAK_RANGE,
   PARASITIC_BOMB_RADIUS, PARASITIC_BOMB_DPS,
@@ -719,7 +719,7 @@ export function applyInjectLarva(world: World, queenEids: number[], gameTime: nu
     for (let eid = 1; eid < world.nextEid; eid++) {
       if (!hasComponents(world, eid, BUILDING)) continue;
       if (faction[eid] !== myFac) continue;
-      if (buildingType[eid] !== BuildingType.Hatchery) continue;
+      if (!isHatchType(buildingType[eid])) continue;
       if (buildState[eid] !== BuildState.Complete) continue;
       if (injectTimer[eid] > 0) continue; // already injecting
       const dx = posX[eid] - posX[qEid];

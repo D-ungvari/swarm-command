@@ -11,6 +11,11 @@ status: READY
 ### Vision Alignment
 These fixes address the core "feel" of the game — responsive unit control is what separates a practice tool from a toy. Group movement, auto-attack, and individual pathfinding are the mechanics SC2 players will notice first.
 
+### Player Feedback Confirmation
+Playtesting confirmed these issues:
+- **"Sometimes my units stop killing an enemy and then I have to target attack to get rid of them"** → validates Task 1 (commandMode reset) and Task 3 (auto-acquire timing). Units arrive in Move mode and never switch to Idle for auto-attack.
+- **"Tanks have a hard time auto acquiring their target"** → may be related to Task 1 (commandMode stays Move), plus siege mode specific issues tracked in sc2-skirmish-audit F2.
+
 ### Root Cause Analysis
 
 **Bug 1: "Units group up before moving to new location"**

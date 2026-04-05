@@ -28,6 +28,35 @@
 | 116 | Missing Terran units (Banshee, Liberator, Raven) | feat | MED | **ULTRAPLANNED** → Task 14. Depends on #105, #106, #110. |
 | 117 | Missing Zerg units (Overseer, Brood Lord, Swarm Host) | feat | MED | **ULTRAPLANNED** → Task 15. Depends on #107, #108, #110. |
 | 118 | Polish pass (mineral variety, building burn, veterancy toggle) | fix | LOW | **ULTRAPLANNED** → Task 16. |
+| 119 | Macro hotkeys (F1 idle worker, camera save/recall F5-F8) | feat | HIGH | **ULTRAPLANNED** → `.sdlc/plans/gameplay-loop-improvements.md` (Task N1). Bind selectIdleWorkers to F1, add Ctrl+F5-F8 camera locations. |
+| 120 | Last-alert camera system (Spacebar) | feat | HIGH | **ULTRAPLANNED** → Task N2. Change Space from base-jump to last-attack-jump. Add Home for base. |
+| 121 | Multi-building production select + Tab cycling | feat | MED | **ULTRAPLANNED** ��� Task N3. Ctrl+click building selects all of type. Tab cycles individual buildings. Production targets shortest queue. |
+| 122 | Production QoL (supply block warning, shift+click queue 5) | feat | MED | **ULTRAPLANNED** → Task N4. "SUPPLY BLOCKED" alert + supply flash. Shift+click production = queue 5. |
+| 123 | Shift-queue abilities & commands | feat | MED | **ULTRAPLANNED** → Task N5. Extends existing shift-move to attack-move, patrol, abilities. Backlog #102 detailed spec. |
+| 124 | Worker saturation display per base | feat | LOW | **ULTRAPLANNED** → Task N6. Show "Workers: 14/16" when CC/Hatchery selected. Color-coded saturation. |
+| 126 | Smart rally points (auto-gather, attack-move) | feat | HIGH | **ULTRAPLANNED** → Task N7. Rally to mineral = auto-gather. Rally past enemies = attack-move. Color-coded rally lines. |
+| 127 | Auto-gather on base complete | feat | MED | **ULTRAPLANNED** → Task N8. Nearby idle workers auto-mine when CC/Hatchery finishes. Builder SCV auto-gathers. |
+| 128 | Watchtower vision mechanic | feat | MED | **ULTRAPLANNED** → Task N9. Xel'Naga towers grant 12-tile fog reveal to controlling faction. Visual faction indicator. |
+| 129 | Production idle indicator | feat | MED | **ULTRAPLANNED** → Task N10. HUD "Idle" warning when production buildings empty + player has resources. 3s debounce. |
+| 130 | Screen-edge attack indicators | feat | LOW | **ULTRAPLANNED** → Task N11. Red directional arrows at screen edges pointing toward off-screen attacks. 5s fade. |
+| 125 | UI Look and Feel Upgrade — Skirmish Mode | polish | HIGH | **ULTRAPLANNED** → `.sdlc/plans/ui-look-and-feel.md` (6 tasks). Design token system, panel frames, button factories, faction-aware theming. |
+|    | ↳ T1: Design Token System | polish | — | `src/ui/theme.ts` — centralized colors, fonts, spacing, faction palettes |
+|    | ↳ T2: Panel Frame & Button Factories | polish | — | `src/ui/panelFrame.ts`, `src/ui/button.ts` — reusable SC2-style components |
+|    | ↳ T3: HUD Renderer Upgrade | polish | — | Apply theme + panel frame to resource HUD |
+|    | ↳ T4: Info Panel Overhaul | polish | — | Apply theme + panel frame + buttons to command card (largest task) |
+|    | ↳ T5: Build Menu, Control Groups & Minimap | polish | — | Apply theme to remaining panels |
+|    | ↳ T6: Alerts, Mode Indicator & Game Over | polish | — | Theme + entrance animations for overlays |
+| 131 | Map Visual Overhaul — Carbot-Inspired Vibrant Terrain | polish | HIGH | **ULTRAPLANNED** → `.sdlc/plans/map-visual-overhaul.md` (10 tasks). Procedural texture pipeline (Canvas 2D → PixiJS Texture), bright Carbot-style palette, Sprite-based tilemap, elevation/cliff overhaul, mineral/gas glow, animated water, organic creep edges, terrain decorations, auto-tiling transitions. |
+|    | ↳ T1: Color Palette Module | polish | — | Centralized bright terrain palette + neighbor mask utility |
+|    | ↳ T2: Texture Generation System | polish | — | Canvas 2D → PixiJS Texture pipeline for all tile types |
+|    | ↳ T3: TilemapRenderer Switchover | polish | — | Graphics → Sprites with viewport culling |
+|    | ↳ T4: Elevation & Cliff Overhaul | polish | — | Visible cliff faces, shadows, directional ramp indicators |
+|    | ↳ T5: Mineral & Gas Visual Upgrade | polish | — | Bright crystals, glow aura, pulsing gas vents |
+|    | ↳ T6: Water Overhaul | polish | — | Bright animated water, shore foam, depth variation |
+|    | ↳ T7: Creep Visual Upgrade | polish | — | Vibrant purple with organic blobby edges |
+|    | ↳ T8: Map Decoration System | polish | — | Scattered rocks, grass clumps, pebbles on ground |
+|    | ↳ T9: Auto-Tiling Transitions | polish | — | Smooth terrain blending via bitmask tile selection |
+|    | ↳ T10: Minimap Sync + Performance Pass | polish | — | Color sync, creep on minimap, sprite count audit |
 | 93 | Recreate iconic SC2 LotV ladder map | feat | MED | Faithful recreation of a famous competitive map. |
 | 94 | Advanced AI Commander — Zerg AI Overhaul | feat | HIGH | **ULTRAPLANNED** → `.sdlc/plans/enemy-ai-overhaul.md` (7 tasks). Build order engine with 5 SC2-style Zerg profiles, production/economy fix, composition targeting, attack intelligence, Queen inject management, time-gated building schedule, difficulty rebalance. |
 |    | ↳ T1: Build Order Engine + 5 Zerg Profiles | feat | — | Replace 3-step build orders with 15-25 step SC2-style sequences |

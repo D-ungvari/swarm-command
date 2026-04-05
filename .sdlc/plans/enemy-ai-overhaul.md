@@ -78,6 +78,7 @@ Task 1: Build Order Engine + 5 Zerg Profiles
 | Over-producing workers starves army | MED | Build orders specify exact worker count targets per phase |
 | Queens in army set breaks inject cycle | MED | Task 5 creates dedicated queen management outside army roster |
 | APM budget too restrictive for complex macro | MED | Task 7 adjusts APM costs for macro vs micro actions |
+| Zerglings don't attack Terran structures (player as Zerg) | HIGH | Likely a CombatSystem targeting filter excluding buildings for melee units — investigate in gameplay-loop BF8 |
 | Tech buildings not ready for build order units | HIGH | Task 6 ensures buildings are time-gated to precede unit production |
 
 ---

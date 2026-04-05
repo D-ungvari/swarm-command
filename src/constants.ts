@@ -116,6 +116,13 @@ export const enum BuildingType {
   FusionCore = 44,
 }
 
+/** Units that require a TechLab addon on the producing building */
+export const TECHLAB_UNITS: ReadonlySet<number> = new Set([
+  UnitType.Marauder, UnitType.Ghost,       // Barracks
+  UnitType.SiegeTank, UnitType.Thor, UnitType.Cyclone, // Factory
+  UnitType.Battlecruiser,                  // Starport
+]);
+
 // ── Addon types ──
 export const enum AddonType {
   None = 0,

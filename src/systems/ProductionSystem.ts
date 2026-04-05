@@ -3,6 +3,7 @@ import {
   BUILDING, POSITION,
   buildState, buildingType,
   prodUnitType, prodProgress, prodTimeTotal,
+  prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   posX, posY, faction, rallyX, rallyY,
   commandMode, setPath, movePathIndex,
@@ -59,27 +60,11 @@ export function productionSystem(
     }
   }
 
-  for (let eid = 1; eid < world.nextEid; eid++) {
-    if (!hasComponents(world, eid, bits)) continue;
-    if (buildState[eid] !== BuildState.Complete) continue;
-    // Upgrade buildings are handled by UpgradeSystem, not ProductionSystem
-    const bt = buildingType[eid] as BuildingType;
-    if (bt === BuildingType.EngineeringBay || bt === BuildingType.EvolutionChamber) continue;
-    if (prodUnitType[eid] === 0) continue;
-
-    // Decrement timer — Reactor doubles production speed
-    const speedMult = addonType[eid] === AddonType.Reactor ? 2.0 : 1.0;
-    prodProgress[eid] -= dt * speedMult;
-    if (prodProgress[eid] > 0) continue;
-
-    // Spawn the unit
-    const uType = prodUnitType[eid];
+  // Helper: spawn a completed unit, rally, and auto-gather
+  function spawnCompleted(eid: number, uType: number): void {
     const fac = faction[eid];
-
-    // Find spawn position: adjacent walkable tile
     const bDef = BUILDING_DEFS[buildingType[eid]];
     const bTile = worldToTile(posX[eid], posY[eid]);
-    // Try below the building first
     const spawnTileRow = bTile.row + (bDef ? Math.ceil(bDef.tileHeight / 2) + 1 : 2);
     const walkable = findNearestWalkableTile(map, bTile.col, spawnTileRow);
 
@@ -93,11 +78,9 @@ export function productionSystem(
       sy = posY[eid] + 64;
     }
 
-    // spawnUnitAt handles supply tracking internally
     const newEid = spawnFn(uType, fac, sx, sy);
     soundManager.playProdComplete();
 
-    // Send to rally point if set
     if (rallyX[eid] >= 0 && newEid > 0) {
       commandMode[newEid] = CommandMode.Move;
       const startTile = worldToTile(sx, sy);
@@ -105,21 +88,20 @@ export function productionSystem(
       const tilePath = findPath(map, startTile.col, startTile.row, endTile.col, endTile.row);
       if (tilePath.length > 0) {
         const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
-          const wp = tileToWorld(c, r);
-          return [wp.x, wp.y] as [number, number];
+          const wp2 = tileToWorld(c, r);
+          return [wp2.x, wp2.y] as [number, number];
         });
         setPath(newEid, worldPath);
       }
     }
 
-    // Workers auto-gather nearest minerals if no rally set
     if (newEid > 0 && hasComponents(world, newEid, WORKER) && rallyX[eid] < 0) {
       const mineral = findNearestMineral(world, sx, sy);
       if (mineral > 0) {
         workerTargetEid[newEid] = mineral;
         workerState[newEid] = WorkerState.MovingToResource;
         commandMode[newEid] = CommandMode.Gather;
-        workerBaseX[newEid] = posX[eid]; // Return to this building
+        workerBaseX[newEid] = posX[eid];
         workerBaseY[newEid] = posY[eid];
         const resTile = worldToTile(posX[mineral], posY[mineral]);
         const walkTile = findNearestWalkableTile(map, resTile.col, resTile.row);
@@ -128,62 +110,102 @@ export function productionSystem(
           const tilePath = findPath(map, startTile.col, startTile.row, walkTile.col, walkTile.row);
           if (tilePath.length > 0) {
             const worldPath: Array<[number, number]> = tilePath.map(([c, r]) => {
-              const wp = tileToWorld(c, r);
-              return [wp.x, wp.y] as [number, number];
+              const wp2 = tileToWorld(c, r);
+              return [wp2.x, wp2.y] as [number, number];
             });
             setPath(newEid, worldPath);
           }
         }
       }
     }
+  }
 
-    // Advance the queue: shift items 1..N-1 to 0..N-2, decrement length
+  // Helper: dequeue next item from production queue into a slot
+  function dequeueNext(eid: number): { type: number; buildTime: number } | null {
+    const qLen = prodQueueLen[eid];
+    if (qLen === 0) return null;
+
+    const qBase = eid * PROD_QUEUE_MAX;
+    const nextType = prodQueue[qBase];
+    const nextDef = UNIT_DEFS[nextType];
+    if (!nextDef) {
+      // Invalid — shift queue and skip
+      shiftQueue(eid);
+      return null;
+    }
+
+    // Zerg larva check
+    if (buildingType[eid] === BuildingType.Hatchery) {
+      if (larvaCount[eid] <= 0) return null;
+      larvaCount[eid]--;
+      if (larvaRegenTimer[eid] <= 0 && larvaCount[eid] < LARVA_MAX) {
+        larvaRegenTimer[eid] = LARVA_REGEN_TIME;
+      }
+    }
+
+    shiftQueue(eid);
+    return { type: nextType, buildTime: nextDef.buildTime };
+  }
+
+  // Helper: shift queue forward by one
+  function shiftQueue(eid: number): void {
     const qBase = eid * PROD_QUEUE_MAX;
     const qLen = prodQueueLen[eid];
+    for (let i = 0; i < qLen - 1; i++) {
+      prodQueue[qBase + i] = prodQueue[qBase + i + 1];
+    }
     if (qLen > 0) {
-      // Shift queue forward
-      for (let i = 0; i < qLen - 1; i++) {
-        prodQueue[qBase + i] = prodQueue[qBase + i + 1];
-      }
       prodQueue[qBase + qLen - 1] = 0;
       prodQueueLen[eid] = qLen - 1;
+    }
+  }
 
-      // Start producing the next queued item
-      if (qLen - 1 > 0) {
-        const nextType = prodQueue[qBase];
-        const nextDef = UNIT_DEFS[nextType];
-        if (nextDef) {
-          // Zerg: consume larva when starting a new unit
-          if (buildingType[eid] === BuildingType.Hatchery && larvaCount[eid] === 0) {
-            // No larva available — skip (don't start production)
-            continue;
-          }
-          if (buildingType[eid] === BuildingType.Hatchery && larvaCount[eid] > 0) {
-            larvaCount[eid]--;
-            if (larvaRegenTimer[eid] <= 0 && larvaCount[eid] < LARVA_MAX) {
-              larvaRegenTimer[eid] = LARVA_REGEN_TIME; // restart regen timer
-            }
-          }
-          prodUnitType[eid] = nextType;
-          prodProgress[eid] = nextDef.buildTime;
-          prodTimeTotal[eid] = nextDef.buildTime;
+  for (let eid = 1; eid < world.nextEid; eid++) {
+    if (!hasComponents(world, eid, bits)) continue;
+    if (buildState[eid] !== BuildState.Complete) continue;
+    const bt = buildingType[eid] as BuildingType;
+    if (bt === BuildingType.EngineeringBay || bt === BuildingType.EvolutionChamber) continue;
+
+    const hasReactor = addonType[eid] === AddonType.Reactor;
+
+    // ── Slot 1 production ──
+    if (prodUnitType[eid] !== 0) {
+      prodProgress[eid] -= dt;
+      if (prodProgress[eid] <= 0) {
+        spawnCompleted(eid, prodUnitType[eid]);
+
+        // Dequeue next for slot 1
+        const next = dequeueNext(eid);
+        if (next) {
+          prodUnitType[eid] = next.type;
+          prodProgress[eid] = next.buildTime;
+          prodTimeTotal[eid] = next.buildTime;
         } else {
-          // Invalid type in queue, clear
           prodUnitType[eid] = 0;
           prodProgress[eid] = 0;
           prodTimeTotal[eid] = 0;
         }
-      } else {
-        // Queue empty
-        prodUnitType[eid] = 0;
-        prodProgress[eid] = 0;
-        prodTimeTotal[eid] = 0;
       }
-    } else {
-      // No queue — just reset
-      prodUnitType[eid] = 0;
-      prodProgress[eid] = 0;
-      prodTimeTotal[eid] = 0;
+    }
+
+    // ── Slot 2 production (Reactor only) ──
+    if (hasReactor && prodSlot2UnitType[eid] !== 0) {
+      prodSlot2Progress[eid] -= dt;
+      if (prodSlot2Progress[eid] <= 0) {
+        spawnCompleted(eid, prodSlot2UnitType[eid]);
+
+        // Dequeue next for slot 2
+        const next = dequeueNext(eid);
+        if (next) {
+          prodSlot2UnitType[eid] = next.type;
+          prodSlot2Progress[eid] = next.buildTime;
+          prodSlot2TimeTotal[eid] = next.buildTime;
+        } else {
+          prodSlot2UnitType[eid] = 0;
+          prodSlot2Progress[eid] = 0;
+          prodSlot2TimeTotal[eid] = 0;
+        }
+      }
     }
   }
 }

@@ -8,7 +8,7 @@ import {
   MINERAL_PER_PATCH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
   TileType, CommandMode, WorkerState,
-  Difficulty, UpgradeType, AddonType,
+  Difficulty, UpgradeType, AddonType, TECHLAB_UNITS,
   GAME_SPEEDS, setActivePlayerFaction,
   SNIPE_RANGE, TRANSFUSE_RANGE, LOCKON_RANGE,
   EMP_RANGE, EMP_RADIUS,
@@ -33,6 +33,7 @@ import {
   resourceType, resourceRemaining,
   buildingType, buildState, buildProgress, buildTimeTotal, builderEid,
   rallyX, rallyY, prodUnitType, prodProgress, prodTimeTotal,
+  prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   supplyProvided, supplyCost,
   selected, setPath,
@@ -1975,9 +1976,12 @@ export class Game {
     // Must be a completed building
     if (buildState[buildingEid] !== BuildState.Complete) return;
 
-    // Check if queue is full
+    // Check if queue is full (account for Reactor slot 2)
     const qLen = prodQueueLen[buildingEid];
-    const totalQueued = (prodUnitType[buildingEid] !== 0 ? 1 : 0) + qLen;
+    const hasReactor = addonType[buildingEid] === AddonType.Reactor;
+    const slot1Active = prodUnitType[buildingEid] !== 0 ? 1 : 0;
+    const slot2Active = hasReactor && prodSlot2UnitType[buildingEid] !== 0 ? 1 : 0;
+    const totalQueued = slot1Active + slot2Active + qLen;
     if (totalQueued >= PROD_QUEUE_MAX) return;
 
     const fac = faction[buildingEid];
@@ -2018,6 +2022,9 @@ export class Game {
     const techReq = UNIT_TECH_REQS_MAP[uType];
     if (techReq !== undefined && !hasCompletedBuilding(this.world, fac as Faction, techReq as BuildingType)) return;
 
+    // TechLab gating: advanced units require TechLab addon on the producing building
+    if (TECHLAB_UNITS.has(uType) && addonType[buildingEid] !== AddonType.TechLab) return;
+
     // Zerg Hatchery: consume larva when starting production
     if (buildingType[buildingEid] === BuildingType.Hatchery) {
       if (larvaCount[buildingEid] <= 0) return;
@@ -2035,6 +2042,11 @@ export class Game {
       prodUnitType[buildingEid] = uType;
       prodProgress[buildingEid] = uDef.buildTime;
       prodTimeTotal[buildingEid] = uDef.buildTime;
+    } else if (hasReactor && prodSlot2UnitType[buildingEid] === 0) {
+      // Reactor slot 2: start in parallel slot
+      prodSlot2UnitType[buildingEid] = uType;
+      prodSlot2Progress[buildingEid] = uDef.buildTime;
+      prodSlot2TimeTotal[buildingEid] = uDef.buildTime;
     } else {
       // Add to queue
       const qBase = buildingEid * PROD_QUEUE_MAX;

@@ -1,9 +1,10 @@
-import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, STIM_DURATION, activePlayerFaction } from '../constants';
+import { Faction, BuildState, BuildingType, ResourceType, UnitType, UpgradeType, AddonType, TECHLAB_UNITS, STIM_DURATION, activePlayerFaction } from '../constants';
 import { CommandType } from '../input/CommandQueue';
 import { hasCompletedBuilding } from '../ecs/queries';
 import {
   BUILDING, RESOURCE, UNIT_TYPE,
   buildingType, buildState, prodUnitType, prodProgress, prodTimeTotal,
+  prodSlot2UnitType, prodSlot2Progress, prodSlot2TimeTotal,
   prodQueue, prodQueueLen, PROD_QUEUE_MAX,
   resourceRemaining, resourceType, unitType,
   selected, hpCurrent, hpMax, faction, renderTint, killCount, veterancyLevel,
@@ -116,6 +117,9 @@ export class InfoPanelRenderer {
   private prodRow: HTMLDivElement;
   private prodBarFill: HTMLDivElement;
   private prodLabel: HTMLDivElement;
+  private prodSlot2Row: HTMLDivElement;
+  private prodSlot2BarFill: HTMLDivElement;
+  private prodSlot2Label: HTMLDivElement;
   private prodButtonsRow: HTMLDivElement;
   private prodButtons: HTMLDivElement[] = [];
   private queueRow: HTMLDivElement;
@@ -227,6 +231,26 @@ export class InfoPanelRenderer {
     this.prodRow.appendChild(prodBarContainer);
 
     this.panel.appendChild(this.prodRow);
+
+    // Reactor Slot 2 production row
+    this.prodSlot2Row = document.createElement('div');
+    this.prodSlot2Row.style.cssText = 'display: none; flex-direction: column; gap: 2px; margin-top: 2px;';
+
+    this.prodSlot2Label = document.createElement('div');
+    this.prodSlot2Label.style.cssText = 'font-size: 11px; color: #ffaa44;';
+    this.prodSlot2Row.appendChild(this.prodSlot2Label);
+
+    const prodSlot2BarContainer = document.createElement('div');
+    prodSlot2BarContainer.style.cssText = `
+      width: 100%; height: 6px; background: rgba(40, 30, 10, 0.6);
+      border: 1px solid rgba(255, 160, 44, 0.3); border-radius: 2px; overflow: hidden;
+    `;
+    this.prodSlot2BarFill = document.createElement('div');
+    this.prodSlot2BarFill.style.cssText = 'height: 100%; background: #ff8822; transition: width 0.1s;';
+    prodSlot2BarContainer.appendChild(this.prodSlot2BarFill);
+    this.prodSlot2Row.appendChild(prodSlot2BarContainer);
+
+    this.panel.appendChild(this.prodSlot2Row);
 
     // Production buttons row (clickable buttons for available units)
     this.prodButtonsRow = document.createElement('div');
@@ -404,6 +428,7 @@ export class InfoPanelRenderer {
       this.barLabel.textContent = `${Math.floor(totalHp)}/${Math.floor(totalMaxHp)}`;
 
       this.prodRow.style.display = 'none';
+      this.prodSlot2Row.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
@@ -534,6 +559,7 @@ export class InfoPanelRenderer {
       this.barFill.style.background = rt === ResourceType.Mineral ? '#44bbff' : '#44ff66';
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
       this.prodRow.style.display = 'none';
+      this.prodSlot2Row.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
@@ -587,6 +613,7 @@ export class InfoPanelRenderer {
           this.researchButtonsRow.style.display = 'none';
         } else {
           this.prodRow.style.display = 'none';
+      this.prodSlot2Row.style.display = 'none';
           if (bs === BuildState.Complete) {
             this.updateResearchButtons(eid, playerResources);
           } else {
@@ -611,7 +638,22 @@ export class InfoPanelRenderer {
           this.updateQueueDisplay(eid);
         } else {
           this.prodRow.style.display = 'none';
+      this.prodSlot2Row.style.display = 'none';
           this.queueRow.style.display = 'none';
+        }
+
+        // Reactor slot 2 progress bar
+        const s2Type = prodSlot2UnitType[eid];
+        if (s2Type > 0 && prodSlot2TimeTotal[eid] > 0) {
+          const s2Def = UNIT_DEFS[s2Type];
+          const s2Name = s2Def ? s2Def.name : 'Unit';
+          const s2pct = prodSlot2TimeTotal[eid] > 0
+            ? Math.min(1, 1 - prodSlot2Progress[eid] / prodSlot2TimeTotal[eid]) : 0;
+          this.prodSlot2Label.textContent = `Slot 2: ${s2Name}`;
+          this.prodSlot2BarFill.style.width = `${s2pct * 100}%`;
+          this.prodSlot2Row.style.display = 'flex';
+        } else {
+          this.prodSlot2Row.style.display = 'none';
         }
 
         // Addon-capable buildings: Barracks, Factory, Starport
@@ -747,6 +789,7 @@ export class InfoPanelRenderer {
       }
 
       this.prodRow.style.display = 'none';
+      this.prodSlot2Row.style.display = 'none';
       this.prodButtonsRow.style.display = 'none';
       this.researchButtonsRow.style.display = 'none';
       this.addonButtonsRow.style.display = 'none';
@@ -871,12 +914,17 @@ export class InfoPanelRenderer {
       const uDef = UNIT_DEFS[uType];
       if (!uDef) continue;
 
-      // Check unit tech requirement
+      // Check unit tech requirement (building prerequisite)
       const requiredBuilding = UNIT_TECH_REQUIREMENTS[uType];
       const techMet = requiredBuilding === undefined
         || !world
         || !fac
         || hasCompletedBuilding(world, fac, requiredBuilding as BuildingType);
+
+      // Check TechLab addon requirement
+      const needsTechLab = TECHLAB_UNITS.has(uType);
+      const hasTechLab = addonType[buildingEid] === AddonType.TechLab;
+      const addonMet = !needsTechLab || hasTechLab;
 
       const canAfford = playerResources
         ? playerResources.minerals >= uDef.costMinerals && playerResources.gas >= uDef.costGas
@@ -884,7 +932,7 @@ export class InfoPanelRenderer {
       const supplyCapped = playerResources
         ? playerResources.supplyUsed >= playerResources.supplyProvided
         : false;
-      const enabled = canAfford && !supplyCapped && techMet;
+      const enabled = canAfford && !supplyCapped && techMet && addonMet;
       const btn = this.prodButtons[i];
       const hotkey = i < hotkeys.length ? hotkeys[i] : '';
 
@@ -908,6 +956,11 @@ export class InfoPanelRenderer {
         const reqName = reqDef ? reqDef.name : 'Required';
         btn.style.opacity = '0.4';
         btn.title = `Requires: ${reqName}`;
+        const canvas = btn.querySelector('canvas');
+        if (canvas) canvas.style.opacity = '0.3';
+      } else if (!addonMet) {
+        btn.style.opacity = '0.4';
+        btn.title = 'Requires: Tech Lab';
         // Dim the portrait
         const canvas = btn.querySelector('canvas');
         if (canvas) canvas.style.opacity = '0.3';
@@ -982,7 +1035,7 @@ export class InfoPanelRenderer {
       badge.appendChild(icon);
       const text = document.createElement('span');
       text.style.cssText = `font-size: 10px; color: ${isTechLab ? '#88ccff' : '#ffcc88'}; font-family: Consolas, monospace;`;
-      text.textContent = isTechLab ? 'Tech Lab' : 'Reactor (2x)';
+      text.textContent = isTechLab ? 'Tech Lab' : 'Reactor';
       badge.appendChild(text);
       this.addonButtonsRow.appendChild(badge);
       this.addonButtonsRow.style.display = 'flex';

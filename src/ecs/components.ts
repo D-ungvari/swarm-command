@@ -251,6 +251,11 @@ export const prodProgress = new Float32Array(MAX_ENTITIES);
 /** Total production time for current unit */
 export const prodTimeTotal = new Float32Array(MAX_ENTITIES);
 
+// ── Reactor Slot 2 (parallel production for Reactor-equipped buildings) ──
+export const prodSlot2UnitType = new Uint8Array(MAX_ENTITIES);
+export const prodSlot2Progress = new Float32Array(MAX_ENTITIES);
+export const prodSlot2TimeTotal = new Float32Array(MAX_ENTITIES);
+
 // ── Supply ──
 /** How much supply this entity provides */
 export const supplyProvided = new Uint8Array(MAX_ENTITIES);
@@ -403,6 +408,9 @@ export function resetComponents(eid: number): void {
   prodUnitType[eid] = 0;
   prodProgress[eid] = 0;
   prodTimeTotal[eid] = 0;
+  prodSlot2UnitType[eid] = 0;
+  prodSlot2Progress[eid] = 0;
+  prodSlot2TimeTotal[eid] = 0;
   supplyProvided[eid] = 0;
   supplyCost[eid] = 0;
   // Clear production queue

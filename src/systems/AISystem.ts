@@ -9,6 +9,7 @@ import {
   larvaCount, larvaRegenTimer,
   workerState, workerTargetEid, workerBaseX, workerBaseY,
   resourceRemaining,
+  addonType,
 } from '../ecs/components';
 import { findNearestCommandCenter, findNearestMineral } from '../ecs/queries';
 import { isTileVisible } from './FogSystem';
@@ -18,7 +19,7 @@ import {
   MAP_COLS, MAP_ROWS, UpgradeType,
   Difficulty, DIFFICULTY_CONFIGS,
   INJECT_LARVA_COST, INJECT_LARVA_TIME,
-  WorkerState,
+  WorkerState, AddonType,
 } from '../constants';
 import { findPath } from '../map/Pathfinder';
 import { spatialHash } from '../ecs/SpatialHash';
@@ -608,7 +609,32 @@ function runMacroManagement(
     }
   }
 
-  // 4. Build tech buildings on schedule
+  // 4. Terran AI: build addons on completed production buildings
+  if (currentAIFaction === Faction.Terran && res.minerals >= 50 && res.gas >= 25) {
+    let firstBarracks = true;
+    for (let eid = 1; eid < world.nextEid; eid++) {
+      if (!hasComponents(world, eid, BUILDING)) continue;
+      if (faction[eid] !== currentAIFaction) continue;
+      if (buildState[eid] !== BuildState.Complete) continue;
+      if (hpCurrent[eid] <= 0) continue;
+      const bt = buildingType[eid];
+      if (bt !== BuildingType.Barracks && bt !== BuildingType.Factory && bt !== BuildingType.Starport) continue;
+      if (addonType[eid] !== AddonType.None) {
+        if (bt === BuildingType.Barracks) firstBarracks = false;
+        continue;
+      }
+      // First Barracks gets TechLab (for Marauder), rest get Reactor
+      const addon = (bt === BuildingType.Barracks && firstBarracks) ? AddonType.TechLab : AddonType.Reactor;
+      if (res.minerals >= 50 && res.gas >= 25) {
+        res.minerals -= 50;
+        res.gas -= 25;
+        addonType[eid] = addon;
+      }
+      if (bt === BuildingType.Barracks) firstBarracks = false;
+    }
+  }
+
+  // 5. Build tech buildings on schedule
   if (currentAIFaction === Faction.Terran) {
     checkTerranBuildingSchedule(world, map, resources, spawnBuildingFn, gameTime);
   } else {

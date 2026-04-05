@@ -68,15 +68,41 @@ const UNIT_ABILITIES: Record<number, Array<{ name: string; key: string; commandT
   ],
 };
 
-/** Labels for the 3 Engineering Bay upgrades */
+/** Labels for Engineering Bay upgrades */
 const ENGBAY_UPGRADES: { type: UpgradeType; label: string }[] = [
   { type: UpgradeType.InfantryWeapons, label: 'Inf Weapons' },
   { type: UpgradeType.InfantryArmor,   label: 'Inf Armor'   },
 ];
 
+const EVOCHAMBER_UPGRADES: { type: UpgradeType; label: string }[] = [
+  { type: UpgradeType.ZergMelee,    label: 'Melee Atk'    },
+  { type: UpgradeType.ZergRanged,   label: 'Ranged Atk'   },
+  { type: UpgradeType.ZergCarapace, label: 'Carapace'     },
+];
+
 const ARMORY_UPGRADES: { type: UpgradeType; label: string }[] = [
   { type: UpgradeType.VehicleWeapons, label: 'Veh Weapons' },
   { type: UpgradeType.VehicleArmor,   label: 'Veh Armor'   },
+];
+
+const BARRACKS_RESEARCH: { type: UpgradeType; label: string }[] = [
+  { type: UpgradeType.StimPack,         label: 'Stim Pack'   },
+  { type: UpgradeType.CombatShield,     label: 'Combat Shld' },
+  { type: UpgradeType.ConcussiveShells, label: 'Conc Shells' },
+];
+
+const FACTORY_RESEARCH: { type: UpgradeType; label: string }[] = [
+  { type: UpgradeType.SiegeTech, label: 'Siege Tech' },
+];
+
+const SPAWNING_POOL_RESEARCH: { type: UpgradeType; label: string }[] = [
+  { type: UpgradeType.MetabolicBoost, label: 'Meta Boost'  },
+  { type: UpgradeType.AdrenalGlands,  label: 'Adrl Glands' },
+];
+
+const HYDRALISK_DEN_RESEARCH: { type: UpgradeType; label: string }[] = [
+  { type: UpgradeType.GroovedSpines,    label: 'Grooved Spn' },
+  { type: UpgradeType.MuscularAugments, label: 'Musc Augmnt' },
 ];
 
 /** Units that require a tech building before they can be trained. */
@@ -106,6 +132,14 @@ const UPGRADE_NAMES: Record<number, string> = {
   [UpgradeType.ZergRanged]:      'Zerg Ranged',
   [UpgradeType.ZergCarapace]:    'Zerg Carapace',
   [UpgradeType.VehicleArmor]:    'Veh Armor',
+  [UpgradeType.StimPack]:         'Stim Pack',
+  [UpgradeType.CombatShield]:     'Combat Shield',
+  [UpgradeType.ConcussiveShells]: 'Conc Shells',
+  [UpgradeType.SiegeTech]:        'Siege Tech',
+  [UpgradeType.MetabolicBoost]:   'Meta Boost',
+  [UpgradeType.AdrenalGlands]:    'Adrl Glands',
+  [UpgradeType.GroovedSpines]:    'Grooved Spines',
+  [UpgradeType.MuscularAugments]: 'Musc Augments',
 };
 
 /**
@@ -603,8 +637,8 @@ export class InfoPanelRenderer {
       this.barFill.style.background = ratio > 0.5 ? '#44ff44' : ratio > 0.25 ? '#ffaa00' : '#ff3333';
       this.barLabel.textContent = `${Math.floor(hp)}/${Math.floor(maxHp)}`;
 
-      // Research buildings: Engineering Bay, Evolution Chamber, Armory
-      if (bt === BuildingType.EngineeringBay || bt === BuildingType.Armory) {
+      // Pure research buildings: Engineering Bay, Evolution Chamber, Armory
+      if (bt === BuildingType.EngineeringBay || bt === BuildingType.Armory || bt === BuildingType.EvolutionChamber) {
         this.detailEl.textContent = bs === BuildState.UnderConstruction
           ? `${facName} | Under Construction`
           : facName;
@@ -633,11 +667,20 @@ export class InfoPanelRenderer {
         }
       // Standard production building
       } else {
-        this.researchButtonsRow.style.display = 'none';
-
         const pType = prodUnitType[eid];
+        const isResearchInProgress = pType >= UPGRADE_RESEARCH_OFFSET && prodTimeTotal[eid] > 0;
+
+        // Show research in-progress bar for hybrid buildings (Barracks w/ TechLab, SpawningPool, etc.)
+        if (isResearchInProgress) {
+          const upgradeType = pType - UPGRADE_RESEARCH_OFFSET;
+          const upgradeName = UPGRADE_NAMES[upgradeType] ?? 'Research';
+          const pct = prodTimeTotal[eid] > 0 ? Math.min(1, 1 - prodProgress[eid] / prodTimeTotal[eid]) : 0;
+          this.prodLabel.textContent = `Researching: ${upgradeName}`;
+          this.prodBarFill.style.width = `${pct * 100}%`;
+          this.prodRow.style.display = 'flex';
+          this.researchButtonsRow.style.display = 'none';
+        } else if (pType > 0 && prodTimeTotal[eid] > 0) {
         // Show training progress bar if producing
-        if (pType > 0 && prodTimeTotal[eid] > 0) {
           const unitDef = UNIT_DEFS[pType];
           const unitName = unitDef ? unitDef.name : 'Unit';
           const progress = prodProgress[eid];
@@ -683,6 +726,15 @@ export class InfoPanelRenderer {
             this.updateUpgradeButton(eid, bt, world, fac);
           } else {
             this.addonButtonsRow.style.display = 'none';
+          }
+
+          // Show unit-specific research buttons for hybrid buildings
+          const hasResearch = bt === BuildingType.SpawningPool || bt === BuildingType.HydraliskDen
+            || ((bt === BuildingType.Barracks || bt === BuildingType.Factory) && addonType[eid] === AddonType.TechLab);
+          if (hasResearch && !isResearchInProgress) {
+            this.updateResearchButtons(eid, playerResources);
+          } else if (!hasResearch) {
+            this.researchButtonsRow.style.display = 'none';
           }
         } else {
           this.detailEl.textContent = bs === BuildState.UnderConstruction
@@ -1193,10 +1245,26 @@ export class InfoPanelRenderer {
       [UpgradeType.ZergMelee]:       { symbol: '\u2694', color: '#cc3333' },
       [UpgradeType.ZergRanged]:      { symbol: '\u2739', color: '#88ff22' },
       [UpgradeType.ZergCarapace]:    { symbol: '\u26E8', color: '#cc3333' },
+      [UpgradeType.StimPack]:         { symbol: '\u26A1', color: '#ff4444' },
+      [UpgradeType.CombatShield]:     { symbol: '\u26E8', color: '#4488ff' },
+      [UpgradeType.ConcussiveShells]: { symbol: '\u25C9', color: '#88aaff' },
+      [UpgradeType.SiegeTech]:        { symbol: '\u2316', color: '#cc8844' },
+      [UpgradeType.MetabolicBoost]:   { symbol: '\u26A1', color: '#88ff44' },
+      [UpgradeType.AdrenalGlands]:    { symbol: '\u2694', color: '#ff4444' },
+      [UpgradeType.GroovedSpines]:    { symbol: '\u2191', color: '#88ff22' },
+      [UpgradeType.MuscularAugments]: { symbol: '\u26A1', color: '#44cc88' },
     };
 
     const bt = buildingType[buildingEid] as BuildingType;
-    const upgradeList = bt === BuildingType.Armory ? ARMORY_UPGRADES : ENGBAY_UPGRADES;
+    const hasTechLab = addonType[buildingEid] === AddonType.TechLab;
+    let upgradeList: { type: UpgradeType; label: string }[];
+    if (bt === BuildingType.Armory) upgradeList = ARMORY_UPGRADES;
+    else if (bt === BuildingType.EvolutionChamber) upgradeList = EVOCHAMBER_UPGRADES;
+    else if (bt === BuildingType.Barracks && hasTechLab) upgradeList = BARRACKS_RESEARCH;
+    else if (bt === BuildingType.Factory && hasTechLab) upgradeList = FACTORY_RESEARCH;
+    else if (bt === BuildingType.SpawningPool) upgradeList = SPAWNING_POOL_RESEARCH;
+    else if (bt === BuildingType.HydraliskDen) upgradeList = HYDRALISK_DEN_RESEARCH;
+    else upgradeList = ENGBAY_UPGRADES;
     for (const { type, label } of upgradeList) {
       const currentLevel = playerResources ? playerResources.upgrades[type] : 0;
       const cost = getUpgradeCost(type, currentLevel);
@@ -1233,10 +1301,12 @@ export class InfoPanelRenderer {
       topRow.appendChild(nameEl);
       btn.appendChild(topRow);
 
-      // Level pips (3 circles: filled = done, empty = not yet)
+      // Level pips: 3 for leveled upgrades, 1 for boolean research
+      const isBoolean = type >= UpgradeType.StimPack;
+      const maxPips = isBoolean ? 1 : 3;
       const pipRow = document.createElement('div');
       pipRow.style.cssText = 'display: flex; gap: 3px; margin-top: 2px; margin-left: 1px;';
-      for (let lvl = 0; lvl < 3; lvl++) {
+      for (let lvl = 0; lvl < maxPips; lvl++) {
         const pip = document.createElement('div');
         const filled = lvl < currentLevel;
         pip.style.cssText = `

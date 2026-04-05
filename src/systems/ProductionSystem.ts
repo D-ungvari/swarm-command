@@ -22,6 +22,7 @@ import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
 import { findNearestMineral } from '../ecs/queries';
 import { soundManager } from '../audio/SoundManager';
+import { UPGRADE_RESEARCH_OFFSET } from './UpgradeSystem';
 
 type SpawnFn = (type: number, fac: number, x: number, y: number) => number;
 
@@ -196,8 +197,8 @@ export function productionSystem(
     const hasReactor = addonType[eid] === AddonType.Reactor;
     const isZergBase = isHatchType(bt);
 
-    // ── Slot 1 production ──
-    if (prodUnitType[eid] !== 0) {
+    // ── Slot 1 production ── (skip if this slot holds a research marker)
+    if (prodUnitType[eid] !== 0 && prodUnitType[eid] < UPGRADE_RESEARCH_OFFSET) {
       prodProgress[eid] -= dt;
       if (prodProgress[eid] <= 0) {
         spawnCompleted(eid, prodUnitType[eid]);

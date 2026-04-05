@@ -35,7 +35,7 @@ import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld, findNearestWalkableTile, markBuildingTiles, clearBuildingTiles } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
 import {
-  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE, isHatchType,
+  Faction, CommandMode, UnitType, SiegeMode, ResourceType, WorkerState, BuildState, BuildingType, ArmorClass, TILE_SIZE, isHatchType, UpgradeType,
   STIM_DURATION, STIM_HP_COST, STIM_HP_COST_MARAUDER, STIM_SPEED_MULT, STIM_COOLDOWN_MULT,
   SIEGE_PACK_TIME,
   INJECT_LARVA_COST, INJECT_LARVA_TIME, LARVA_MAX, LARVA_REGEN_TIME,
@@ -96,7 +96,7 @@ export function commandSystem(
       }
 
       case CommandType.Stim:
-        if (cmd.units) {
+        if (cmd.units && resources && resources[playerFaction]?.upgrades[UpgradeType.StimPack]) {
           applyStim(world, cmd.units, gameTime);
           soundManager.playStimActivation();
         }
@@ -104,7 +104,9 @@ export function commandSystem(
 
       case CommandType.SiegeToggle:
         if (cmd.units) {
-          toggleSiegeMode(world, cmd.units, gameTime);
+          // Siege mode requires SiegeTech research; other transforms (Viking, Hellion, Thor) are always available
+          const hasSiegeTech = resources && resources[playerFaction]?.upgrades[UpgradeType.SiegeTech];
+          if (hasSiegeTech) toggleSiegeMode(world, cmd.units, gameTime);
           vikingTransform(world, cmd.units);
           hellionTransform(cmd.units);
           thorModeSwitch(cmd.units);

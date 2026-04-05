@@ -1798,6 +1798,7 @@ export function aiSystem(
   runAIAbilities(world, gameTime);
 
   attemptAIUpgrade(resources, waveCount, diffConfig.upgradeStartWave);
+  attemptAIUnitResearch(resources, cachedGameTime);
 }
 
 // ─────────────────────────────────────────
@@ -2244,6 +2245,45 @@ function attemptAIUpgrade(resources: Record<number, PlayerResources>, waveCount:
   res.upgrades[upgradeType] = Math.min(3, currentLevel + 1) as 0 | 1 | 2 | 3;
   lastAIUpgradeWave = waveCount;
   nextAIUpgradeType = ((nextAIUpgradeType - 3 + 1) % 3) + 3;
+}
+
+/** AI auto-researches unit-specific upgrades at appropriate timings */
+function attemptAIUnitResearch(resources: Record<number, PlayerResources>, gameTime: number): void {
+  const res = resources[currentAIFaction];
+  if (!res) return;
+  const isTerran = currentAIFaction === Faction.Terran;
+  const isZerg = currentAIFaction === Faction.Zerg;
+
+  // Terran: Stim@120s, ConcShells@150s, SiegeTech@180s, CombatShield@200s
+  if (isTerran) {
+    if (gameTime >= 120 && !res.upgrades[UpgradeType.StimPack] && res.minerals >= 100 && res.gas >= 100) {
+      res.upgrades[UpgradeType.StimPack] = 1; res.minerals -= 100; res.gas -= 100;
+    }
+    if (gameTime >= 150 && !res.upgrades[UpgradeType.ConcussiveShells] && res.minerals >= 50 && res.gas >= 50) {
+      res.upgrades[UpgradeType.ConcussiveShells] = 1; res.minerals -= 50; res.gas -= 50;
+    }
+    if (gameTime >= 180 && !res.upgrades[UpgradeType.SiegeTech] && res.minerals >= 100 && res.gas >= 100) {
+      res.upgrades[UpgradeType.SiegeTech] = 1; res.minerals -= 100; res.gas -= 100;
+    }
+    if (gameTime >= 200 && !res.upgrades[UpgradeType.CombatShield] && res.minerals >= 100 && res.gas >= 100) {
+      res.upgrades[UpgradeType.CombatShield] = 1; res.minerals -= 100; res.gas -= 100;
+    }
+  }
+  // Zerg: MetabolicBoost@90s, GroovedSpines@200s, MuscularAugments@220s, AdrenalGlands@300s
+  if (isZerg) {
+    if (gameTime >= 90 && !res.upgrades[UpgradeType.MetabolicBoost] && res.minerals >= 100 && res.gas >= 100) {
+      res.upgrades[UpgradeType.MetabolicBoost] = 1; res.minerals -= 100; res.gas -= 100;
+    }
+    if (gameTime >= 200 && !res.upgrades[UpgradeType.GroovedSpines] && res.minerals >= 100 && res.gas >= 100) {
+      res.upgrades[UpgradeType.GroovedSpines] = 1; res.minerals -= 100; res.gas -= 100;
+    }
+    if (gameTime >= 220 && !res.upgrades[UpgradeType.MuscularAugments] && res.minerals >= 100 && res.gas >= 100) {
+      res.upgrades[UpgradeType.MuscularAugments] = 1; res.minerals -= 100; res.gas -= 100;
+    }
+    if (gameTime >= 300 && !res.upgrades[UpgradeType.AdrenalGlands] && res.minerals >= 200 && res.gas >= 200) {
+      res.upgrades[UpgradeType.AdrenalGlands] = 1; res.minerals -= 200; res.gas -= 200;
+    }
+  }
 }
 
 const enum AIPhase {

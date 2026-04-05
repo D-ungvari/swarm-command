@@ -30,6 +30,8 @@ import {
 } from '../../src/ecs/components';
 import { entityExists, removeEntity, type World } from '../../src/ecs/world';
 import type { MapData } from '../../src/map/MapData';
+import { UpgradeType } from '../../src/constants';
+import type { PlayerResources } from '../../src/types';
 
 describe('CombatSystem', () => {
   let world: World;
@@ -412,8 +414,15 @@ describe('CombatSystem', () => {
         hp: 100,
       }));
 
+      // Concussive Shells requires research
+      const upgrades = new Uint8Array(UpgradeType.COUNT);
+      upgrades[UpgradeType.ConcussiveShells] = 1;
+      const resources: Record<number, PlayerResources> = {
+        [Faction.Terran]: { minerals: 0, gas: 0, supplyUsed: 0, supplyProvided: 0, upgrades },
+      };
+
       const gameTime = 5.0;
-      combatSystem(world, 1 / 60, gameTime, map);
+      combatSystem(world, 1 / 60, gameTime, map, resources);
 
       // SLOW_DURATION = 1.07, SLOW_FACTOR = 0.5
       expect(slowEndTime[enemy]).toBeCloseTo(gameTime + 1.07);

@@ -184,7 +184,16 @@ export enum UpgradeType {
   ZergRanged      = 4,
   ZergCarapace    = 5,
   VehicleArmor    = 6,
-  COUNT           = 7,
+  // Unit-specific research (boolean: 0 = not researched, 1 = researched)
+  StimPack         = 7,
+  CombatShield     = 8,
+  ConcussiveShells = 9,
+  SiegeTech        = 10,
+  MetabolicBoost   = 11,
+  AdrenalGlands    = 12,
+  GroovedSpines    = 13,
+  MuscularAugments = 14,
+  COUNT            = 15,
 }
 
 // ── Ability constants ──

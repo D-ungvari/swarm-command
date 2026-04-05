@@ -111,8 +111,8 @@ export class Game {
 
   // Per-player resource state
   resources: Record<number, PlayerResources> = {
-    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(7) },
-    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(7) },
+    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
+    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
   };
 
   // Building placement state
@@ -297,8 +297,8 @@ export class Game {
     // Re-initialize resources based on player faction
     if (this.playerFaction === Faction.Zerg) {
       this.resources = {
-        [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(7) },
-        [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(7) },
+        [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
+        [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
       };
     }
 
@@ -2007,6 +2007,26 @@ export class Game {
     const res = this.resources[fac];
     if (res) {
       res.supplyUsed += def.supply;
+    }
+
+    // Apply already-researched stat buffs to newly spawned units
+    if (res) {
+      if (type === UnitType.Marine && res.upgrades[UpgradeType.CombatShield]) {
+        hpMax[eid] += 10;
+        hpCurrent[eid] += 10;
+      }
+      if (type === UnitType.Zergling && res.upgrades[UpgradeType.MetabolicBoost]) {
+        moveSpeed[eid] += 0.87 * TILE_SIZE;
+      }
+      if (type === UnitType.Zergling && res.upgrades[UpgradeType.AdrenalGlands]) {
+        atkCooldown[eid] = Math.round(atkCooldown[eid] * 0.82);
+      }
+      if (type === UnitType.Hydralisk && res.upgrades[UpgradeType.GroovedSpines]) {
+        atkRange[eid] += 1 * TILE_SIZE;
+      }
+      if (type === UnitType.Hydralisk && res.upgrades[UpgradeType.MuscularAugments]) {
+        moveSpeed[eid] += 0.5 * TILE_SIZE;
+      }
     }
 
     return eid;

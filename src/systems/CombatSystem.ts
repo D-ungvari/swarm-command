@@ -500,10 +500,13 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     lastCombatTime[eid] = gameTime;
     lastCombatTime[tgt] = gameTime;
 
-    // Marauder: Concussive Shells — slow the target (Ultralisk immune: Frenzied passive)
+    // Marauder: Concussive Shells — slow the target (requires research; Ultralisk immune: Frenzied)
     if (unitType[eid] === UnitType.Marauder && unitType[tgt] !== UnitType.Ultralisk) {
-      slowEndTime[tgt] = gameTime + SLOW_DURATION;
-      slowFactor[tgt] = SLOW_FACTOR;
+      const fac = faction[eid];
+      if (resources[fac]?.upgrades[UpgradeType.ConcussiveShells]) {
+        slowEndTime[tgt] = gameTime + SLOW_DURATION;
+        slowFactor[tgt] = SLOW_FACTOR;
+      }
     }
 
     // Splash damage — SC2 uses 3 zones: inner 100%, middle 50%, outer 25%

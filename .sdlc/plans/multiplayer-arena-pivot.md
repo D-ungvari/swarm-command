@@ -349,7 +349,166 @@ The current ECS supports this well — `faction` component becomes `factionId` (
 
 ---
 
-## 5. Key Technical Risks
+## 5. Mechanics Audit: Cut / Keep / Rework / Add New
+
+This is a **separate project** forked from the engine. Everything below evaluates what the new arena game needs.
+
+### SYSTEMS TO CUT ENTIRELY
+
+| System | Why Cut | Current File |
+|--------|---------|-------------|
+| **GatherSystem** (worker mining) | No workers in arena. Economy is node-based extractors with passive income. | `src/systems/GatherSystem.ts` |
+| **Scenario/Campaign system** | Single-player content. Arena has no scripted missions. | `src/scenarios/*` |
+| **AI System** (full SC2 AI) | 3500-line AI built for SC2 build orders, macro, micro. Not applicable to arena PvP. Neutral creep camps (Phase 4) need a much simpler AI. | `src/systems/AISystem.ts` |
+| **Replay system** (command recording) | Designed for deterministic single-player replay. Multiplayer replays are a different architecture (server-side state recording). | `src/replay/*` |
+| **Achievement system** | Single-player achievements (localStorage). Arena needs server-side progression. Build fresh. | `src/stats/Achievements.ts` |
+| **Larva/Inject mechanic** | SC2-specific Zerg macro. No faction in the new game uses larva spawning. | Parts of `ProductionSystem.ts`, `CommandSystem.ts` |
+| **Supply Depot lowering** | SC2 Terran-specific wall-off mechanic. No equivalent needed. | `CommandSystem.ts` |
+| **Addon system** (Tech Lab/Reactor) | SC2 Terran-specific. New factions have simpler building chains. | `ProductionSystem.ts`, `BuildSystem.ts` |
+| **SCV Repair** | Worker-specific. No workers in arena. Could add repair drones as a unit ability instead. | `CommandSystem.ts` |
+
+### SYSTEMS TO KEEP AS-IS (engine layer)
+
+| System | Why Keep | Notes |
+|--------|----------|-------|
+| **ECS core** (world, components, queries, spatial hash) | Foundation. Pure data, no SC2 coupling. | Needs `ComponentStore` refactor for multi-room server |
+| **MovementSystem** (path following, velocity, stuck detection) | Universal. Units move the same regardless of faction. | Keep separation pass but may need determinism fix |
+| **Pathfinding** (A* grid, path smoothing) | Universal. Works for any map layout. | Move to server-authoritative |
+| **SelectionSystem** (click, box, double-click, control groups) | Client-only, pure UI. Works for any faction. | No changes needed |
+| **InputManager / InputProcessor** | Client-only input capture. Command queue architecture is perfect for networking. | `simulationQueue` becomes the network send buffer |
+| **Minimap** | Universal UI. Just needs per-player fog. | Add fog masking |
+| **Fixed timestep game loop** | Core architecture. Tick/render split is exactly what server needs. | Server runs tick only, client runs both |
+
+### SYSTEMS TO REWORK (keep core, change details)
+
+#### Combat System → REWORK
+**Current**: SC2-accurate damage with armor classes (Light, Armored, Biological, Mechanical), bonus damage per armor tag, overkill prevention, splash damage, attack cooldowns, range checks, air/ground targeting.
+
+**Keep**: Damage calculation, armor system, splash, cooldowns, range, air/ground targeting, overkill prevention. These are generic RTS combat.
+
+**Rework**:
+- Armor classes: Rename from SC2 tags. Use generic tags: `Light`, `Heavy`, `Armored`, `Organic`, `Mechanical`, `Massive`, `Flying`. Each faction's units get appropriate tags.
+- Bonus damage: Keep the `bonusDamage` + `bonusVsTag` system — it's already generic (just data-driven).
+- Remove SC2-specific target priority (retaliation > armed > unarmed > buildings). Replace with simpler: closest enemy in range, prefer units over buildings.
+
+#### Ability System → HEAVY REWORK
+**Current**: 20+ SC2-specific abilities hardcoded by unit type (Stim, Siege, Inject, Snipe, Yamato, EMP, Fungal, Abduct, Neural Parasite, etc.).
+
+**Keep the patterns, replace the specifics:**
+
+| SC2 Ability | Generic Pattern | Reuse For |
+|-------------|----------------|-----------|
+| Stim Pack (HP cost → speed/attack buff) | **Self-buff with HP cost** | Iron Legion combat stim, Feral Pack rage |
+| Siege Mode (transform, gain range, lose mobility) | **Mode switch** | Mech Brigade transforms, Automata anchor mode |
+| Medivac Heal (aura heal nearby allies) | **Heal aura** | Iron Legion Medic, Celestials Healer |
+| Cloak (invisible until attack) | **Stealth** | Void Cultists Lurker, Swarm Burrower |
+| Burrow (invisible + immobile) | **Ambush stance** | Swarm Burrower, Void Cultists units |
+| Snipe (high damage single target, energy cost) | **Targeted nuke** | Arcane Covenant Storm Caller, any sniper unit |
+| EMP (AOE energy drain + shield drain) | **AOE debuff** | Automata Disruptor, Void Cultists Whisperer |
+| Siege Tank splash (deploy → long range AOE) | **Artillery mode** | Iron Legion Siege Tank, Mech Brigade Artillery Frame |
+| Transport (load/unload units) | **Transport** | Wasteland Raiders War Rig, Iron Legion Gunship |
+| Abduct (pull enemy to caster) | **Displacement** | Void Cultists, Kaiju Tunneler |
+| Fungal Growth (AOE root + damage) | **AOE crowd control** | Arcane Covenant, Risen Banshee wail |
+| Neural Parasite (mind control) | **Mind control** | Collective Assimilator, Void Cultists Elder Thing |
+
+**New ability framework**: Instead of hardcoding abilities per unit type, define abilities as **data-driven components**:
+```
+AbilityDef {
+  id, name, type (self_buff | targeted | aoe | toggle | passive),
+  energyCost, hpCost, cooldown, range, radius,
+  duration, effect (speed_mult | damage | heal | stun | cloak | transform),
+  effectValue, effectTarget (self | target | aoe_enemies | aoe_allies)
+}
+```
+This lets us define faction abilities without touching system code.
+
+#### Build System → SIMPLIFY
+**Current**: SC2 building placement with tile walkability, construction progress, SCV/Drone assignment, building prerequisites, creep requirement (Zerg), addon attachment.
+
+**Keep**: Tile-based placement, construction progress, building prerequisites (tech chain).
+**Cut**: Worker assignment to construction (no workers), addon system, creep requirement.
+**Add**: Building on resource nodes (Extractor placement), building destruction = income loss.
+
+#### Production System → SIMPLIFY
+**Current**: 5-slot queue, Reactor parallel production, larva consumption, Tech Lab gating, rally points.
+
+**Keep**: Production queue (reduce to 3 slots for faster pace), rally points.
+**Cut**: Reactor/Tech Lab, larva system.
+**Simplify**: Each production building trains its roster. No addon gating.
+
+#### Fog of War → REWORK FOR MULTIPLAYER
+**Current**: Single global `fogGrid` for one player, `activePlayerFaction` global.
+
+**Rework**: Per-player fog grids on server. Server culls entity snapshots — clients only receive data for visible entities. This is anti-cheat critical (client can't see what server doesn't send).
+
+#### Death System → ADD MECHANICS
+**Current**: Remove entity, free entity ID, decrement supply. Clean.
+
+**Add**: 
+- **Kill bounty**: Award minerals to killer's owner on death.
+- **Wreckage spawn**: For Automata faction — dead mechanical units leave reclaimable wreckage.
+- **Corpse spawn**: For Risen faction — dead organic units leave corpses for Necromancers.
+- **Base destruction = elimination**: Special death handling for HQ buildings.
+
+#### Upgrade System → REWORK
+**Current**: 15 SC2 upgrades (Infantry Weapons 1-3, Stim Pack research, Combat Shield, Concussive Shells, Siege Tech, Metabolic Boost, etc.).
+
+**Rework**: Each faction gets its own upgrade tree. Keep the generic pattern (research at building → global stat buff), but replace SC2 upgrade names/effects with faction-specific ones:
+- **Iron Legion**: Weapons 1-3, Armor 1-3, Stim Research, Advanced Targeting
+- **Swarm**: Carapace 1-3, Claws 1-3, Adrenal Surge, Broodmother Capacity
+- **Arcane Covenant**: Shield Regen Rate, Spell Power 1-3, Blink Range, Mana Efficiency
+- **Automata**: Self-Repair Rate, Weapon Calibration 1-3, Salvage Efficiency, EMP Overcharge
+
+#### Creep System → GENERALIZE TO "TERRITORY"
+**Current**: Zerg creep spread from buildings, +30% move speed on creep for Zerg units.
+
+**Generalize**: "Territory" or "influence zone" that expands from faction buildings. Different factions get different bonuses in their territory. Could affect fog of war, income, or unit stats.
+
+#### Detection System → KEEP
+**Current**: Detector units reveal cloaked/burrowed enemies in radius.
+
+**Keep as-is**: Stealth/detection is universal. Just need detector units in each faction that has stealth to counter.
+
+### NEW SYSTEMS TO BUILD (don't exist in current codebase)
+
+| System | Purpose | Priority |
+|--------|---------|----------|
+| **NodeEconomy** | Resource nodes on map, Extractor buildings for passive income, raiding to cut income, kill bounties | Phase 2 (core) |
+| **NetworkLayer** | WebSocket client/server, command serialization, state snapshots, delta compression | Phase 1 (core) |
+| **ServerSimulation** | Headless tick loop, command validation, multi-player state, room management | Phase 0-1 (core) |
+| **PlayerManager** | Player join/leave, faction selection, spawn assignment, elimination tracking | Phase 2 (core) |
+| **MatchSystem** | Match lifecycle (lobby → countdown → play → elimination → victory), game modes (FFA, timed, teams) | Phase 2 (core) |
+| **Leaderboard** | Per-match scoring (kills, nodes, time alive), persistent rankings | Phase 4 |
+| **AbilityDataDriven** | Data-driven ability definitions (replace hardcoded SC2 abilities) | Phase 1.5 |
+| **InterpolationSystem** | Client-side entity position interpolation between server snapshots | Phase 3 |
+| **SpectatorMode** | Read-only client receiving all-visible state after elimination | Phase 5 |
+| **NeutralCreepAI** | Simple AI for PvE creep camps on map (much simpler than current 3500-line AI) | Phase 4 |
+| **ChatSystem** | In-game text chat, kill feed, announcements | Phase 4 |
+| **TeamSystem** | Team assignment, shared vision, allied victory conditions for team modes | Phase 4 |
+
+### MECHANIC CHANGES SUMMARY
+
+| Area | Single-Player (Current) | Arena (New) |
+|------|------------------------|-------------|
+| **Economy** | Workers mine minerals/gas manually | Extractor buildings on map nodes, passive income |
+| **Supply** | Build depots/overlords for supply cap | Supply cap based on HQ tier (auto-scales) |
+| **Tech tree** | Full SC2 tree (20+ buildings, prerequisites) | 4-tier chain per faction (4-5 buildings total) |
+| **Unit count** | 35 SC2 units | ~8 per faction, 32 across 4 launch factions |
+| **Abilities** | 20+ SC2-specific hardcoded abilities | Data-driven ability defs, ~3-4 per faction |
+| **Upgrades** | 15 SC2 upgrades | ~4-6 per faction, faction-flavored |
+| **Win condition** | Destroy all enemy buildings | Last standing / highest score at timer |
+| **Players** | 1 human + 1 AI | 8-16 humans per arena |
+| **Map size** | 128x128 tiles | 96x96 tiles |
+| **Match length** | 20-40 minutes | 15-25 minutes |
+| **Fog of war** | Single-player global | Per-player, server-authoritative |
+| **Game speed** | Adjustable (0.5x-2x) | Fixed 1x for fairness |
+| **Pause** | Instant toggle | No pause in multiplayer |
+| **Replay** | Client-side command recording | Server-side state recording (future) |
+| **Progression** | localStorage achievements | Server-side ranking, cosmetics |
+
+---
+
+## 7. Key Technical Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
@@ -361,7 +520,7 @@ The current ECS supports this well — `faction` component becomes `factionId` (
 
 ---
 
-## 6. Verification Plan
+## 8. Verification Plan
 
 After each phase:
 - **Phase 0**: Run `npm test` — all 219 tests pass. Run `Simulation` headlessly in Node.js with scripted commands, verify tick output matches single-player.

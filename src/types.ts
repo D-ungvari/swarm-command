@@ -1,12 +1,8 @@
-import type { Faction, UnitType, BuildingType } from './constants';
+/**
+ * RTS.io — Shared TypeScript types
+ */
 
-/** Command issued by player or AI */
-export interface Command {
-  type: 'move' | 'attack' | 'stop' | 'hold' | 'gather' | 'build';
-  targetX?: number;
-  targetY?: number;
-  targetEntity?: number;
-}
+import type { Faction, UnitType, BuildingType } from './constants';
 
 /** Per-player resource state */
 export interface PlayerResources {
@@ -22,26 +18,28 @@ export interface UnitDef {
   type: UnitType;
   name: string;
   faction: Faction;
+  tier: 1 | 2 | 3 | 4;
   hp: number;
+  shield: number;       // Arcane Covenant shields (0 for other factions)
   damage: number;
-  range: number;
-  speed: number;
-  attackCooldown: number;
-  splashRadius: number;
-  width: number;
-  height: number;
-  color: number;
+  range: number;         // tiles
+  speed: number;         // tiles/sec
+  attackCooldown: number; // milliseconds
+  splashRadius: number;  // tiles (0 = no splash)
+  width: number;         // px
+  height: number;        // px
+  color: number;         // hex tint
   costMinerals: number;
   costGas: number;
-  buildTime: number;
-  bonusDamage: number;    // extra damage vs specific armor class (0 = no bonus)
-  bonusVsTag: number;     // ArmorClass value that triggers bonus (-1 = none)
+  buildTime: number;     // seconds
+  bonusDamage: number;
+  bonusVsTag: number;    // ArmorClass value (-1 = none)
   armorClass: number;
-  baseArmor: number;      // SC2 per-unit base armor value
-  isAir: number;          // 1 = air unit (Medivac, Mutalisk)
-  canTargetGround: number; // 1 = can attack ground units
-  canTargetAir: number;   // 1 = can attack air units
-  supply: number;         // supply cost (SC2 values: Marine=1, Zergling=0.5, Thor=6, etc.)
+  baseArmor: number;
+  isAir: number;
+  canTargetGround: number;
+  canTargetAir: number;
+  supply: number;
 }
 
 /** Building stat definition from data tables */
@@ -49,6 +47,7 @@ export interface BuildingDef {
   type: BuildingType;
   name: string;
   faction: Faction;
+  tier: 0 | 1 | 2 | 3 | 4;
   hp: number;
   costMinerals: number;
   costGas: number;
@@ -58,9 +57,7 @@ export interface BuildingDef {
   supplyProvided: number;
   produces: UnitType[];
   color: number;
-  /** Prerequisite building type that must exist and be complete, null = no requirement */
   requires: BuildingType | null;
-  /** Optional attack stats for defensive buildings (Missile Turret, Spine/Spore Crawler) */
   damage?: number;
   range?: number;
   attackCooldown?: number;

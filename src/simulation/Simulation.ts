@@ -9,43 +9,38 @@
 
 import { type World, createWorld, addEntity, hasComponents } from '../ecs/world';
 import {
-  POSITION, VELOCITY, HEALTH, ATTACK, MOVEMENT, SELECTABLE, RENDERABLE,
-  UNIT_TYPE, ABILITY, RESOURCE, WORKER, BUILDING, SUPPLY,
+  POSITION, HEALTH, BUILDING,
   posX, posY,
   hpCurrent, hpMax,
   moveSpeed, movePathIndex,
-  atkDamage, atkRange, atkCooldown, atkSplash, atkLastTime, atkHitCount, atkMinRange,
+  atkDamage, atkRange, atkCooldown, atkSplash, atkLastTime, atkHitCount,
   bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage,
   targetEntity, commandMode, stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd, lastCombatTime,
   killCount, veterancyLevel, supplyCost,
   renderWidth, renderHeight, renderTint,
   faction, unitType, isAir, canTargetGround, canTargetAir, cloaked,
-  energy, cargoCapacity, isDetector, detectionRange,
-  workerBaseX, workerBaseY, workerTargetEid, workerState, workerCarrying, workerMineTimer,
+  energy,
   buildingType, buildState, buildProgress, buildTimeTotal, builderEid,
   rallyX, rallyY,
   prodUnitType, prodProgress, prodTimeTotal, supplyProvided,
   larvaCount, larvaRegenTimer,
   resourceType, resourceRemaining,
-  addUnitComponents, addWorkerComponent, addResourceComponents, addBuildingComponents,
+  addUnitComponents, addResourceComponents, addBuildingComponents,
   setPath,
-  selected,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
-import { type MapData, generateMap, tileToWorld, worldToTile, getResourceTiles, markBuildingTiles, findNearestWalkableTile } from '../map/MapData';
-import { findPath } from '../map/Pathfinder';
+import { type MapData, generateMap, tileToWorld, markBuildingTiles } from '../map/MapData';
 import { spawnRockEntities } from '../map/MapData';
 import { type PlayerResources } from '../types';
 import { UNIT_DEFS } from '../data/units';
 import { BUILDING_DEFS } from '../data/buildings';
 import {
   Faction, UnitType, BuildingType, BuildState, ResourceType,
-  CommandMode, UpgradeType, WorkerState,
-  TILE_SIZE, TICKS_PER_SECOND, MS_PER_TICK,
+  UpgradeType,
+  TILE_SIZE,
   STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY,
-  MINERAL_PER_PATCH, MINERAL_PER_PATCH_RICH, GAS_PER_GEYSER,
-  MINERAL_COLOR, GAS_COLOR, isHatchType, TileType,
+  GAS_PER_GEYSER, isHQType,
 } from '../constants';
 import type { MapType } from '../map/MapData';
 import { commandSystem, issuePathCommand } from '../systems/CommandSystem';
@@ -175,11 +170,7 @@ export class Simulation {
     atkCooldown[eid] = def.attackCooldown;
     atkSplash[eid] = def.splashRadius;
     atkLastTime[eid] = 0;
-    // Multi-hit units
-    if (type === UnitType.Reaper) atkHitCount[eid] = 2;
-    else if (type === UnitType.Queen) atkHitCount[eid] = 2;
-    else if (type === UnitType.Thor) atkHitCount[eid] = 4;
-    else atkHitCount[eid] = 1;
+    atkHitCount[eid] = 1;
     bonusDmg[eid] = def.bonusDamage;
     bonusVsTag[eid] = def.bonusVsTag;
     armorClass[eid] = def.armorClass;
@@ -208,37 +199,9 @@ export class Simulation {
     cloaked[eid] = 0;
     veterancyLevel[eid] = 0;
 
-    // Energy setup for caster units
-    if (type === UnitType.Ghost || type === UnitType.Banshee || type === UnitType.Raven || type === UnitType.Infestor || type === UnitType.Viper) {
+    // Energy setup for caster units (Storm Caller, Disruptor, Archmage, etc.)
+    if (type === UnitType.StormCaller || type === UnitType.Disruptor || type === UnitType.Archmage) {
       energy[eid] = 50;
-    }
-    if (type === UnitType.Queen) {
-      energy[eid] = 25;
-    }
-    if (type === UnitType.Medivac) {
-      cargoCapacity[eid] = 8;
-    }
-    // Mobile detectors
-    if (type === UnitType.Raven || type === UnitType.Overseer) {
-      isDetector[eid] = 1;
-      detectionRange[eid] = 11 * TILE_SIZE;
-    }
-
-    // Overlord provides 8 supply when spawned
-    if (type === UnitType.Overlord) {
-      const res = this.resources[fac];
-      if (res) res.supplyProvided += 8;
-    }
-
-    // Worker setup
-    if (type === UnitType.SCV || type === UnitType.Drone) {
-      addWorkerComponent(this.world, eid);
-      workerBaseX[eid] = x;
-      workerBaseY[eid] = y;
-      workerTargetEid[eid] = -1;
-      workerState[eid] = 0;
-      workerCarrying[eid] = 0;
-      workerMineTimer[eid] = 0;
     }
 
     // Track supply
@@ -247,24 +210,12 @@ export class Simulation {
       res.supplyUsed += def.supply;
     }
 
-    // Apply already-researched stat buffs to newly spawned units
+    // Apply weapon/armor upgrade bonuses
     if (res) {
-      if (type === UnitType.Marine && res.upgrades[UpgradeType.CombatShield]) {
-        hpMax[eid] += 10;
-        hpCurrent[eid] += 10;
-      }
-      if (type === UnitType.Zergling && res.upgrades[UpgradeType.MetabolicBoost]) {
-        moveSpeed[eid] += 0.87 * TILE_SIZE;
-      }
-      if (type === UnitType.Zergling && res.upgrades[UpgradeType.AdrenalGlands]) {
-        atkCooldown[eid] = Math.round(atkCooldown[eid] * 0.82);
-      }
-      if (type === UnitType.Hydralisk && res.upgrades[UpgradeType.GroovedSpines]) {
-        atkRange[eid] += 1 * TILE_SIZE;
-      }
-      if (type === UnitType.Hydralisk && res.upgrades[UpgradeType.MuscularAugments]) {
-        moveSpeed[eid] += 0.5 * TILE_SIZE;
-      }
+      const weaponLevel = res.upgrades[UpgradeType.Weapons1] + res.upgrades[UpgradeType.Weapons2] + res.upgrades[UpgradeType.Weapons3];
+      const armorLevel = res.upgrades[UpgradeType.Armor1] + res.upgrades[UpgradeType.Armor2] + res.upgrades[UpgradeType.Armor3];
+      if (weaponLevel > 0) atkDamage[eid] += weaponLevel;
+      if (armorLevel > 0) baseArmor[eid] += armorLevel;
     }
 
     return eid;
@@ -304,12 +255,14 @@ export class Simulation {
 
     faction[eid] = fac;
 
-    if (isHatchType(type)) {
+    if (isHQType(type)) {
       larvaCount[eid] = 3;
       larvaRegenTimer[eid] = 0;
     }
 
-    if (type === BuildingType.Refinery || type === BuildingType.Extractor) {
+    // Extractor buildings store gas resource data
+    if (type === BuildingType.Extractor_L || type === BuildingType.Extractor_S
+      || type === BuildingType.Extractor_A || type === BuildingType.Extractor_M) {
       resourceType[eid] = ResourceType.Gas;
       resourceRemaining[eid] = GAS_PER_GEYSER;
     }
@@ -333,86 +286,9 @@ export class Simulation {
     return eid;
   }
 
-  /** Spawn resource nodes from map data. */
-  spawnResourceNodes(): void {
-    const tiles = getResourceTiles(this.map);
-    let mineralIdx = 0;
-    for (const t of tiles) {
-      const eid = addEntity(this.world);
-      addResourceComponents(this.world, eid);
-
-      const wp = tileToWorld(t.col, t.row);
-      posX[eid] = wp.x;
-      posY[eid] = wp.y;
-
-      if (t.type === TileType.Minerals) {
-        resourceType[eid] = ResourceType.Mineral;
-        const amount = (mineralIdx % 8) < 4 ? MINERAL_PER_PATCH_RICH : MINERAL_PER_PATCH;
-        mineralIdx++;
-        resourceRemaining[eid] = amount;
-        hpCurrent[eid] = amount;
-        hpMax[eid] = amount;
-        renderWidth[eid] = TILE_SIZE - 6;
-        renderHeight[eid] = TILE_SIZE - 10;
-        renderTint[eid] = MINERAL_COLOR;
-      } else {
-        resourceType[eid] = ResourceType.Gas;
-        resourceRemaining[eid] = GAS_PER_GEYSER;
-        hpCurrent[eid] = GAS_PER_GEYSER;
-        hpMax[eid] = GAS_PER_GEYSER;
-        renderWidth[eid] = TILE_SIZE - 4;
-        renderHeight[eid] = TILE_SIZE - 4;
-        renderTint[eid] = GAS_COLOR;
-      }
-
-      faction[eid] = Faction.None;
-    }
-  }
-
   /** Spawn rock entities from map destructible tiles. */
   spawnRocks(): void {
     spawnRockEntities(this.world, this.map);
-  }
-
-  /** Send all idle workers of a faction to mine nearest minerals. */
-  sendWorkersToMine(fac: number): void {
-    for (let eid = 1; eid < this.world.nextEid; eid++) {
-      if (!hasComponents(this.world, eid, WORKER | POSITION)) continue;
-      if (faction[eid] !== fac) continue;
-      if (workerState[eid] !== WorkerState.Idle) continue;
-
-      let bestDist = Infinity;
-      let bestMineral = -1;
-      for (let rid = 1; rid < this.world.nextEid; rid++) {
-        if (!hasComponents(this.world, rid, RESOURCE | POSITION)) continue;
-        if (resourceType[rid] !== ResourceType.Mineral) continue;
-        const dx = posX[rid] - posX[eid];
-        const dy = posY[rid] - posY[eid];
-        const dist = dx * dx + dy * dy;
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestMineral = rid;
-        }
-      }
-      if (bestMineral < 0) continue;
-
-      workerState[eid] = WorkerState.MovingToResource;
-      workerTargetEid[eid] = bestMineral;
-      commandMode[eid] = CommandMode.Gather;
-
-      const resTile = worldToTile(posX[bestMineral], posY[bestMineral]);
-      const walkable = findNearestWalkableTile(this.map, resTile.col, resTile.row);
-      if (walkable) {
-        const startTile = worldToTile(posX[eid], posY[eid]);
-        const tilePath = findPath(this.map, startTile.col, startTile.row, walkable.col, walkable.row);
-        if (tilePath.length > 0) {
-          setPath(eid, tilePath.map(([c, r]) => {
-            const wp = tileToWorld(c, r);
-            return [wp.x, wp.y] as [number, number];
-          }));
-        }
-      }
-    }
   }
 
   // ─── QUERIES ────────────────────────────────────────────────────────────

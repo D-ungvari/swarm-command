@@ -2,9 +2,11 @@
 
 ## Context
 
-Swarm Command is a mature single-player SC2-inspired RTS with 27 units, 17 buildings, full combat/ability systems, AI, replay, and 219 passing tests. The vision is to **fork the core engine** into a browser-only multiplayer .io battle arena where players drop into a shared map, command troops against each other, climb leaderboards, and experience the "big fish eats small fish" growth loop that defines .io games.
+Swarm Command is a mature single-player RTS engine with 27 units, 17 buildings, full combat/ability systems, AI, replay, and 219 passing tests. The vision is to **fork the core engine** into a browser-only multiplayer .io battle arena — an **original IP** with **~12 pop-culture-inspired factions**, each with distinct unit rosters and mechanics. Players drop into a shared map, choose a faction, command troops against others, and climb leaderboards.
 
-This plan identifies what to reuse, what to rearchitect, the recommended network model, a simplified game design for .io, and a phased roadmap.
+**Key direction**: Distance from StarCraft. Keep the ECS, combat math, pathfinding, and system architecture. Replace SC2 lore/units/factions with original factions that draw on iconic pop-culture archetypes (sci-fi military, undead hordes, mecha, eldritch horror, etc.).
+
+This plan identifies what to reuse, what to rearchitect, the recommended network model, game design, faction concepts, and a phased roadmap.
 
 ---
 
@@ -143,6 +145,80 @@ Matches could support a "last player standing" win condition or a score-based ti
 
 ---
 
+## 2b. Faction Roster (~12 Factions)
+
+The game is its own IP — factions are pop-culture *inspired* but legally distinct. Each has ~8 units across 4 tiers with a unique mechanical identity. Launch with 3-4 factions, expand to 12 over time.
+
+### Launch Factions (MVP) — CONFIRMED
+
+**1. Iron Legion** *(military sci-fi: Starship Troopers, Colonial Marines)*
+Combined-arms infantry + vehicles. Medic sustain. The "standard" baseline faction.
+Units: Trooper, Grenadier, Medic, Humvee, Siege Tank, Gunship, Titan Walker
+*Identity*: Balanced, approachable, strong mid-game.
+
+**2. The Swarm** *(bio-horror: Aliens, Tyranids)*
+Cheap expendable waves, Broodmother auto-spawns free drones. Overwhelm with numbers.
+Units: Drone, Spitter, Burrower, Broodmother, Ravager, Flyer, Leviathan
+*Identity*: Aggression, numbers, expendable. Low skill floor, high skill ceiling with multi-prong attacks.
+
+**3. Arcane Covenant** *(high fantasy: wizards, shielded warriors)*
+Expensive but powerful. Regenerating shields, blink assassins, AOE storm spells.
+Units: Acolyte, Warden, Enchanter, Blink Assassin, Storm Caller, Golem, Archmage
+*Identity*: Quality over quantity. Rewards precise micro. Shield regen punishes hit-and-run.
+
+**4. Automata** *(machines: Terminator, Cybermen, Necrons)*
+Self-repairing robots. Reclaim wreckage for resources. Relentless, inevitable.
+Units: Sentinel, Shredder, Repair Drone, Crawler, Disruptor, Harvester, Colossus
+*Identity*: Attrition. Self-repair + wreckage reclaim means they outvalue opponents in long fights.
+
+### Expansion Factions (post-launch)
+
+**5. The Collective** *(Borg/Flood assimilation)*
+Convert enemy units. Adapters copy killed unit's attack type. Overmind mass-controls.
+
+**6. The Risen** *(undead necromancer horde)*
+Corpse economy — Necromancers raise fallen units as skeletons. Attrition warfare.
+
+**7. Kaiju Corps** *(Pacific Rim / Godzilla)*
+Few but massive units. Each is a mini-boss. Growth = evolving, not mass producing.
+
+**8. Wasteland Raiders** *(Mad Max post-apocalypse)*
+Fastest units. Raid economy. Bomber bikes, War Rigs, pillage bonuses.
+
+**9. Celestials** *(divine warriors / angels)*
+Flying-heavy roster. Powerful heals. Aura stacking rewards tight formation.
+
+**10. Void Cultists** *(Lovecraft eldritch horror)*
+Stealth + debuffs. Whisperers reduce enemy stats. Elder Thing causes friendly fire.
+
+**11. Mech Brigade** *(Gundam / BattleTech mecha)*
+Transforming units (walker↔fighter). Pilots eject on death. Peak late-game.
+
+**12. Feral Pack** *(werewolves / primal hunters)*
+Almost all melee. Pack bonus (+30% damage when 5+ nearby). Fastest ground units.
+
+### Faction Balance Matrix
+
+| Faction | Speed | Durability | Range | Special Mechanic |
+|---------|-------|-----------|-------|-----------------|
+| Iron Legion | Med | Med | Med | Medic sustain, combined arms |
+| Swarm | Med | Low | Low | Free spawns, overwhelming numbers |
+| Arcane Covenant | Low | High (shields) | High | Shield regen, blink, AOE spells |
+| Automata | Low | High | Med | Self-repair, wreckage reclaim |
+| Collective | Med | Med | Low | Assimilate enemies |
+| Risen | Med | Low | Med | Raise corpses as units |
+| Kaiju Corps | Low | Very High | Med | Evolve units, not mass produce |
+| Wasteland Raiders | Very High | Low | Med | Pillage bonus, hit-and-run |
+| Celestials | High (air) | Med | Med | Flying roster, aura stacking |
+| Void Cultists | Med | Med | Med | Stealth, debuffs, mind control |
+| Mech Brigade | Low | High | High | Transforming modes, pilot eject |
+| Feral Pack | Very High | Med | Melee | Pack bonus, gap-closers |
+
+### Implementation Note
+The current ECS supports this well — `faction` component becomes `factionId` (0-11), unit stats live in `UNIT_DEFS` keyed by `UnitType` enum. Adding factions = adding entries to the data tables + new UnitType enum values + rendering shapes/colors per faction. The combat/movement/ability systems are faction-agnostic — they operate on component data regardless of faction.
+
+---
+
 ## 3. What to Reuse vs Rearchitect
 
 ### Reuse Directly (isomorphic — runs on both client and server)
@@ -206,16 +282,28 @@ Matches could support a "last player standing" win condition or a score-based ti
 
 **New files**: `server/GameServer.ts`, `server/GameRoom.ts`, `server/NetProtocol.ts`
 
+### Phase 1.5: Replace SC2 Content with Original Factions
+**Goal**: Rebrand from StarCraft to original IP
+
+- Define new `FactionId` enum (0-11) replacing Terran/Zerg
+- Create unit data tables for 4 launch factions (Iron Legion, Swarm, Arcane Covenant, Automata)
+- ~8 units per faction across 4 tiers, each with distinct stats and abilities
+- New rendering shapes/colors per faction (geometric style already supports this)
+- Rename all SC2-specific references (Marine → Trooper, Zergling → Drone, etc.)
+- Update building chains per faction (faction-specific names, same 4-tier structure)
+
+**Critical files**: `src/constants.ts`, `src/data/units.ts`, `src/data/buildings.ts`, `src/types.ts`
+
 ### Phase 2: Multiplayer Arena Foundation
 **Goal**: N players in shared arena with strategic .io economy
 
-- `ownerPlayerId` component (Uint8) + multi-player faction routing
+- `ownerPlayerId` component (Uint8) + multi-faction routing (player chooses from 4 launch factions)
 - **Node economy system**:
   - Resource nodes placed on arena map (~20-30 per map)
-  - Extractor/Refinery building on nodes → passive income while held
+  - Extractor building on nodes → passive income while held
   - Destroying enemy extractors cuts their income
   - Kill/destruction bounties (mineral reward to attacker)
-- **4-tier tech tree**: Building chain validation (Barracks → Factory → Starport → Fusion Core)
+- **4-tier tech tree**: Building chain validation per faction
 - `SpawnManager`: assign spawn positions near 1-2 pre-claimed starter nodes + 100 mineral bank; handle permanent elimination (base destroyed = match over, spectate or leave)
 - Per-player fog of war: server-side visibility culling
 - Delta state compression: only send changed components since last ack
@@ -249,6 +337,15 @@ Matches could support a "last player standing" win condition or a score-based ti
 - Spectator mode (read-only all-visible client)
 - Load testing with 50 players, optimize hot paths
 - CDN for static assets, WebSocket server on fly.io/railway
+
+### Phase 6: Faction Expansion
+**Goal**: Grow from 4 launch factions to full 12-faction roster
+
+- Add 2 factions per release cycle (Risen + Collective, then Kaiju + Raiders, etc.)
+- Each new faction = ~8 unit defs + building chain + 1-2 unique mechanics
+- Balance via playtesting data (analytics from Phase 4)
+- Faction-specific tutorials/challenges
+- Community feedback on faction feel and balance
 
 ---
 

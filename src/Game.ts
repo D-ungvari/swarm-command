@@ -5,21 +5,18 @@ import {
   EDGE_SCROLL_ZONE, EDGE_SCROLL_SPEED,
   MIN_ZOOM, MAX_ZOOM,
   MS_PER_TICK, Faction, UnitType, ResourceType, BuildingType, BuildState,
-  MINERAL_PER_PATCH, MINERAL_PER_PATCH_RICH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR, BUILDING_COLOR,
-  STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY, SUPPLY_PER_UNIT,
-  TileType, CommandMode, WorkerState,
-  Difficulty, UpgradeType, AddonType, TECHLAB_UNITS, isHatchType, getMorphDef,
+  MINERAL_PER_PATCH, MINERAL_PER_PATCH_RICH, GAS_PER_GEYSER, MINERAL_COLOR, GAS_COLOR,
+  STARTING_MINERALS, STARTING_GAS, STARTING_SUPPLY,
+  TileType, CommandMode, isHQType,
+  Difficulty, UpgradeType,
   GAME_SPEEDS, setActivePlayerFaction,
-  SNIPE_RANGE, TRANSFUSE_RANGE, LOCKON_RANGE,
   EMP_RANGE, EMP_RADIUS,
-  BLINDING_CLOUD_RANGE, BLINDING_CLOUD_RADIUS,
-  PARASITIC_BOMB_RANGE,
-  KD8_RANGE, KD8_RADIUS,
+  FACTION_COLORS,
 } from './constants';
 import { createWorld, addEntity, hasComponents, type World } from './ecs/world';
 import {
-  addUnitComponents, addWorkerComponent, addResourceComponents, addBuildingComponents,
-  POSITION, WORKER, MOVEMENT, BUILDING, UNIT_TYPE, SELECTABLE, HEALTH,
+  addUnitComponents, addResourceComponents, addBuildingComponents,
+  POSITION, MOVEMENT, BUILDING, UNIT_TYPE, SELECTABLE, HEALTH,
   posX, posY,
   moveSpeed, renderWidth, renderHeight, renderTint,
   hpCurrent, hpMax, faction, unitType,
@@ -28,8 +25,6 @@ import {
   targetEntity, commandMode,
   stimEndTime, slowEndTime, slowFactor,
   siegeMode, siegeTransitionEnd, lastCombatTime,
-  workerState, workerCarrying, workerTargetEid, workerMineTimer,
-  workerBaseX, workerBaseY,
   resourceType, resourceRemaining,
   buildingType, buildState, buildProgress, buildTimeTotal, builderEid,
   rallyX, rallyY, prodUnitType, prodProgress, prodTimeTotal,
@@ -40,7 +35,7 @@ import {
   energy, cloaked, veterancyLevel, cargoCapacity, isDetector, detectionRange,
   isAir, canTargetGround, canTargetAir,
   larvaCount, larvaRegenTimer,
-  addonType, workerCountOnResource, RESOURCE,
+  addonType, RESOURCE,
   upgradingTo, upgradeProgress, upgradeTimeTotal,
 } from './ecs/components';
 import { UNIT_DEFS } from './data/units';
@@ -78,9 +73,7 @@ import { buildSystem } from './systems/BuildSystem';
 import { productionSystem } from './systems/ProductionSystem';
 import { combatSystem, getLastTerranHit, damageEvents } from './systems/CombatSystem';
 import { abilitySystem } from './systems/AbilitySystem';
-import { gatherSystem } from './systems/GatherSystem';
 import { deathSystem } from './systems/DeathSystem';
-import { aiSystem, initAI, getAIState } from './systems/AISystem';
 import { creepSystem, resetCreepSystem } from './systems/CreepSystem';
 import { upgradeSystem, encodeResearch, getUpgradeCost, UPGRADE_RESEARCH_OFFSET } from './systems/UpgradeSystem';
 import { fogSystem, resetFogSystem } from './systems/FogSystem';
@@ -91,17 +84,10 @@ import { WaypointRenderer } from './rendering/WaypointRenderer';
 import { ProjectileRenderer } from './rendering/ProjectileRenderer';
 import type { PlayerResources } from './types';
 import { soundManager } from './audio/SoundManager';
-import { GameStats } from './stats/GameStats';
 import { consumeCameraShake } from './rendering/CameraShake';
 import { seedRng } from './utils/SeededRng';
-import { CommandRecorder, type ReplayFrame } from './replay/CommandRecorder';
 import { isTouchDevice } from './utils/DeviceDetect';
 import { TouchCommandBar } from './rendering/TouchCommandBar';
-import { ScenarioManager } from './scenarios/ScenarioManager';
-import type { Scenario } from './scenarios/ScenarioTypes';
-import { ScenarioResultRenderer } from './rendering/ScenarioResultRenderer';
-import { ScenarioHudRenderer } from './rendering/ScenarioHudRenderer';
-import { checkAchievements, showAchievementToast } from './stats/Achievements';
 
 export class Game {
   app!: Application;
@@ -112,45 +98,20 @@ export class Game {
 
   // Per-player resource state
   resources: Record<number, PlayerResources> = {
-    [Faction.Terran]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
-    [Faction.Zerg]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
+    [Faction.IronLegion]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
+    [Faction.Swarm]: { minerals: STARTING_MINERALS, gas: STARTING_GAS, supplyUsed: 0, supplyProvided: STARTING_SUPPLY, upgrades: new Uint8Array(UpgradeType.COUNT) },
   };
 
   // Building placement state
   placementMode = false;
   placementBuildingType: number = 0;
-  playerFaction: Faction = Faction.Terran;
-  private scenarioManager?: ScenarioManager;
-  private scenarioResult?: ScenarioResultRenderer;
-  private scenarioHud?: ScenarioHudRenderer;
-  private initialPlayerUnitCount = 0;
-  private scenarioCountdown = 0;  // seconds remaining in pre-game countdown (0 = active)
-  private scenarioCountdownEnded = false;
+  playerFaction: Faction = Faction.IronLegion;
   private lastControlGroupCenterFrame = 0;
   private containerEl?: HTMLElement;
 
   setPlayerFaction(f: Faction): void {
     this.playerFaction = f;
     setActivePlayerFaction(f);
-  }
-
-  setScenario(scenario: Scenario): void {
-    this.scenarioManager = new ScenarioManager();
-    this.scenarioManager.load(scenario);
-  }
-
-  /**
-   * Load a replay JSON (from localStorage) and start the game in replay mode.
-   * Must be called before init().
-   */
-  prepareReplay(json: string): void {
-    const data = CommandRecorder.fromJSON(json);
-    this.gameSeed = data.seed;
-    this.setDifficulty(data.difficulty as Difficulty);
-    this.setPlayerFaction(data.faction as Faction);
-    this.replayMode = true;
-    this.replayFrames = data.frames;
-    this.replayFrameIndex = 0;
   }
 
   // Renderers
@@ -173,7 +134,6 @@ export class Game {
   private touchCommandBar?: TouchCommandBar;
   private difficulty: Difficulty = Difficulty.Normal;
   private mapType: MapType = 0 as MapType; // MapType.Plains = 0
-  private lastAIAttacking = false;
   private lastUnderAttackAlert = 0;
   private selectionQueue!: GameCommandQueue;
   private simulationQueue!: GameCommandQueue;

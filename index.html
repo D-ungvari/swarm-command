@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>RTS.io — Multiplayer Battle Arena</title>
+  <meta name="description" content="Browser-based multiplayer .io RTS battle arena. Pick a faction, build an army, crush opponents." />
+  <meta property="og:title" content="RTS.io — Multiplayer Battle Arena" />
+  <meta property="og:description" content="Browser-based multiplayer .io RTS battle arena. Pick a faction, build an army, crush opponents." />
+  <meta property="og:type" content="website" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; font-family: 'Consolas', 'Courier New', monospace; }
+    #game-container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    canvas { display: block; }
+
+    #start-screen {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at center, #0a1628 0%, #060a10 70%);
+      z-index: 200; color: #ccc;
+      overflow-y: auto;
+    }
+    /* Subtle animated scan line */
+    #start-screen::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,20,40,0.03) 2px, rgba(0,20,40,0.03) 4px);
+      pointer-events: none; z-index: 0;
+    }
+    #start-screen > * { position: relative; z-index: 1; }
+    #start-screen h1 {
+      font-size: 42px; color: #3399ff; letter-spacing: 4px;
+      text-shadow: 0 0 30px rgba(51, 153, 255, 0.4);
+      margin-bottom: 6px;
+    }
+    #start-screen .subtitle { font-size: 14px; color: #668; margin-bottom: 32px; letter-spacing: 2px; }
+    #start-screen .controls {
+      display: grid; grid-template-columns: auto auto; gap: 4px 20px;
+      font-size: 13px; color: #99a; margin-bottom: 32px; line-height: 1.8;
+    }
+    #start-screen .controls .key { color: #88bbff; text-align: right; }
+    #start-screen .play-btn {
+      font-family: inherit; font-size: 18px; letter-spacing: 2px;
+      padding: 12px 40px; background: rgba(51, 153, 255, 0.15);
+      border: 1px solid rgba(51, 153, 255, 0.4); border-radius: 4px;
+      color: #3399ff; cursor: pointer; transition: all 0.2s;
+    }
+    #start-screen .play-btn:hover { background: rgba(51, 153, 255, 0.25); border-color: rgba(51, 153, 255, 0.7); }
+    #start-screen .footer { position: absolute; bottom: 16px; font-size: 11px; color: #445; }
+    #start-screen .footer a { color: #557; }
+
+    /* Hide game HUD during scenario countdown */
+    .scenario-countdown #resource-hud,
+    .scenario-countdown #build-menu,
+    .scenario-countdown #info-panel,
+    .scenario-countdown #hotkey-panel { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="start-screen">
+    <h1>RTS.io</h1>
+    <div class="subtitle">MULTIPLAYER BATTLE ARENA</div>
+    <div style="font-size:11px; color:#446; margin-bottom:24px; letter-spacing:1px;">Pick a faction. Build an army. Crush opponents.</div>
+
+    <!-- Main menu -->
+    <div id="main-menu" style="display:flex; flex-direction:column; align-items:center; gap:10px; width:300px;">
+      <button class="play-btn" id="practice-btn" style="
+        width:100%;
+        background: linear-gradient(180deg, #1a4a7a 0%, #0a2a4a 100%);
+        border: 1px solid #3a8aff;
+        font-size: 16px;
+        letter-spacing: 3px;
+      ">PRACTICE</button>
+      <button class="play-btn" id="skirmish-btn" style="
+        width:100%;
+        font-size: 16px;
+        letter-spacing: 3px;
+      ">SKIRMISH VS AI</button>
+      <button class="play-btn" id="watch-replay-btn" style="
+        width:100%;
+        font-size: 12px;
+        padding: 8px 28px;
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+      ">WATCH LAST REPLAY</button>
+      <div id="achievements-counter" style="
+        margin-top: 4px;
+        font-size: 12px;
+        color: #ffcc44;
+        cursor: pointer;
+        letter-spacing: 1px;
+      "></div>
+      <div id="achievements-panel" style="
+        display: none;
+        max-width: 400px;
+        margin: 4px auto;
+        text-align: left;
+      ">
+        <div id="achievements-list" style="
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        "></div>
+      </div>
+    </div>
+
+    <!-- Scenario browser (hidden) -->
+    <div id="scenario-browser" style="
+      display: none;
+      max-width: 600px;
+      margin: 12px auto;
+      text-align: left;
+    ">
+      <h3 style="color: #88bbff; margin: 0 0 12px; font-size: 14px;">SELECT A SCENARIO</h3>
+      <div id="scenario-list" style="
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      "></div>
+      <button id="back-to-menu" style="
+        margin-top: 12px;
+        background: transparent;
+        color: #6688aa;
+        border: 1px solid #334;
+        padding: 6px 16px;
+        cursor: pointer;
+        font-family: monospace;
+        font-size: 12px;
+      ">&larr; Back</button>
+    </div>
+
+    <!-- Skirmish config panel (hidden) -->
+    <div id="skirmish-panel" style="display:none; flex-direction:column; align-items:center; gap:10px; max-width:400px;">
+      <h3 style="color: #88bbff; margin: 0; font-size: 14px;">SKIRMISH SETTINGS</h3>
+      <div style="margin: 4px 0;">
+        <label style="color: #88bbff; font-size: 13px;">Faction: </label>
+        <button id="faction-terran" style="
+          background: #1a3a5a; color: #88ccff; border: 1px solid #3a6a9a;
+          padding: 5px 14px; font-size: 12px; cursor: pointer; letter-spacing: 1px;
+          margin-right: 4px; opacity: 1;
+        ">TERRAN</button>
+        <button id="faction-zerg" style="
+          background: #0a0a0a; color: #884466; border: 1px solid #3a1a2a;
+          padding: 5px 14px; font-size: 12px; cursor: pointer; letter-spacing: 1px;
+        ">ZERG</button>
+      </div>
+      <div>
+        <label style="color: #88bbff; font-size: 13px;">Difficulty: </label>
+        <div id="difficulty-cards" style="display: flex; gap: 8px; margin: 8px 0;">
+          <div class="diff-card" data-value="0" style="padding: 8px 14px; border: 1px solid #334; border-radius: 6px; background: rgba(10,15,25,0.8); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+            <div style="color:#44ff88;font-size:14px;font-weight:bold;">EASY</div>
+            <div style="color:#888;font-size:10px;">&#9733;&#9734;&#9734;&#9734;</div>
+          </div>
+          <div class="diff-card active" data-value="1" style="padding: 8px 14px; border: 1px solid rgba(100,180,255,0.8); border-radius: 6px; background: rgba(20,40,80,0.6); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+            <div style="color:#44aaff;font-size:14px;font-weight:bold;">NORMAL</div>
+            <div style="color:#888;font-size:10px;">&#9733;&#9733;&#9734;&#9734;</div>
+          </div>
+          <div class="diff-card" data-value="2" style="padding: 8px 14px; border: 1px solid #334; border-radius: 6px; background: rgba(10,15,25,0.8); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+            <div style="color:#ffaa44;font-size:14px;font-weight:bold;">HARD</div>
+            <div style="color:#888;font-size:10px;">&#9733;&#9733;&#9733;&#9734;</div>
+          </div>
+          <div class="diff-card" data-value="3" style="padding: 8px 14px; border: 1px solid #334; border-radius: 6px; background: rgba(10,15,25,0.8); cursor: pointer; text-align: center; min-width: 70px; transition: border-color 0.15s;">
+            <div style="color:#ff4444;font-size:14px;font-weight:bold;">BRUTAL</div>
+            <div style="color:#888;font-size:10px;">&#9733;&#9733;&#9733;&#9733;</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label style="color: #88bbff; font-size: 13px;">Map: </label>
+        <select id="map-select" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 13px; cursor: pointer;">
+          <option value="0" selected>Plains</option>
+          <option value="1">Canyon</option>
+          <option value="2">Islands</option>
+          <option value="3">Crossfire</option>
+          <option value="4">Fortress</option>
+          <option value="5">Archipelago</option>
+          <option value="6">Deadlock</option>
+          <option value="7">Desert Storm</option>
+          <option value="8">Frozen Tundra</option>
+          <option value="9">Volcano</option>
+        </select>
+      </div>
+      <details style="color: #88bbff; font-size: 12px;">
+        <summary style="cursor: pointer; color: #88bbff; user-select: none;">Advanced Settings</summary>
+        <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+          <label style="color: #88bbff; font-size: 12px;">Starting minerals:
+            <select id="starting-minerals" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+              <option value="50" selected>50 (Default)</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </label>
+          <label style="color: #88bbff; font-size: 12px;">Fog of war:
+            <select id="fog-enabled" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+              <option value="1" selected>On</option>
+              <option value="0">Off</option>
+            </select>
+          </label>
+          <label style="color: #88bbff; font-size: 12px;">Game speed:
+            <select id="game-speed" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+              <option value="0">0.5x (Slow)</option>
+              <option value="1" selected>1x (Normal)</option>
+              <option value="2">1.5x (Fast)</option>
+              <option value="3">2x (Very Fast)</option>
+            </select>
+          </label>
+          <label style="color: #88bbff; font-size: 12px;">Victory condition:
+            <select id="win-condition" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+              <option value="destroy" selected>Destroy All (default)</option>
+              <option value="timed">Timed Survival (10 min)</option>
+              <option value="economy">Economy (gather 5000 resources)</option>
+            </select>
+          </label>
+          <label style="color: #88bbff; font-size: 12px;">Survival mode:
+            <select id="survival-mode" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+              <option value="0" selected>Off</option>
+              <option value="1">On (endless waves)</option>
+            </select>
+          </label>
+          <label style="color: #88bbff; font-size: 12px;">Turbo mode:
+            <select id="turbo-mode" style="background: #1a2a3a; color: #cce0ff; border: 1px solid #3a5a7a; padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;">
+              <option value="0" selected>Off</option>
+              <option value="1">On (2x locked)</option>
+            </select>
+          </label>
+        </div>
+      </details>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button class="play-btn" id="play-btn" style="font-size: 16px; padding: 10px 36px; letter-spacing: 3px;">START</button>
+        <button id="skirmish-back" style="
+          background: transparent;
+          color: #6688aa;
+          border: 1px solid #334;
+          padding: 8px 16px;
+          cursor: pointer;
+          font-family: monospace;
+          font-size: 12px;
+        ">&larr; Back</button>
+      </div>
+    </div>
+
+    <!-- Map editor panel (hidden) -->
+    <div class="footer">Built with TypeScript + PixiJS &mdash; <a href="https://github.com/D-ungvari/rts.io" target="_blank">Source</a></div>
+  </div>
+  <div id="game-container"></div>
+  <script>
+    var isTouchDev = window.matchMedia('(pointer: coarse)').matches;
+    if (isTouchDev) {
+      // Show touch instructions instead of desktop warning
+      document.addEventListener('DOMContentLoaded', function() {
+        var sub = document.querySelector('.subtitle');
+        if (sub) {
+          var hint = document.createElement('p');
+          hint.style.cssText = 'color:#66aacc;font-size:12px;margin:6px 0 0;';
+          hint.textContent = 'Touch: tap to select · two-finger tap to move · pinch to zoom';
+          sub.insertAdjacentElement('afterend', hint);
+        }
+        // Increase tap target size for all selects and buttons on touch
+        document.querySelectorAll('select, button').forEach(function(el) {
+          el.style.minHeight = '44px';
+        });
+      });
+    }
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var terranBtn = document.getElementById('faction-terran');
+      var zergBtn = document.getElementById('faction-zerg');
+      if (terranBtn && zergBtn) {
+        terranBtn.addEventListener('click', function() {
+          terranBtn.style.background = '#1a3a5a';
+          terranBtn.style.color = '#88ccff';
+          terranBtn.style.borderColor = '#3a6a9a';
+          zergBtn.style.background = '#0a0a0a';
+          zergBtn.style.color = '#884466';
+          zergBtn.style.borderColor = '#3a1a2a';
+          terranBtn.dataset.selected = 'true';
+          zergBtn.dataset.selected = '';
+        });
+        zergBtn.addEventListener('click', function() {
+          zergBtn.style.background = '#3a1a2a';
+          zergBtn.style.color = '#ff88cc';
+          zergBtn.style.borderColor = '#aa4466';
+          terranBtn.style.background = '#0a0a0a';
+          terranBtn.style.color = '#446688';
+          terranBtn.style.borderColor = '#1a2a3a';
+          zergBtn.dataset.selected = 'true';
+          terranBtn.dataset.selected = '';
+        });
+        terranBtn.dataset.selected = 'true'; // default
+      }
+
+      // Difficulty card selection
+      var diffCards = document.querySelectorAll('.diff-card');
+      diffCards.forEach(function(card) {
+        card.addEventListener('click', function() {
+          diffCards.forEach(function(c) {
+            c.classList.remove('active');
+            c.style.borderColor = '#334';
+            c.style.background = 'rgba(10,15,25,0.8)';
+          });
+          card.classList.add('active');
+          card.style.borderColor = 'rgba(100,180,255,0.8)';
+          card.style.background = 'rgba(20,40,80,0.6)';
+        });
+      });
+    });
+  </script>
+  <script type="module" src="/src/main.ts"></script>
+
+<!-- Portrait orientation overlay (CSS handles display) -->
+<div id="portrait-overlay" style="
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0a0a0a;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: #88bbff;
+  font-family: monospace;
+  text-align: center;
+  gap: 16px;
+">
+  <div style="font-size: 48px;">⟳</div>
+  <div style="font-size: 16px; letter-spacing: 2px;">ROTATE DEVICE</div>
+  <div style="font-size: 12px; color: #557799;">RTS.io requires landscape orientation</div>
+</div>
+
+<style>
+@media (orientation: portrait) {
+  #portrait-overlay { display: flex !important; }
+}
+</style>
+</body>
+</html>

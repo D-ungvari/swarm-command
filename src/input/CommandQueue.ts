@@ -1,0 +1,99 @@
+export const enum CommandType {
+  Move = 0,
+  AttackMove = 1,
+  AttackTarget = 2,
+  Stop = 3,
+  HoldPosition = 4,
+  Patrol = 5,
+  Stim = 6,
+  SiegeToggle = 7,
+  Gather = 8,
+  SetRally = 9,
+  BuildPlace = 10,
+  Produce = 11,
+  Cancel = 12,
+  Select = 13,
+  BoxSelect = 14,
+  AddSelect = 15,
+  DoubleClickSelect = 16,
+  ControlGroupAssign = 17,
+  ControlGroupRecall = 18,
+  ControlGroupAdd = 26,
+  CycleSubgroup = 19,
+  Cloak = 20,
+  InjectLarva = 21,
+  Yamato = 22,
+  CorrosiveBile = 23,
+  FungalGrowth = 24,
+  Abduct = 25,
+  Snipe = 27,
+  Transfuse = 28,
+  DepotLower = 29,
+  ControlGroupRecallCenter = 30,
+  ControlGroupSteal = 31,
+  CausticSpray = 32,
+  LockOn = 33,
+  BlindingCloud = 34,
+  ParasiticBomb = 35,
+  ViperConsume = 36,
+  BanelingBurrow = 37,
+  RoachBurrow = 38,
+  EMP = 39,
+  KD8Charge = 40,
+  NeuralParasite = 41,
+  Morph = 42,
+  LoadTransport = 43,
+  UnloadTransport = 44,
+  MedivacBoost = 45,
+  TacticalJump = 46,
+}
+
+export interface GameCommand {
+  type: CommandType;
+  wx?: number;
+  wy?: number;
+  sx?: number;
+  sy?: number;
+  sx2?: number;
+  sy2?: number;
+  targetEid?: number;
+  units?: number[];
+  data?: number;
+  shiftHeld?: boolean;
+}
+
+export class GameCommandQueue {
+  private _commands: GameCommand[] = [];
+
+  push(cmd: GameCommand): void {
+    this._commands.push(cmd);
+  }
+
+  /** Drain and return all queued commands. Queue is empty after this call. */
+  flush(): GameCommand[] {
+    const out = this._commands;
+    this._commands = [];
+    return out;
+  }
+
+  /**
+   * Drain commands, recording each into a CommandRecorder before returning.
+   * Pass null recorder to skip recording (no-op equivalent to flush()).
+   */
+  flushWithRecord(
+    recorder: { record(tick: number, gameTime: number, command: GameCommand): void } | null,
+    tick: number,
+    gt: number,
+  ): GameCommand[] {
+    const out = this._commands;
+    if (recorder) {
+      for (const c of out) recorder.record(tick, gt, c);
+    }
+    this._commands = [];
+    return out;
+  }
+
+  get length(): number {
+    return this._commands.length;
+  }
+}

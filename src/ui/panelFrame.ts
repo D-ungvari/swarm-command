@@ -19,7 +19,7 @@ export interface PanelFrameOptions {
 export function createPanelFrame(options: PanelFrameOptions): HTMLDivElement {
   const el = document.createElement('div');
   if (options.id) el.id = options.id;
-  const palette = getFactionPalette(options.faction ?? Faction.Terran);
+  const palette = getFactionPalette(options.faction ?? Faction.IronLegion);
 
   let pos = 'position: fixed;';
   if (options.position.top) pos += ` top: ${options.position.top};`;

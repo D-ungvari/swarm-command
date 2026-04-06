@@ -58,7 +58,12 @@ export const ZERG_PALETTE: FactionPalette = {
 };
 
 export function getFactionPalette(f: Faction): FactionPalette {
-  return f === Faction.Zerg ? ZERG_PALETTE : TERRAN_PALETTE;
+  switch (f as number) {
+    case Faction.Swarm: return ZERG_PALETTE;
+    case Faction.ArcaneCovenant: return TERRAN_PALETTE; // TODO: Arcane palette
+    case Faction.Automata: return TERRAN_PALETTE;       // TODO: Automata palette
+    default: return TERRAN_PALETTE;
+  }
 }
 
 // ── Common Colors ──

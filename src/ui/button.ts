@@ -16,7 +16,7 @@ export interface ButtonOptions {
 }
 
 export function createButton(options: ButtonOptions): HTMLDivElement {
-  const faction = options.faction ?? Faction.Terran;
+  const faction = options.faction ?? Faction.IronLegion;
   const palette = getFactionPalette(faction);
   const btn = document.createElement('div');
   btn.dataset.uiState = 'normal';

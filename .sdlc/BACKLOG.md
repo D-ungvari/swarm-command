@@ -1,17 +1,43 @@
 # Backlog
 
-## Up Next
+## Up Next — rts.io Pivot (target repo: D-ungvari/rts.io)
+
+Full ultraplan: `.sdlc/plans/full-backlog-expansion.md` (17 tasks)
+
+| # | Title | Type | Priority | Phase | Notes |
+|---|-------|------|----------|-------|-------|
+| T1 | Data-driven ability framework | feat | CRITICAL | A | AbilityDef type, UNIT_ABILITIES mapping, generic AbilitySystem |
+| T2 | Combat system rework — generic armor/damage | feat | CRITICAL | A | ArmorTag bitfield, simplified targeting, no SC2 unit-specific code |
+| T3 | Production + node economy wiring | feat | CRITICAL | A | 3-slot queue, extractor income, kill bounties, supply from HQ tier |
+| T4 | Upgrade system — per-faction trees | feat | HIGH | A | ~5 upgrades per faction, data-driven |
+| T5 | Faction rendering (4 factions × 8 units) | feat | CRITICAL | A | Procedural geometric shapes, 4 palettes, 32 portraits |
+| T6 | UI rebuild — arena HUD, build menu, info panel | feat | HIGH | A | Minerals/income/nodes/kills HUD, faction select UI |
+| T7 | Arena gameplay integration — playable locally | feat | CRITICAL | A | Wire all systems, simple AI, full local game loop |
+| T8 | Client-server wiring — WebSocket commands + snapshots | feat | CRITICAL | B | Authoritative server at 20Hz, client renders snapshots |
+| T9 | Client interpolation + per-player fog culling | feat | HIGH | B | Snapshot buffering, entity lerp, anti-cheat fog |
+| T10 | Match lifecycle — lobby, countdown, play, victory | feat | HIGH | C | Room states, faction select, victory conditions |
+| T11 | Multi-player spawning + faction selection | feat | HIGH | C | 8-16 player support, balanced spawns |
+| T12 | Elimination + scoring + kill bounties | feat | HIGH | C | Permanent elimination, live scoring, bounty economy |
+| T13 | Iron Legion abilities | feat | MED | D | Stim, Siege Mode, Medic Heal, Transport Boost |
+| T14 | Swarm abilities | feat | MED | D | Brood Spawn, Burrow, Corrosive Bile, Acid Spray |
+| T15 | Arcane Covenant abilities | feat | MED | D | Shield Burst, Blink, Arcane Storm, Force Wall |
+| T16 | Automata abilities | feat | MED | D | Self-Repair, Wreckage Reclaim, EMP, Anchor Mode |
+| T17 | Kill feed, leaderboard, announcements | feat | MED | E | .io social layer |
+
+## Parked — Swarm Command SC2 Features (deprioritized)
+
+These are valid features for the SC2 practice tool but not on the critical path.
 
 | # | Title | Type | Priority | Notes |
 |---|-------|------|----------|-------|
-| 95 | Bunker building + unit loading | feat | HIGH | Terran Bunker: 400 HP, 100 minerals, 2x2. Load up to 4 Marines (or 2 Marauders). Loaded units fire from inside with +1 range. Salvage for 75% refund. Hotkey to load/unload. |
-| 96 | Protoss faction — core units + buildings | feat | HIGH | Shields, pylon power, warp-in. Buildings: Nexus, Pylon, Gateway, Cybernetics Core, Robotics Facility, Stargate, Twilight Council. Units: Probe, Zealot, Stalker, Sentry, Immortal, Colossus, Phoenix, Void Ray, High Templar (Psi Storm), Dark Templar, Observer. Photon Overcharge. |
-| 97 | MULE / Orbital Command | feat | MED | CC upgrades to Orbital Command (150 minerals). Abilities: Call Down MULE (accelerated mining, 90s duration), Scanner Sweep (temporary vision), Extra Supplies (+8 supply to depot). |
-| 98 | Addon attach/detach system | feat | MED | Barracks/Factory/Starport can build Tech Lab or Reactor addon. Tech Lab unlocks advanced units from that building. Reactor allows double production. Addons can be swapped by lifting building. |
-| 99 | Queen Creep Tumor ability | feat | MED | Queen places Creep Tumor on creep (25 energy). Tumors spread creep autonomously in a radius. Can spawn one child tumor before expiring. Zerg units get +30% move speed on creep. |
-| 100 | Multi-SCV speed build | feat | MED | Additional SCVs can assist construction, each adding repair-rate progress. Max 3 SCVs per building. Costs additional minerals proportional to repair rate. |
-| 101 | Viper Abduct polish | feat | LOW | Abduct pulls target unit to Viper's location. Animation: tentacle lash, target slides to Viper. Range 9. Cost 75 energy. |
-| 93 | Recreate iconic SC2 LotV ladder map | feat | MED | Faithful recreation of a famous competitive map. |
+| 95 | Bunker building + unit loading | feat | PARKED | Terran Bunker: 400 HP, 100 minerals, 2x2. |
+| 96 | Protoss faction — core units + buildings | feat | PARKED | Shields, pylon power, warp-in. |
+| 97 | MULE / Orbital Command | feat | PARKED | CC upgrades to Orbital Command. |
+| 98 | Addon attach/detach system | feat | PARKED | Tech Lab/Reactor addons with lift/land. |
+| 99 | Queen Creep Tumor ability | feat | PARKED | Creep Tumor + child tumors. |
+| 100 | Multi-SCV speed build | feat | PARKED | Additional SCVs assist construction. |
+| 101 | Viper Abduct polish | feat | PARKED | Abduct animation polish. |
+| 93 | Recreate iconic SC2 LotV ladder map | feat | PARKED | Famous competitive map recreation. |
 
 ## Completed
 All previous Tier 0/1/2 sprints shipped. All ultraplans implemented.

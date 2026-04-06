@@ -10,12 +10,11 @@ import {
   bonusDmg, bonusVsTag, armorClass, baseArmor, pendingDamage, killCount, veterancyLevel, nextAutoAcquireTime,
   cloaked, burrowed,
   isAir, canTargetGround, canTargetAir,
-  thorMode,
   blindingCloudEndTime,
   neuralStunEndTime,
 } from '../ecs/components';
 import { findBestTarget } from '../ecs/queries';
-import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, SLOW_DURATION, SLOW_FACTOR, Faction, ArmorClass, UpgradeType, veterancyEnabled } from '../constants';
+import { CommandMode, UnitType, SiegeMode, TILE_SIZE, MAX_ENTITIES, Faction, ArmorClass, UpgradeType, veterancyEnabled, FACTION_COLORS } from '../constants';
 import { getBonusDamage } from '../combat/damageCalc';
 import { findPath } from '../map/Pathfinder';
 import { worldToTile, tileToWorld, type MapData } from '../map/MapData';
@@ -28,31 +27,45 @@ import { spatialHash } from '../ecs/SpatialHash';
 import { simplifyPath } from '../utils/pathUtils';
 
 const PROJECTILE_SPEEDS: Partial<Record<UnitType, number>> = {
-  [UnitType.Marine]: 700,
-  [UnitType.Marauder]: 500,
+  // Iron Legion
+  [UnitType.Trooper]: 700,
+  [UnitType.Grenadier]: 500,
+  [UnitType.Medic]: 0,
+  [UnitType.Humvee]: 550,
   [UnitType.SiegeTank]: 350,
-  [UnitType.SCV]: 600,
-  [UnitType.Zergling]: 0,    // melee — no projectile
-  [UnitType.Baneling]: 0,    // contact — no projectile
-  [UnitType.Hydralisk]: 550,
-  [UnitType.Roach]: 450,
-  [UnitType.Drone]: 400,
-  [UnitType.Mutalisk]: 600,
-  [UnitType.Ghost]: 650,
-  [UnitType.Hellion]: 550,
-  [UnitType.Reaper]: 700,
-  [UnitType.Viking]: 500,
-  [UnitType.Cyclone]: 600,
-  [UnitType.Thor]: 300,
-  [UnitType.Battlecruiser]: 400,
-  [UnitType.WidowMine]: 0, // no visual projectile (it's a mine)
+  [UnitType.Gunship]: 500,
+  [UnitType.TitanWalker]: 300,
+  // Swarm
+  [UnitType.Drone]: 0,       // melee
+  [UnitType.Spitter]: 450,
+  [UnitType.Burrower]: 0,    // melee/ambush
+  [UnitType.Broodmother]: 400,
+  [UnitType.Ravager]: 500,
+  [UnitType.Flyer]: 600,
+  [UnitType.Leviathan]: 400,
+  // Arcane Covenant
+  [UnitType.Acolyte]: 600,
+  [UnitType.Warden]: 500,
+  [UnitType.Enchanter]: 550,
+  [UnitType.BlinkAssassin]: 0, // melee
+  [UnitType.StormCaller]: 500,
+  [UnitType.Golem]: 400,
+  [UnitType.Archmage]: 500,
+  // Automata
+  [UnitType.Sentinel]: 650,
+  [UnitType.Shredder]: 700,
+  [UnitType.RepairDrone]: 0,
+  [UnitType.Crawler]: 550,
+  [UnitType.Disruptor]: 600,
+  [UnitType.Harvester]: 500,
+  [UnitType.Colossus]: 400,
 };
 
 /** How far a target must move before we re-path to chase it */
 const CHASE_REPATH_THRESHOLD = TILE_SIZE;
 const CHASE_REPATH_SQ = CHASE_REPATH_THRESHOLD * CHASE_REPATH_THRESHOLD;
 
-/** Attack-move units stop chasing after this distance (SC2 ~12 tiles) */
+/** Attack-move units stop chasing after this distance (~12 tiles) */
 const CHASE_LEASH_RANGE = 12 * TILE_SIZE;
 const CHASE_LEASH_SQ = CHASE_LEASH_RANGE * CHASE_LEASH_RANGE;
 
@@ -84,7 +97,7 @@ export interface DamageEvent {
   y: number;
   amount: number;
   time: number;
-  /** Color based on victim's faction: red = Terran hit, blue-white = Zerg hit */
+  /** Color based on victim's faction */
   color: number;
   /** True if this attack missed due to low-ground penalty */
   isMiss?: boolean;
@@ -95,43 +108,44 @@ const DAMAGE_EVENT_LIFETIME = 0.8; // seconds
 export const damageEvents: DamageEvent[] = [];
 
 // ── Under-attack tracking (for player alerts) ──
-let lastTerranHitTime = 0;
-let lastTerranHitX = 0;
-let lastTerranHitY = 0;
+let lastPlayerHitTime = 0;
+let lastPlayerHitX = 0;
+let lastPlayerHitY = 0;
 
-/** Returns the position and time of the most recent hit on a Terran entity */
-export function getLastTerranHit(): { x: number; y: number; time: number } {
-  return { x: lastTerranHitX, y: lastTerranHitY, time: lastTerranHitTime };
+/** Returns the position and time of the most recent hit on a player-faction entity */
+export function getLastPlayerHit(): { x: number; y: number; time: number } {
+  return { x: lastPlayerHitX, y: lastPlayerHitY, time: lastPlayerHitTime };
 }
 
-/** Returns the weapon upgrade bonus for an attacker based on faction and unit type. */
-function getWeaponBonus(resources: Record<number, PlayerResources>, attackerFaction: number, uType: UnitType): number {
+// Legacy alias
+export const getLastTerranHit = getLastPlayerHit;
+
+/** Faction-aware damage color: uses FACTION_COLORS or falls back to white */
+function getDamageColor(victimFaction: number): number {
+  return FACTION_COLORS[victimFaction] ?? 0xffffff;
+}
+
+/** Returns the weapon upgrade bonus for an attacker based on faction upgrades. */
+function getWeaponBonus(resources: Record<number, PlayerResources>, attackerFaction: number, _uType: UnitType): number {
   const upgrades = resources[attackerFaction]?.upgrades;
   if (!upgrades) return 0;
-  if (attackerFaction === Faction.Terran) {
-    if (uType === UnitType.SiegeTank || uType === UnitType.Hellion ||
-        uType === UnitType.WidowMine || uType === UnitType.Cyclone ||
-        uType === UnitType.Thor || uType === UnitType.Battlecruiser ||
-        uType === UnitType.Viking) return upgrades[UpgradeType.VehicleWeapons];
-    return upgrades[UpgradeType.InfantryWeapons]; // Marine, Marauder, Ghost, Reaper, SCV
-  }
-  // Zerg
-  if (uType === UnitType.Zergling || uType === UnitType.Baneling) return upgrades[UpgradeType.ZergMelee];
-  return upgrades[UpgradeType.ZergRanged]; // Hydralisk, Roach, Drone
+  // Use tiered weapon upgrades: Weapons1/2/3
+  let level = 0;
+  if (upgrades[UpgradeType.Weapons3]) level = 3;
+  else if (upgrades[UpgradeType.Weapons2]) level = 2;
+  else if (upgrades[UpgradeType.Weapons1]) level = 1;
+  return level;
 }
 
-/** Returns the armor upgrade bonus for a defender based on faction and unit type. */
-function getArmorBonus(resources: Record<number, PlayerResources>, defenderFaction: number, uType?: UnitType): number {
+/** Returns the armor upgrade bonus for a defender based on faction upgrades. */
+function getArmorBonus(resources: Record<number, PlayerResources>, defenderFaction: number, _uType?: UnitType): number {
   const upgrades = resources[defenderFaction]?.upgrades;
   if (!upgrades) return 0;
-  if (defenderFaction === Faction.Terran) {
-    if (uType === UnitType.SiegeTank || uType === UnitType.Hellion ||
-        uType === UnitType.WidowMine || uType === UnitType.Cyclone ||
-        uType === UnitType.Thor || uType === UnitType.Battlecruiser ||
-        uType === UnitType.Viking) return upgrades[UpgradeType.VehicleArmor];
-    return upgrades[UpgradeType.InfantryArmor];
-  }
-  return upgrades[UpgradeType.ZergCarapace]; // all Zerg units
+  let level = 0;
+  if (upgrades[UpgradeType.Armor3]) level = 3;
+  else if (upgrades[UpgradeType.Armor2]) level = 2;
+  else if (upgrades[UpgradeType.Armor1]) level = 1;
+  return level;
 }
 
 /**
@@ -161,18 +175,12 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     // Neural Parasite stun: stunned units can't attack
     if (neuralStunEndTime[eid] > 0 && neuralStunEndTime[eid] > gameTime) continue;
 
-    // Skip units that can't deal damage (Medivac)
+    // Skip units that can't deal damage (Medic, RepairDrone)
     if (atkDamage[eid] === 0) continue;
 
     // Siege Tank in transition can't attack
     const sm = siegeMode[eid] as SiegeMode;
     if (sm === SiegeMode.Packing || sm === SiegeMode.Unpacking) continue;
-
-    // Lurker can only attack while burrowed
-    if (unitType[eid] === UnitType.Lurker && burrowed[eid] === 0) continue;
-
-    // Widow Mine attacks via sentinel missile ability (AbilitySystem), not normal combat
-    if (unitType[eid] === UnitType.WidowMine) continue;
 
     const target = targetEntity[eid];
     let range = atkRange[eid];
@@ -206,28 +214,28 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // --- Auto-acquire target ---
     if (targetEntity[eid] < 1) {
-      // Move mode: don't auto-acquire — just go to destination (SC2 right-click behavior)
-      if (commandMode[eid] === CommandMode.Move || commandMode[eid] === CommandMode.Gather || commandMode[eid] === CommandMode.Build) {
+      // Move mode: don't auto-acquire — just go to destination (right-click behavior)
+      if (commandMode[eid] === CommandMode.Move) {
         continue;
       }
 
       // Target commitment: don't retarget too frequently (0.3s cooldown)
       if (gameTime < nextAutoAcquireTime[eid]) continue;
 
-      // SC2 aggro: weapon range + buffer so units engage approaching enemies
+      // Aggro: weapon range + buffer so units engage approaching enemies
       // HoldPosition: slightly wider than weapon range (range + 1 tile)
       const aggroRange = commandMode[eid] === CommandMode.HoldPosition
         ? range + 1 * TILE_SIZE
         : range + 2 * TILE_SIZE;
       const enemy = findBestTarget(world, eid, aggroRange);
       if (enemy > 0) {
-        // Terran units can't auto-acquire targets hidden in deep fog
+        // Player units can't auto-acquire targets hidden in deep fog
         // But allow targeting enemies within weapon range even if fog hasn't refreshed yet
         const myFac = faction[eid] as Faction;
         const edx = posX[enemy] - posX[eid];
         const edy = posY[enemy] - posY[eid];
         const enemyDistSq = edx * edx + edy * edy;
-        if (myFac === Faction.Terran && !isTileVisible(posX[enemy], posY[enemy]) && enemyDistSq > range * range) {
+        if (myFac === Faction.IronLegion && !isTileVisible(posX[enemy], posY[enemy]) && enemyDistSq > range * range) {
           continue;
         }
         targetEntity[eid] = enemy;
@@ -243,11 +251,6 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     const tgt = targetEntity[eid];
     if (tgt < 1) continue;
-
-    // Thor has longer range vs air: Javelin=11 tiles, Explosive=10 tiles (ground stays at base range)
-    if (unitType[eid] === UnitType.Thor && isAir[tgt] === 1) {
-      range = (thorMode[eid] === 0 ? 11 : 10) * TILE_SIZE;
-    }
 
     // --- Range check ---
     const dx = posX[tgt] - posX[eid];
@@ -297,7 +300,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
     atkFlashTimer[eid] = FLASH_DURATION;
     soundManager.playAttackAt(posX[eid], posY[eid]);
 
-    // Camera shake for splash-damage units (Siege Tank, Baneling)
+    // Camera shake for splash-damage units
     if (atkSplash[eid] > 0) {
       triggerCameraShake(atkSplash[eid] * 1.5);
     }
@@ -331,31 +334,10 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       continue;
     }
 
-    // Compute actual damage with SC2 bonus-damage model and armor reduction
-    // Multi-hit: armor applies per-hit (Reaper 4×2, Queen ground 4×2, Thor Javelin 6×4)
-    let baseDmg = atkDamage[eid];
-    let hits = atkHitCount[eid] || 1;
-    // Queen dual attack: 4×2=8 vs ground (hitCount=2), 9×1 vs air
-    if (unitType[eid] === UnitType.Queen && isAir[tgt] === 0) {
-      baseDmg = 8;
-    } else if (unitType[eid] === UnitType.Queen && isAir[tgt] === 1) {
-      hits = 1; // air attack is single-hit
-    }
-    // Thor anti-air: mode 0 = Javelin Missiles (6×4=24, single-target), mode 1 = Explosive Payload (6×1, splash)
-    let thorSplashActive = false;
-    if (unitType[eid] === UnitType.Thor && isAir[tgt] === 1) {
-      if (thorMode[eid] === 0) {
-        baseDmg = 24; // Javelin total (6 per hit × 4 hits)
-      } else {
-        baseDmg = 6;
-        hits = 1; // Explosive Payload is single-hit + splash
-        thorSplashActive = true;
-      }
-    }
-    // Thor ground attack is single-hit (60 damage)
-    if (unitType[eid] === UnitType.Thor && isAir[tgt] === 0) {
-      hits = 1;
-    }
+    // Compute actual damage with bonus-damage model and armor reduction
+    // Multi-hit: armor applies per-hit
+    const baseDmg = atkDamage[eid];
+    const hits = atkHitCount[eid] || 1;
     const bonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[tgt]);
     const weaponBonus = getWeaponBonus(resources, faction[eid], unitType[eid] as UnitType);
     const armorBonus = getArmorBonus(resources, faction[tgt], unitType[tgt] as UnitType);
@@ -380,9 +362,7 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
     // Push damage event for floating indicator
     if (damageEvents.length < MAX_DAMAGE_EVENTS) {
-      // Color based on victim faction: red if Terran got hit, blue-white if Zerg got hit
-      const victimFac = faction[tgt] as Faction;
-      const dmgColor = victimFac === Faction.Terran ? 0xff4444 : 0xaaddff;
+      const dmgColor = getDamageColor(faction[tgt]);
       damageEvents.push({
         x: posX[tgt],
         y: posY[tgt],
@@ -408,111 +388,25 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
       }
     }
 
-    // Track Terran under-attack for player alerts
-    if (faction[tgt] === Faction.Terran) {
-      lastTerranHitTime = gameTime;
-      lastTerranHitX = posX[tgt];
-      lastTerranHitY = posY[tgt];
-    }
-
-    // Mutalisk glaive bounce — hits 2 additional targets at reduced damage (9→3→1)
-    if (unitType[eid] === UnitType.Mutalisk) {
-      const bounceRange = 1.5 * TILE_SIZE; // 1.5 tiles
-      const bounceRangeSq = bounceRange * bounceRange;
-      let lastX = posX[tgt];
-      let lastY = posY[tgt];
-      let lastDmg = rawDmg;
-      const bounced = new Set([eid, tgt]);
-
-      spatialHash.ensureBuilt(world);
-      const myFac = faction[eid];
-
-      for (let bounce = 0; bounce < 2; bounce++) {
-        const bounceDmg = Math.max(1, Math.round(lastDmg / 3));
-        // Find nearest enemy NOT already bounced to
-        let nearestEid = 0;
-        let nearestDist = Infinity;
-        const bounceCandidates = spatialHash.queryRadius(lastX, lastY, bounceRange);
-        for (const other of bounceCandidates) {
-          if (bounced.has(other)) continue;
-          if (!hasComponents(world, other, POSITION | HEALTH)) continue;
-          if (faction[other] === myFac || faction[other] === 0) continue;
-          if (hpCurrent[other] <= 0) continue;
-          const bdx = posX[other] - lastX;
-          const bdy = posY[other] - lastY;
-          const bDistSq = bdx * bdx + bdy * bdy;
-          if (bDistSq < bounceRangeSq && bDistSq < nearestDist) {
-            nearestDist = bDistSq;
-            nearestEid = other;
-          }
-        }
-        if (nearestEid === 0) break;
-
-        // Emit bounce projectile from previous bounce position
-        emitProjectile({
-          fromX: lastX, fromY: lastY,
-          toX: posX[nearestEid], toY: posY[nearestEid],
-          unitType: UnitType.Mutalisk,
-          speed: 600,
-          time: gameTime,
-        });
-
-        hpCurrent[nearestEid] -= bounceDmg;
-        bounced.add(nearestEid);
-        lastX = posX[nearestEid];
-        lastY = posY[nearestEid];
-        lastDmg = bounceDmg;
-        lastCombatTime[nearestEid] = gameTime;
-
-        // Floating damage indicator for bounce hit
-        if (damageEvents.length < MAX_DAMAGE_EVENTS) {
-          const bounceVicFac = faction[nearestEid] as Faction;
-          const bounceColor = bounceVicFac === Faction.Terran ? 0xff4444 : 0xaaddff;
-          damageEvents.push({
-            x: posX[nearestEid],
-            y: posY[nearestEid],
-            amount: bounceDmg,
-            time: gameTime,
-            color: bounceColor,
-          });
-        }
-
-        // Track Terran under-attack for bounce hits too
-        if (faction[nearestEid] === Faction.Terran) {
-          lastTerranHitTime = gameTime;
-          lastTerranHitX = posX[nearestEid];
-          lastTerranHitY = posY[nearestEid];
-        }
-
-        if (hpCurrent[nearestEid] <= 0) {
-          killCount[eid]++;
-          updateVeterancy(eid);
-          pendingDamage[nearestEid] = 0;
-        }
-      }
+    // Track player-faction under-attack for alerts
+    if (faction[tgt] === Faction.IronLegion) {
+      lastPlayerHitTime = gameTime;
+      lastPlayerHitX = posX[tgt];
+      lastPlayerHitY = posY[tgt];
     }
 
     // Retaliation: victim auto-targets attacker if idle, can fight, and can target their layer
     if (targetEntity[tgt] < 1 && atkDamage[tgt] > 0 &&
-        commandMode[tgt] !== CommandMode.Move && commandMode[tgt] !== CommandMode.Gather) {
+        commandMode[tgt] !== CommandMode.Move) {
       const canTarget = isAir[eid] === 1 ? canTargetAir[tgt] === 1 : canTargetGround[tgt] === 1;
       if (canTarget) targetEntity[tgt] = eid;
     }
 
-    // Track combat time for Roach regen
+    // Track combat time for regen mechanics
     lastCombatTime[eid] = gameTime;
     lastCombatTime[tgt] = gameTime;
 
-    // Marauder: Concussive Shells — slow the target (requires research; Ultralisk immune: Frenzied)
-    if (unitType[eid] === UnitType.Marauder && unitType[tgt] !== UnitType.Ultralisk) {
-      const fac = faction[eid];
-      if (resources[fac]?.upgrades[UpgradeType.ConcussiveShells]) {
-        slowEndTime[tgt] = gameTime + SLOW_DURATION;
-        slowFactor[tgt] = SLOW_FACTOR;
-      }
-    }
-
-    // Splash damage — SC2 uses 3 zones: inner 100%, middle 50%, outer 25%
+    // Splash damage — 3 zones: inner 100%, middle 50%, outer 25%
     if (atkSplash[eid] > 0) {
       const splashRange = atkSplash[eid] * TILE_SIZE;
       const splashRangeSq = splashRange * splashRange;
@@ -534,20 +428,19 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
 
         const sdx = posX[other] - tx;
         const sdy = posY[other] - ty;
-        const distSq = sdx * sdx + sdy * sdy;
-        if (distSq <= splashRangeSq) {
+        const sDist = sdx * sdx + sdy * sdy;
+        if (sDist <= splashRangeSq) {
           const sBonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[other]);
           const sArmorBonus = getArmorBonus(resources, faction[other], unitType[other] as UnitType);
           const fullDmg = Math.max(0.5, (atkDamage[eid] + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
-          // SC2 splash zones: inner 100%, middle 50%, outer 25%
-          const splashMult = distSq <= innerSq ? 1.0 : distSq <= middleSq ? 0.5 : 0.25;
+          // Splash zones: inner 100%, middle 50%, outer 25%
+          const splashMult = sDist <= innerSq ? 1.0 : sDist <= middleSq ? 0.5 : 0.25;
           const sDmg = Math.max(0.5, fullDmg * splashMult);
           hpCurrent[other] -= sDmg;
           lastCombatTime[other] = gameTime;
 
           if (damageEvents.length < MAX_DAMAGE_EVENTS) {
-            const splashVictimFac = faction[other] as Faction;
-            const splashColor = splashVictimFac === Faction.Terran ? 0xff4444 : 0xaaddff;
+            const splashColor = getDamageColor(faction[other]);
             damageEvents.push({
               x: posX[other],
               y: posY[other],
@@ -564,58 +457,6 @@ export function combatSystem(world: World, dt: number, gameTime: number, map: Ma
           }
         }
       }
-    }
-
-    // Thor Explosive Payload splash (0.5 tile radius, air-only)
-    if (thorSplashActive) {
-      const thorSplashRange = 0.5 * TILE_SIZE;
-      const thorSplashRangeSq = thorSplashRange * thorSplashRange;
-      const myFac = faction[eid];
-      const tx = posX[tgt];
-      const ty = posY[tgt];
-
-      for (let other = 1; other < world.nextEid; other++) {
-        if (other === tgt || other === eid) continue;
-        if (!hasComponents(world, other, POSITION | HEALTH)) continue;
-        if (faction[other] === myFac) continue;
-        if (hpCurrent[other] <= 0) continue;
-        // Explosive Payload only splashes air targets
-        if (isAir[other] !== 1) continue;
-
-        const sdx = posX[other] - tx;
-        const sdy = posY[other] - ty;
-        const dSq = sdx * sdx + sdy * sdy;
-        if (dSq <= thorSplashRangeSq) {
-          const sBonus = getBonusDamage(bonusDmg[eid], bonusVsTag[eid], armorClass[other]);
-          const sArmorBonus = getArmorBonus(resources, faction[other], unitType[other] as UnitType);
-          const sDmg = Math.max(0.5, (baseDmg + sBonus + weaponBonus) - (baseArmor[other] + sArmorBonus));
-          hpCurrent[other] -= sDmg;
-          lastCombatTime[other] = gameTime;
-
-          if (damageEvents.length < MAX_DAMAGE_EVENTS) {
-            const splashVictimFac = faction[other] as Faction;
-            const splashColor = splashVictimFac === Faction.Terran ? 0xff4444 : 0xaaddff;
-            damageEvents.push({
-              x: posX[other],
-              y: posY[other],
-              amount: Math.round(sDmg),
-              time: gameTime,
-              color: splashColor,
-            });
-          }
-
-          if (hpCurrent[other] <= 0) {
-            killCount[eid]++;
-            updateVeterancy(eid);
-            pendingDamage[other] = 0;
-          }
-        }
-      }
-    }
-
-    // Baneling: suicide unit — dies after attacking
-    if (unitType[eid] === UnitType.Baneling) {
-      hpCurrent[eid] = 0;
     }
   }
 }
@@ -662,4 +503,3 @@ function chaseTarget(eid: number, tgt: number, map: MapData, gameTime: number): 
     setPath(eid, worldPath);
   }
 }
-

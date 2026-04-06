@@ -1,39 +1,36 @@
 /**
- * NodeEconomy — Capture-based resource zone system for .io arena.
+ * NodeEconomy — Hex-based capture zone economy for .io arena.
  *
  * Core mechanic:
- * - Map has resource zones (nodes) scattered from edge to center
- * - Capture by uncontested unit presence (3s timer)
- * - Contested (both sides have units) = capture frozen
+ * - Map has hex-shaped resource zones in concentric rings
+ * - Capture by uncontested unit presence inside the hex (3s timer)
+ * - Contested (both sides have units in hex) = capture frozen
  * - Captured zones generate passive income per tick
- * - Defender bonus: +15% damage for owner's units inside the zone
+ * - Defender bonus: +15% damage for owner's units inside their hex
  *
- * Value gradient:
- * - Edge zones (near spawns): ~50 income/min — safe, low reward
- * - Mid zones: ~150 income/min — contested, medium reward
- * - Center zones: ~250 income/min — high risk, high reward
+ * Value gradient (center → edge):
+ * - Ring 0 center crown: 250/min
+ * - Ring 1 inner: ~210/min
+ * - Ring 2 mid: ~155/min
+ * - Ring 3 outer-mid: ~105/min
+ * - Ring 4 outer: ~70/min
+ * - Starter zones: 50/min (pre-captured)
  *
- * Resource distribution: 70% minerals, 30% gas
+ * 70% mineral zones, 30% gas zones
  */
 
 import type { PlayerResources } from '../types';
+import type { HexCoord, HexGridConfig } from './HexGrid';
+import { pixelToHex } from './HexGrid';
+import type { ArenaZoneDef } from './ArenaMap';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
-/** Radius around a node where units count for capture (tiles) */
-export const CAPTURE_RADIUS = 4;
-
-/** Seconds of uncontested presence to capture a node */
+/** Seconds of uncontested presence to capture a zone */
 export const CAPTURE_TIME = 3.0;
 
-/** Damage bonus for owner's units inside their own node zone (multiplier) */
+/** Damage multiplier bonus for owner's units inside their own zone */
 export const DEFENDER_DAMAGE_BONUS = 0.15;
-
-/** Income per minute for the lowest-value (edge) zones */
-export const EDGE_ZONE_INCOME = 50;
-
-/** Income per minute for the highest-value (center) zones */
-export const CENTER_ZONE_INCOME = 250;
 
 /** Kill bounty: minerals per supply point of destroyed unit */
 export const KILL_BOUNTY_PER_SUPPLY = 10;
@@ -50,118 +47,116 @@ export const ARENA_STARTING_GAS = 0;
 /** Starting supply cap */
 export const ARENA_STARTING_SUPPLY = 15;
 
-// ─── Resource Zone ───────────────────────────────────────────────────────
+// ─── Capture State ───────────────────────────────────────────────────────
 
 export const enum CaptureState {
-  Neutral = 0,     // No owner, no capture in progress
-  Capturing = 1,   // One faction is capturing (timer filling)
-  Owned = 2,       // Fully captured by a faction
-  Contested = 3,   // Multiple factions present — frozen
+  Neutral = 0,
+  Capturing = 1,
+  Owned = 2,
+  Contested = 3,
 }
 
-export interface ResourceZone {
-  id: number;
-  col: number;          // Tile center
-  row: number;
-  type: 'mineral' | 'gas';
+// ─── Live Zone (runtime state layered on top of ArenaZoneDef) ────────────
 
-  /** Income per minute this zone generates (50-250, based on distance from center) */
-  incomePerMin: number;
-
+export interface LiveZone {
+  /** Static definition from ArenaMap */
+  def: ArenaZoneDef;
   /** Current owner faction (0 = unclaimed) */
   owner: number;
-
   /** Capture state */
   state: CaptureState;
-
   /** Faction currently attempting capture (0 = none) */
   capturingFaction: number;
-
-  /** Capture progress (0.0 to 1.0) */
+  /** Capture progress 0.0 → 1.0 */
   captureProgress: number;
-
-  /** Normalized distance from center (0.0 = center, 1.0 = edge) */
-  distFromCenter: number;
 }
 
-// ─── Unit Presence Query ─────────────────────────────────────────────────
+// ─── Zone Presence Query ─────────────────────────────────────────────────
 
 /**
- * Result of counting faction units near a zone.
- * Provided by the caller (Simulation or GameRoom) since it knows the ECS.
+ * Faction unit counts inside a zone.
+ * Provided by caller who has access to the ECS.
  */
 export interface ZonePresence {
-  /** Map of faction ID → unit count inside the zone radius */
   factionCounts: Map<number, number>;
 }
 
 // ─── NodeEconomyState ────────────────────────────────────────────────────
 
 export class NodeEconomyState {
-  zones: ResourceZone[] = [];
-  private nextId = 1;
+  zones: LiveZone[] = [];
+  private hexConfig: HexGridConfig;
 
-  /**
-   * Add a resource zone to the map.
-   * @param col Tile column
-   * @param row Tile row
-   * @param type 'mineral' or 'gas'
-   * @param mapCols Total map columns (for distance calc)
-   * @param mapRows Total map rows (for distance calc)
-   */
-  addZone(col: number, row: number, type: 'mineral' | 'gas', mapCols: number, mapRows: number): ResourceZone {
-    const cx = mapCols / 2;
-    const cy = mapRows / 2;
-    const maxDist = Math.sqrt(cx * cx + cy * cy);
-    const dist = Math.sqrt((col - cx) ** 2 + (row - cy) ** 2);
-    const normalized = Math.min(1.0, dist / maxDist);
+  constructor(hexConfig: HexGridConfig) {
+    this.hexConfig = hexConfig;
+  }
 
-    // Income scales linearly: center (0.0) = CENTER_ZONE_INCOME, edge (1.0) = EDGE_ZONE_INCOME
-    const incomePerMin = Math.round(
-      CENTER_ZONE_INCOME + (EDGE_ZONE_INCOME - CENTER_ZONE_INCOME) * normalized
-    );
-
-    const zone: ResourceZone = {
-      id: this.nextId++,
-      col, row, type,
-      incomePerMin,
-      owner: 0,
-      state: CaptureState.Neutral,
-      capturingFaction: 0,
-      captureProgress: 0,
-      distFromCenter: normalized,
-    };
-    this.zones.push(zone);
-    return zone;
+  /** Initialize live zones from arena layout definitions. */
+  initFromLayout(defs: ArenaZoneDef[], starterOwners: Map<number, number>): void {
+    this.zones = defs.map(def => {
+      // If it's a starter zone, set the owner immediately
+      let owner = 0;
+      if (def.starterForPlayer !== null) {
+        owner = starterOwners.get(def.starterForPlayer) ?? 0;
+      }
+      return {
+        def,
+        owner,
+        state: owner !== 0 ? CaptureState.Owned : CaptureState.Neutral,
+        capturingFaction: 0,
+        captureProgress: 0,
+      };
+    });
   }
 
   /**
+   * Determine which hex zone a world-space point falls in.
+   * Returns the LiveZone or undefined if not in any zone.
+   */
+  getZoneAtWorld(worldX: number, worldY: number): LiveZone | undefined {
+    const hex = pixelToHex(this.hexConfig, worldX, worldY);
+    return this.zones.find(z => z.def.hex.q === hex.q && z.def.hex.r === hex.r);
+  }
+
+  /**
+   * Check if a world-space point is inside a zone owned by the given faction.
+   * Used for defender bonus.
+   */
+  isInOwnedZone(worldX: number, worldY: number, unitFaction: number): boolean {
+    const zone = this.getZoneAtWorld(worldX, worldY);
+    return zone !== undefined && zone.owner === unitFaction;
+  }
+
+  // ─── Tick: Capture ─────────────────────────────────────────────────────
+
+  /**
    * Update capture state for all zones based on unit presence.
-   * Called once per server tick.
    *
    * @param dt Time step in seconds
-   * @param getPresence Function that returns which factions have units near a zone
+   * @param getPresence Function returning which factions have units in a zone's hex
    */
-  tickCapture(dt: number, getPresence: (zone: ResourceZone) => ZonePresence): void {
+  tickCapture(dt: number, getPresence: (zone: LiveZone) => ZonePresence): void {
     for (const zone of this.zones) {
       const presence = getPresence(zone);
       const factions = [...presence.factionCounts.entries()].filter(([_, count]) => count > 0);
 
       if (factions.length === 0) {
-        // No units nearby — state unchanged (owned stays owned, neutral stays neutral)
+        // No units — decay any in-progress capture, leave owned zones alone
         if (zone.state === CaptureState.Capturing) {
-          // Capturing faction left — progress decays
           zone.captureProgress = Math.max(0, zone.captureProgress - dt / CAPTURE_TIME);
           if (zone.captureProgress <= 0) {
-            zone.state = CaptureState.Neutral;
+            zone.state = zone.owner !== 0 ? CaptureState.Owned : CaptureState.Neutral;
             zone.capturingFaction = 0;
           }
+        } else if (zone.state === CaptureState.Contested) {
+          // Was contested, now empty — revert to owned or neutral
+          zone.state = zone.owner !== 0 ? CaptureState.Owned : CaptureState.Neutral;
         }
         continue;
       }
 
       if (factions.length > 1) {
-        // Multiple factions — contested, freeze capture
+        // Multiple factions present — contested, freeze
         zone.state = CaptureState.Contested;
         continue;
       }
@@ -170,16 +165,15 @@ export class NodeEconomyState {
       const [presentFaction] = factions[0];
 
       if (zone.owner === presentFaction) {
-        // Owner's units are here — zone stays owned, reset any capture attempts
+        // Owner defending — zone stays owned
         zone.state = CaptureState.Owned;
         zone.capturingFaction = 0;
         zone.captureProgress = 0;
         continue;
       }
 
-      // Enemy or neutral capture attempt
+      // Capturing (neutral or enemy zone)
       if (zone.capturingFaction !== presentFaction) {
-        // New faction starting capture — reset progress
         zone.capturingFaction = presentFaction;
         zone.captureProgress = 0;
       }
@@ -188,7 +182,6 @@ export class NodeEconomyState {
       zone.captureProgress += dt / CAPTURE_TIME;
 
       if (zone.captureProgress >= 1.0) {
-        // Captured!
         zone.owner = presentFaction;
         zone.state = CaptureState.Owned;
         zone.capturingFaction = 0;
@@ -197,9 +190,10 @@ export class NodeEconomyState {
     }
   }
 
+  // ─── Tick: Income ──────────────────────────────────────────────────────
+
   /**
-   * Tick passive income for all owned zones.
-   * Called once per server tick.
+   * Add passive income from owned zones.
    */
   tickIncome(dt: number, resources: Record<number, PlayerResources>): void {
     for (const zone of this.zones) {
@@ -207,61 +201,39 @@ export class NodeEconomyState {
       const res = resources[zone.owner];
       if (!res) continue;
 
-      const incomePerSec = zone.incomePerMin / 60;
-      if (zone.type === 'mineral') {
-        res.minerals += incomePerSec * dt;
+      const perSec = zone.def.incomePerMin / 60;
+      if (zone.def.type === 'mineral') {
+        res.minerals += perSec * dt;
       } else {
-        res.gas += incomePerSec * dt;
+        res.gas += perSec * dt;
       }
     }
   }
 
-  /**
-   * Check if a unit at (worldX, worldY) is inside a zone owned by its faction.
-   * Used for applying defender bonus.
-   */
-  isInOwnedZone(col: number, row: number, unitFaction: number): boolean {
-    for (const zone of this.zones) {
-      if (zone.owner !== unitFaction) continue;
-      const dx = col - zone.col;
-      const dy = row - zone.row;
-      if (dx * dx + dy * dy <= CAPTURE_RADIUS * CAPTURE_RADIUS) {
-        return true;
-      }
-    }
-    return false;
-  }
+  // ─── Queries ───────────────────────────────────────────────────────────
 
-  /** Count zones owned by a faction. */
   countOwned(factionId: number): number {
     return this.zones.filter(z => z.owner === factionId).length;
   }
 
-  /** Get total income per minute for a faction. */
   getTotalIncome(factionId: number): { minerals: number; gas: number } {
     let minerals = 0;
     let gas = 0;
     for (const zone of this.zones) {
       if (zone.owner !== factionId) continue;
-      if (zone.type === 'mineral') minerals += zone.incomePerMin;
-      else gas += zone.incomePerMin;
+      if (zone.def.type === 'mineral') minerals += zone.def.incomePerMin;
+      else gas += zone.def.incomePerMin;
     }
     return { minerals, gas };
   }
 
-  /** Find zone at a tile position. */
-  findZoneAt(col: number, row: number): ResourceZone | undefined {
-    return this.zones.find(z => {
-      const dx = col - z.col;
-      const dy = row - z.row;
-      return dx * dx + dy * dy <= CAPTURE_RADIUS * CAPTURE_RADIUS;
-    });
+  getOwnedZones(factionId: number): LiveZone[] {
+    return this.zones.filter(z => z.owner === factionId);
   }
 }
 
 // ─── Bounty Helpers ──────────────────────────────────────────────────────
 
-/** Award kill bounty to attacker's faction. */
 export function awardKillBounty(
   attackerFaction: number,
   victimSupply: number,
@@ -272,7 +244,6 @@ export function awardKillBounty(
   res.minerals += Math.round(victimSupply * KILL_BOUNTY_PER_SUPPLY);
 }
 
-/** Award building destruction bounty. */
 export function awardBuildingBounty(
   attackerFaction: number,
   buildingMineralCost: number,

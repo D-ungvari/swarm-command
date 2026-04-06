@@ -1,21 +1,27 @@
 /**
- * ArenaMap — Circular arena map generator for 8+ player .io matches.
+ * ArenaMap — Hex-grid arena map generator for 8+ player .io matches.
  *
  * Map: 96×96 tiles (3072×3072 px) — circular playable area
+ * Hex grid: flat-top hexagons, 128px outer radius (~8 tiles across)
  *
- * Layout (concentric rings from center outward):
- *   Center (r < 12):  6 high-value zones (200-250/min)
- *   Mid    (r 12-25): 12 medium zones (100-175/min)
- *   Outer  (r 25-35): 8 zones between adjacent spawns (60-100/min)
- *   Starter(r 35-42): 16 zones, 2 per player pre-captured (50-75/min)
- *   Spawns (r ~38):   8 player bases around the perimeter
+ * Layout (hex rings from center outward):
+ *   Ring 0:  1 hex  — center crown (250/min)
+ *   Ring 1:  6 hexes — inner ring (200-220/min)
+ *   Ring 2: 12 hexes — mid ring (140-170/min)
+ *   Ring 3: 18 hexes — outer-mid ring (90-120/min)
+ *   Ring 4: 24 hexes — outer ring (60-80/min, partially used)
+ *   Spawns sit between ring 4 and map edge
  *
- * Total: 42 zones, 70% mineral / 30% gas
- * Players spawn evenly spaced around perimeter.
+ * ~42 resource zones total, 70% mineral / 30% gas
+ * Players spawn evenly around the perimeter, each with 2 pre-captured hexes.
  */
 
 import type { MapData } from '../map/MapData';
 import { TileType, TILE_SIZE } from '../constants';
+import {
+  type HexCoord, type HexGridConfig,
+  hexToPixel, pixelToHex, hexRing, hexDistance, hexCorners, hexToTile,
+} from './HexGrid';
 
 // ─── Arena Constants ─────────────────────────────────────────────────────
 
@@ -24,73 +30,71 @@ export const ARENA_ROWS = 96;
 export const ARENA_WIDTH = ARENA_COLS * TILE_SIZE;   // 3072px
 export const ARENA_HEIGHT = ARENA_ROWS * TILE_SIZE;  // 3072px
 
+/** Hex outer radius in pixels (center to corner) */
+export const HEX_SIZE = 128;
+
 /** Max players the arena supports */
 export const MAX_ARENA_PLAYERS = 16;
 
-/** Default player count */
-export const DEFAULT_PLAYER_COUNT = 8;
-
-/** Tiles from map center to spawn ring */
-const SPAWN_RING_RADIUS = 38;
-
-/** Playable radius (circular arena) — tiles outside are water/walls */
+/** Playable radius from center in tiles — outside is water */
 const PLAYABLE_RADIUS = 44;
 
-// ─── Zone Layout Constants ───────────────────────────────────────────────
+/** Spawn distance from center in tiles */
+const SPAWN_RING_RADIUS = 38;
 
-/** Zone capture radius in tiles (must match NodeEconomy.CAPTURE_RADIUS) */
-export const ZONE_RADIUS = 4;
+// ─── Income by Ring ──────────────────────────────────────────────────────
 
-/** Minimum tile distance between zone centers */
-const MIN_ZONE_SPACING = 9; // slightly over 2× capture radius
+const RING_INCOME: Record<number, number> = {
+  0: 250,  // Center crown — king of the hill
+  1: 210,  // Inner — very high value
+  2: 155,  // Mid — solid income
+  3: 105,  // Outer-mid — moderate
+  4: 70,   // Outer — low but accessible
+};
 
-// Ring boundaries (distance from center in tiles)
-const CENTER_RING_MAX = 12;
-const MID_RING_MAX = 25;
-const OUTER_RING_MAX = 35;
-
-// Zone counts per ring
-const CENTER_ZONE_COUNT = 6;
-const MID_ZONE_COUNT = 12;
-const OUTER_ZONE_COUNT = 8;
-const STARTER_ZONES_PER_PLAYER = 2;
-
-// Income per minute by ring
-const CENTER_INCOME = 250;
-const MID_INCOME = 150;
-const OUTER_INCOME = 85;
 const STARTER_INCOME = 50;
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
 export interface ArenaZoneDef {
   id: number;
+  /** Hex axial coordinates */
+  hex: HexCoord;
+  /** World pixel center */
+  worldX: number;
+  worldY: number;
+  /** Tile-space center (approximate) */
   col: number;
   row: number;
+
   type: 'mineral' | 'gas';
   incomePerMin: number;
-  ring: 'center' | 'mid' | 'outer' | 'starter';
-  /** If starter, which player index (0-based) owns it at match start */
+  ring: number;
+
+  /** If starter zone, which player index (0-based) owns it at match start. null = unclaimed */
   starterForPlayer: number | null;
 }
 
 export interface ArenaSpawn {
-  playerIndex: number;  // 0-based
+  playerIndex: number;
   col: number;
   row: number;
-  angle: number;        // radians, for reference
+  worldX: number;
+  worldY: number;
+  angle: number;
 }
 
 export interface ArenaLayout {
   cols: number;
   rows: number;
+  hexConfig: HexGridConfig;
   spawns: ArenaSpawn[];
   zones: ArenaZoneDef[];
   totalMineralZones: number;
   totalGasZones: number;
 }
 
-// ─── Seeded RNG (local) ──────────────────────────────────────────────────
+// ─── Seeded RNG ──────────────────────────────────────────────────────────
 
 function makeRng(seed: number) {
   let s = seed >>> 0;
@@ -99,151 +103,153 @@ function makeRng(seed: number) {
       s = (Math.imul(1664525, s) + 1013904223) >>> 0;
       return s / 4294967296;
     },
-    nextInt(max: number): number {
-      return Math.floor(this.next() * max);
-    },
   };
 }
 
 // ─── Layout Generation ───────────────────────────────────────────────────
 
 /**
- * Generate the full arena layout: spawns + zones.
+ * Generate the full hex-based arena layout.
  *
  * @param playerCount Number of players (2-16, default 8)
- * @param seed Deterministic seed for zone placement jitter
+ * @param seed Deterministic seed for type assignment jitter
  */
 export function generateArenaLayout(
-  playerCount: number = DEFAULT_PLAYER_COUNT,
+  playerCount: number = 8,
   seed: number = 12345,
 ): ArenaLayout {
   const rng = makeRng(seed);
-  const cx = ARENA_COLS / 2;
-  const cy = ARENA_ROWS / 2;
+
+  // Hex grid centered on map
+  const hexConfig: HexGridConfig = {
+    hexSize: HEX_SIZE,
+    originX: ARENA_WIDTH / 2,
+    originY: ARENA_HEIGHT / 2,
+  };
 
   // ── Spawns ──
+  const cx = ARENA_COLS / 2;
+  const cy = ARENA_ROWS / 2;
   const spawns: ArenaSpawn[] = [];
   for (let i = 0; i < playerCount; i++) {
     const angle = (2 * Math.PI * i) / playerCount - Math.PI / 2;
+    const col = Math.round(cx + SPAWN_RING_RADIUS * Math.cos(angle));
+    const row = Math.round(cy + SPAWN_RING_RADIUS * Math.sin(angle));
     spawns.push({
       playerIndex: i,
-      col: Math.round(cx + SPAWN_RING_RADIUS * Math.cos(angle)),
-      row: Math.round(cy + SPAWN_RING_RADIUS * Math.sin(angle)),
+      col, row,
+      worldX: col * TILE_SIZE,
+      worldY: row * TILE_SIZE,
       angle,
     });
   }
 
-  // ── Zone placement ──
+  // ── Resource zones from hex rings 0-4 ──
   const zones: ArenaZoneDef[] = [];
   let nextId = 1;
   let mineralCount = 0;
   let gasCount = 0;
-
-  // Track placed zone centers to enforce minimum spacing
-  const placed: Array<{ col: number; row: number }> = [];
-
-  function tooClose(col: number, row: number): boolean {
-    for (const p of placed) {
-      const dx = col - p.col;
-      const dy = row - p.row;
-      if (dx * dx + dy * dy < MIN_ZONE_SPACING * MIN_ZONE_SPACING) return true;
-    }
-    return false;
-  }
+  const center: HexCoord = { q: 0, r: 0 };
 
   function pickType(): 'mineral' | 'gas' {
-    // Maintain 70/30 split
-    const totalPlaced = mineralCount + gasCount;
-    if (totalPlaced === 0) return 'mineral';
-    const currentGasRatio = gasCount / totalPlaced;
-    if (currentGasRatio < 0.25) return rng.next() < 0.5 ? 'gas' : 'mineral';
-    if (currentGasRatio >= 0.35) return 'mineral';
+    const total = mineralCount + gasCount;
+    if (total === 0) return 'mineral';
+    const gasRatio = gasCount / total;
+    if (gasRatio < 0.25) return rng.next() < 0.5 ? 'gas' : 'mineral';
+    if (gasRatio >= 0.35) return 'mineral';
     return rng.next() < 0.3 ? 'gas' : 'mineral';
   }
 
   function addZone(
-    col: number, row: number, ring: ArenaZoneDef['ring'],
-    income: number, starterFor: number | null = null,
+    hex: HexCoord,
+    ring: number,
+    income: number,
+    starterFor: number | null = null,
     forceType?: 'mineral' | 'gas',
   ): void {
+    const px = hexToPixel(hexConfig, hex);
+    const tile = hexToTile(hexConfig, hex, TILE_SIZE);
     const type = forceType ?? pickType();
     if (type === 'gas') gasCount++; else mineralCount++;
+
     zones.push({
       id: nextId++,
-      col: Math.round(col),
-      row: Math.round(row),
+      hex,
+      worldX: px.x,
+      worldY: px.y,
+      col: tile.col,
+      row: tile.row,
       type,
       incomePerMin: income,
       ring,
       starterForPlayer: starterFor,
     });
-    placed.push({ col: Math.round(col), row: Math.round(row) });
   }
 
-  // ── 1. Starter zones (2 per player, near spawn, pointing inward) ──
+  // Ring 0: center hex — always mineral (the crown jewel)
+  addZone(center, 0, RING_INCOME[0], null, 'mineral');
+
+  // Ring 1: 6 inner hexes
+  for (const hex of hexRing(center, 1)) {
+    const income = RING_INCOME[1] + Math.round((rng.next() - 0.5) * 20);
+    addZone(hex, 1, income);
+  }
+
+  // Ring 2: 12 mid hexes
+  for (const hex of hexRing(center, 2)) {
+    const income = RING_INCOME[2] + Math.round((rng.next() - 0.5) * 30);
+    addZone(hex, 2, income);
+  }
+
+  // Ring 3: 18 outer-mid hexes — use all of them
+  for (const hex of hexRing(center, 3)) {
+    const income = RING_INCOME[3] + Math.round((rng.next() - 0.5) * 20);
+    addZone(hex, 3, income);
+  }
+
+  // Ring 4: 24 outer hexes — only use those within the playable circle
+  for (const hex of hexRing(center, 4)) {
+    const px = hexToPixel(hexConfig, hex);
+    const tile = hexToTile(hexConfig, hex, TILE_SIZE);
+    const dx = tile.col - cx;
+    const dy = tile.row - cy;
+    const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+    if (distFromCenter < PLAYABLE_RADIUS - 4) {
+      const income = RING_INCOME[4] + Math.round((rng.next() - 0.5) * 15);
+      addZone(hex, 4, income);
+    }
+  }
+
+  // ── Starter zones: 2 per player, placed near their spawn ──
+  // Find the closest unassigned ring 3-4 hexes to each spawn and mark them
   for (let i = 0; i < playerCount; i++) {
     const sp = spawns[i];
-    // Direction from spawn toward center
-    const toCenter = Math.atan2(cy - sp.row, cx - sp.col);
-    const dist = 7; // tiles from spawn toward center
+    const spawnHex = pixelToHex(hexConfig, sp.worldX, sp.worldY);
 
-    // Two zones flanking the spawn-to-center line
-    for (let j = 0; j < STARTER_ZONES_PER_PLAYER; j++) {
-      const offset = (j === 0 ? 0.35 : -0.35);
-      const zCol = sp.col + dist * Math.cos(toCenter + offset);
-      const zRow = sp.row + dist * Math.sin(toCenter + offset);
-      addZone(zCol, zRow, 'starter', STARTER_INCOME, i, 'mineral');
-    }
-  }
+    // Find the 2 closest zones (ring 3-4) to this spawn that aren't already assigned
+    const candidates = zones
+      .filter(z => z.ring >= 3 && z.starterForPlayer === null)
+      .map(z => ({
+        zone: z,
+        dist: hexDistance(spawnHex, z.hex),
+      }))
+      .sort((a, b) => a.dist - b.dist);
 
-  // ── 2. Outer ring zones (between adjacent player spawns) ──
-  const outerCount = Math.min(OUTER_ZONE_COUNT, playerCount);
-  for (let i = 0; i < outerCount; i++) {
-    // Midpoint between spawn i and spawn (i+1)
-    const sp1 = spawns[i];
-    const sp2 = spawns[(i + 1) % playerCount];
-    const midAngle = (sp1.angle + sp2.angle) / 2 +
-      (Math.abs(sp1.angle - sp2.angle) > Math.PI ? Math.PI : 0);
-    const r = (OUTER_RING_MAX + MID_RING_MAX) / 2 + (rng.next() - 0.5) * 4;
-    const col = cx + r * Math.cos(midAngle);
-    const row = cy + r * Math.sin(midAngle);
-
-    if (!tooClose(col, row)) {
-      addZone(col, row, 'outer', OUTER_INCOME + Math.round(rng.next() * 30));
-    }
-  }
-
-  // ── 3. Mid ring zones (ring of 12, evenly spaced) ──
-  for (let i = 0; i < MID_ZONE_COUNT; i++) {
-    const angle = (2 * Math.PI * i) / MID_ZONE_COUNT + rng.next() * 0.3;
-    const r = (CENTER_RING_MAX + MID_RING_MAX) / 2 + (rng.next() - 0.5) * 6;
-    const col = cx + r * Math.cos(angle);
-    const row = cy + r * Math.sin(angle);
-
-    if (!tooClose(col, row)) {
-      // Income varies slightly: closer to center = more
-      const distFromCenter = r / (ARENA_COLS / 2);
-      const income = Math.round(MID_INCOME + (1 - distFromCenter) * 50);
-      addZone(col, row, 'mid', Math.min(income, 200));
-    }
-  }
-
-  // ── 4. Center ring zones (high-value cluster) ──
-  for (let i = 0; i < CENTER_ZONE_COUNT; i++) {
-    const angle = (2 * Math.PI * i) / CENTER_ZONE_COUNT;
-    const r = 5 + rng.next() * (CENTER_RING_MAX - 6);
-    const col = cx + r * Math.cos(angle);
-    const row = cy + r * Math.sin(angle);
-
-    if (!tooClose(col, row)) {
-      const income = CENTER_INCOME - Math.round(rng.next() * 40);
-      addZone(col, row, 'center', income);
+    let assigned = 0;
+    for (const c of candidates) {
+      if (assigned >= 2) break;
+      c.zone.starterForPlayer = i;
+      c.zone.incomePerMin = STARTER_INCOME;
+      c.zone.type = 'mineral'; // starters are always mineral
+      assigned++;
     }
   }
 
   return {
     cols: ARENA_COLS,
     rows: ARENA_ROWS,
+    hexConfig,
     spawns,
     zones,
     totalMineralZones: mineralCount,
@@ -255,8 +261,7 @@ export function generateArenaLayout(
 
 /**
  * Generate the tile grid for the arena.
- * Circular playable area with water/walls outside.
- * Zone centers get special tile markers for rendering.
+ * Circular playable area, water outside, hex zone markers.
  */
 export function generateArenaTiles(layout: ArenaLayout): MapData {
   const { cols, rows } = layout;
@@ -271,7 +276,7 @@ export function generateArenaTiles(layout: ArenaLayout): MapData {
   const cx = cols / 2;
   const cy = rows / 2;
 
-  // Fill tile grid
+  // Base terrain: circular arena with water border
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const idx = r * cols + c;
@@ -280,51 +285,55 @@ export function generateArenaTiles(layout: ArenaLayout): MapData {
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist > PLAYABLE_RADIUS) {
-        // Outside playable area — water
         tiles[idx] = TileType.Water;
         walkable[idx] = 0;
       } else if (dist > PLAYABLE_RADIUS - 2) {
-        // Edge ring — unbuildable but walkable (shore)
         tiles[idx] = TileType.Unbuildable;
         walkable[idx] = 1;
       } else {
-        // Playable ground
         tiles[idx] = TileType.Ground;
         walkable[idx] = 1;
       }
     }
   }
 
-  // Mark zone centers as unbuildable ground (so buildings can't cover them)
-  for (const zone of layout.zones) {
-    const idx = zone.row * cols + zone.col;
-    if (idx >= 0 && idx < total) {
-      tiles[idx] = TileType.Unbuildable;
-      // Zone center + neighbors stay walkable
+  // Elevated center plateau (ring 0-1 area)
+  const centerRadiusTiles = HEX_SIZE * 2.2 / TILE_SIZE; // ~ring 1 boundary
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const dx = c - cx;
+      const dy = r - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < centerRadiusTiles - 1) {
+        elevation[r * cols + c] = 1; // high ground
+      } else if (dist < centerRadiusTiles + 1) {
+        elevation[r * cols + c] = 2; // ramp
+      }
     }
   }
 
-  // Add some terrain variety: scatter a few rock clusters for tactical cover
-  // Place rocks at midpoints between rings, avoiding zones and spawns
+  // Scatter destructible rocks for tactical cover (avoid zones and spawns)
   const rng = makeRng(54321);
-  const rockCount = 16 + layout.spawns.length * 2;
-  for (let i = 0; i < rockCount; i++) {
+  const rockClusters = 20;
+  for (let i = 0; i < rockClusters; i++) {
     const angle = rng.next() * 2 * Math.PI;
-    const r = 10 + rng.next() * (PLAYABLE_RADIUS - 16);
-    const rc = Math.round(cx + r * Math.cos(angle));
-    const rr = Math.round(cy + r * Math.sin(angle));
+    const dist = 8 + rng.next() * (PLAYABLE_RADIUS - 14);
+    const rc = Math.round(cx + dist * Math.cos(angle));
+    const rr = Math.round(cy + dist * Math.sin(angle));
 
-    // Check it's not too close to a zone or spawn
+    // Skip if too close to a zone center or spawn
     let blocked = false;
     for (const z of layout.zones) {
-      if (Math.abs(z.col - rc) < 6 && Math.abs(z.row - rr) < 6) { blocked = true; break; }
+      if (Math.abs(z.col - rc) < 5 && Math.abs(z.row - rr) < 5) { blocked = true; break; }
     }
-    for (const s of layout.spawns) {
-      if (Math.abs(s.col - rc) < 8 && Math.abs(s.row - rr) < 8) { blocked = true; break; }
+    if (!blocked) {
+      for (const s of layout.spawns) {
+        if (Math.abs(s.col - rc) < 7 && Math.abs(s.row - rr) < 7) { blocked = true; break; }
+      }
     }
     if (blocked) continue;
 
-    // Place a small 2×2 rock cluster
+    // 2×2 rock cluster
     for (let dr = 0; dr < 2; dr++) {
       for (let dc = 0; dc < 2; dc++) {
         const tr = rr + dr;
@@ -341,60 +350,36 @@ export function generateArenaTiles(layout: ArenaLayout): MapData {
     }
   }
 
-  // Add elevation: center plateau (slight high ground)
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const dx = c - cx;
-      const dy = r - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < CENTER_RING_MAX - 2) {
-        elevation[r * cols + c] = 1; // high ground
-      } else if (dist < CENTER_RING_MAX) {
-        elevation[r * cols + c] = 2; // ramp
-      }
-    }
-  }
-
   return {
-    tiles,
-    walkable,
-    destructibleHP,
-    creepMap,
-    elevation,
-    watchtowerPositions,
-    cols,
-    rows,
+    tiles, walkable, destructibleHP, creepMap, elevation,
+    watchtowerPositions, cols, rows,
   };
 }
 
-// ─── Summary Helper ──────────────────────────────────────────────────────
+// ─── Summary ─────────────────────────────────────────────────────────────
 
-/** Print a human-readable summary of the arena layout (for debugging). */
 export function summarizeLayout(layout: ArenaLayout): string {
   const lines: string[] = [];
-  lines.push(`Arena: ${layout.cols}×${layout.rows} tiles (${layout.cols * TILE_SIZE}×${layout.rows * TILE_SIZE}px)`);
+  lines.push(`Arena: ${layout.cols}×${layout.rows} tiles, hex size ${HEX_SIZE}px`);
   lines.push(`Players: ${layout.spawns.length}`);
   lines.push(`Zones: ${layout.zones.length} (${layout.totalMineralZones} mineral, ${layout.totalGasZones} gas)`);
+  lines.push(`Gas ratio: ${(layout.totalGasZones / layout.zones.length * 100).toFixed(0)}%`);
 
-  const byRing = { center: 0, mid: 0, outer: 0, starter: 0 };
-  const incomeByRing: Record<string, number[]> = { center: [], mid: [], outer: [], starter: [] };
+  const byRing: Record<number, ArenaZoneDef[]> = {};
   for (const z of layout.zones) {
-    byRing[z.ring]++;
-    incomeByRing[z.ring].push(z.incomePerMin);
+    (byRing[z.ring] ??= []).push(z);
   }
-
-  for (const ring of ['center', 'mid', 'outer', 'starter'] as const) {
-    const incomes = incomeByRing[ring];
+  for (const [ring, ringZones] of Object.entries(byRing).sort((a, b) => +a[0] - +b[0])) {
+    const incomes = ringZones.map(z => z.incomePerMin);
+    const starters = ringZones.filter(z => z.starterForPlayer !== null).length;
     const min = Math.min(...incomes);
     const max = Math.max(...incomes);
-    const avg = Math.round(incomes.reduce((a, b) => a + b, 0) / incomes.length);
-    lines.push(`  ${ring}: ${byRing[ring]} zones, income ${min}-${max}/min (avg ${avg})`);
+    const starterNote = starters > 0 ? ` (${starters} are starter zones)` : '';
+    lines.push(`  Ring ${ring}: ${ringZones.length} zones, ${min}-${max}/min${starterNote}`);
   }
 
-  // Total income if one player held everything
-  const totalIncome = layout.zones.reduce((sum, z) => sum + z.incomePerMin, 0);
+  const totalIncome = layout.zones.reduce((s, z) => s + z.incomePerMin, 0);
   lines.push(`Total map income: ${totalIncome}/min`);
-  lines.push(`Per-player starter income: ${STARTER_INCOME * STARTER_ZONES_PER_PLAYER}/min`);
 
   return lines.join('\n');
 }

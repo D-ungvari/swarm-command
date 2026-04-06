@@ -61,16 +61,27 @@ ARMY ──────────── TECH
 - **Army-first**: Spend on tier-1/2 units immediately → pressure opponents → deny their economy. Falls off if game goes long.
 - **Tech-first**: Rush to tier 3/4 → unlock powerful units → quality over quantity. Vulnerable to timing attacks before tech pays off.
 
-### Economy: Contestable Resource Nodes
+### Economy: Capture-Based Resource Zones
 
-**No auto-income.** Instead, the map has **resource nodes** (mineral fields, gas vents) spread across the arena that players must **claim and hold**:
+**No building extractors. No workers. Just fight for map control.**
 
-- **Claiming**: Build an Extractor/Refinery on a node. It generates income passively while you hold it.
-- **Expansion**: Your base starts near 1-2 nodes. More nodes are scattered across the map in contested territory.
-- **Raiding**: Enemy extractors can be destroyed, cutting their income. This is the primary way to hurt economies.
-- **Map control = economy**: Holding territory = holding nodes = more income. This creates natural conflict points.
+The map has **resource zones** scattered from edge to center. Capture them by having uncontested units in the zone.
 
-Workers are removed — nodes auto-generate once claimed. This keeps the economy *strategic* (where to expand, when to defend) without the *mechanical* burden of worker micro.
+- **Capture by presence**: Move units near a zone (~4 tile radius). If only your units are there, a 3-second capture timer fills. Zone flips to you.
+- **Contested = frozen**: If both factions have units in the zone, nobody captures. You must clear the area first. Tug-of-war.
+- **Passive income**: Captured zones generate resources per minute automatically. No buildings needed.
+- **Defender bonus**: Your units inside a zone you own get +15% damage. Rewards holding, but not impregnable.
+
+**Value gradient (edge → center):**
+- Edge zones (near spawns): ~50 resources/min — safe, low reward
+- Mid zones: ~150 resources/min — contested, medium reward  
+- Center zones: ~250 resources/min — high risk, high reward
+
+**Resource distribution**: 70% mineral zones, 30% gas zones. Two resource types create strategic choices about which zones to prioritize.
+
+**Starter zones**: Each player spawns with 2 pre-captured zones near their base giving early income.
+
+This creates natural conflict: you always want the next zone closer to center, but so does everyone else.
 
 ### 4-Tier Tech Tree with Building Chains
 

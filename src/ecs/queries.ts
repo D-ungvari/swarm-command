@@ -8,7 +8,7 @@ import {
   cloaked, burrowed, revealed, loadedInto,
   isAir, canTargetGround, canTargetAir,
 } from './components';
-import { type Faction, ResourceType, BuildingType, BuildState } from '../constants';
+import { type Faction, ResourceType, BuildingType, BuildState, isHQType } from '../constants';
 import { spatialHash } from './SpatialHash';
 
 /**
@@ -249,8 +249,7 @@ export function hasCompletedBuilding(world: World, fac: Faction, bType: Building
     if (!hasComponents(world, eid, bits)) continue;
     if (faction[eid] !== fac) continue;
     const bt = buildingType[eid];
-    // Hive satisfies Lair requirements (Zerg tech chain)
-    if (bt !== bType && !(bType === BuildingType.Lair && bt === BuildingType.Hive)) continue;
+    if (bt !== bType) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
     if (hpCurrent[eid] <= 0) continue;
     return true;
@@ -259,9 +258,9 @@ export function hasCompletedBuilding(world: World, fac: Faction, bType: Building
 }
 
 /**
- * Find the nearest completed Command Center for a given faction.
+ * Find the nearest completed HQ building for a given faction.
  */
-export function findNearestCommandCenter(world: World, fac: Faction, wx: number, wy: number): number {
+export function findNearestHQ(world: World, fac: Faction, wx: number, wy: number): number {
   const bits = POSITION | BUILDING;
   let closestEid = 0;
   let closestDist = Infinity;
@@ -269,7 +268,7 @@ export function findNearestCommandCenter(world: World, fac: Faction, wx: number,
   for (let eid = 1; eid < world.nextEid; eid++) {
     if (!hasComponents(world, eid, bits)) continue;
     if (faction[eid] !== fac) continue;
-    if (buildingType[eid] !== BuildingType.CommandCenter) continue;
+    if (!isHQType(buildingType[eid])) continue;
     if (buildState[eid] !== BuildState.Complete) continue;
 
     const dx = posX[eid] - wx;

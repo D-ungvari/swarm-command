@@ -90,7 +90,7 @@ export function selectionSystem(
   world: World,
   commands: GameCommand[],
   viewport: Viewport,
-  playerFaction: Faction = Faction.Terran,
+  playerFaction: Faction = Faction.IronLegion,
   extraTolerance = 0,
 ): void {
   for (const cmd of commands) {

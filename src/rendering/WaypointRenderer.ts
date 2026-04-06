@@ -6,7 +6,7 @@ import {
   paths, pathLengths, movePathIndex,
   commandMode,
 } from '../ecs/components';
-import { Faction, CommandMode } from '../constants';
+import { Faction, CommandMode, FACTION_COLORS } from '../constants';
 
 const DASH_LENGTH = 6;
 const GAP_LENGTH = 4;
@@ -43,9 +43,10 @@ export class WaypointRenderer {
       // Faction-specific waypoint colors
       const fac = faction[eid] as Faction;
       const isAttackMove = commandMode[eid] === CommandMode.AttackMove;
-      const lineColor = isAttackMove ? 0xff5555 : (fac === Faction.Terran ? 0x55bbff : 0x55ffaa);
+      const facColor = FACTION_COLORS[fac] ?? 0x55bbff;
+      const lineColor = isAttackMove ? 0xff5555 : facColor;
       const lineAlpha = 0.5;
-      const waypointColor = isAttackMove ? 0xff7755 : (fac === Faction.Terran ? 0x77ddff : 0x77ffbb);
+      const waypointColor = isAttackMove ? 0xff7755 : facColor;
 
       // Draw dashed line from unit to first remaining waypoint, then waypoint-to-waypoint
       let prevX = posX[eid];

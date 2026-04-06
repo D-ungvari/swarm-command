@@ -12,7 +12,7 @@ import {
   boostEndTime,
 } from '../ecs/components';
 import { spatialHash } from '../ecs/SpatialHash';
-import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, Faction, MEDIVAC_BOOST_SPEED_MULT } from '../constants';
+import { SiegeMode, CommandMode, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE } from '../constants';
 import type { MapData } from '../map/MapData';
 import { worldToTile, tileToWorld } from '../map/MapData';
 import { findPath } from '../map/Pathfinder';
@@ -195,20 +195,9 @@ export function movementSystem(world: World, dt: number, map?: MapData, gameTime
       ? moveSpeed[eid] * (1 - slowFactor[eid])
       : moveSpeed[eid];
 
-    // Creep bonus: Zerg units on creep move 30% faster
-    if (map && faction[eid] === Faction.Zerg) {
-      const col = Math.floor(posX[eid] / TILE_SIZE);
-      const row = Math.floor(posY[eid] / TILE_SIZE);
-      if (col >= 0 && col < map.cols && row >= 0 && row < map.rows) {
-        if (map.creepMap[row * map.cols + col] === 1) {
-          effectiveSpeed *= 1.3;
-        }
-      }
-    }
-
-    // Medivac Boost: 50% speed increase while active
+    // Boost: speed increase while active
     if (boostEndTime[eid] > 0 && gameTime < boostEndTime[eid]) {
-      effectiveSpeed *= MEDIVAC_BOOST_SPEED_MULT;
+      effectiveSpeed *= 1.5;
     }
 
     const dist = Math.sqrt(distSq);
